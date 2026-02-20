@@ -15,9 +15,17 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+    options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
 var app = builder.Build();
+
+// Auto-migrate and seed on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
+    DbSeeder.Seed(db);
+}
 
 app.UseCors("AllowFrontend");
 

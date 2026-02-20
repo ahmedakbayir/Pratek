@@ -61,14 +61,12 @@ export default function TicketList() {
     ticketsApi
       .getAll()
       .then(setTickets)
-      .catch(() => setTickets(demoTickets))
+      .catch(() => setTickets([]))
       .finally(() => setLoading(false));
   }, []);
 
-  const data = tickets.length > 0 ? tickets : demoTickets;
-
   const processed = useMemo(() => {
-    let result = [...data];
+    let result = [...tickets];
 
     // Search filter
     if (searchQuery) {
@@ -109,13 +107,13 @@ export default function TicketList() {
     });
 
     return result;
-  }, [data, activeTab, sortBy, priorityFilter, searchQuery]);
+  }, [tickets, activeTab, sortBy, priorityFilter, searchQuery]);
 
   const activeFilterCount = (priorityFilter > 0 ? 1 : 0) + (searchQuery ? 1 : 0);
 
   return (
     <div>
-      <Header title="Ticket'lar" subtitle={`${data.length} ticket`} />
+      <Header title="Ticket'lar" subtitle={`${tickets.length} ticket`} />
 
       <div className="p-6">
         {/* Search indicator */}
@@ -150,10 +148,10 @@ export default function TicketList() {
                   {tab.label}
                   <span className="ml-1.5 text-surface-400">
                     {tab.key === 'all'
-                      ? data.length
+                      ? tickets.length
                       : tab.key === 'open'
-                        ? data.filter((t) => !t.status?.isClosed).length
-                        : data.filter((t) => t.status?.isClosed).length}
+                        ? tickets.filter((t) => !t.status?.isClosed).length
+                        : tickets.filter((t) => t.status?.isClosed).length}
                   </span>
                 </button>
               ))}
@@ -379,84 +377,3 @@ function formatDate(dateStr) {
   const date = new Date(dateStr);
   return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 }
-
-const demoTickets = [
-  {
-    id: 1,
-    title: 'Login sayfasında hata',
-    description: 'Kullanıcılar giriş yapamıyor, 500 hatası alınıyor',
-    ticketPriorityId: 1,
-    ticketStatusId: 1,
-    assignedUserId: 2,
-    createdAt: '2026-02-20T10:00:00',
-    status: { id: 1, name: 'Açık', isClosed: false },
-    priority: { id: 1, name: 'Kritik', level: 1 },
-    assignedUser: { id: 2, name: 'Ahmet Yılmaz' },
-    firm: { id: 1, name: 'Tech Corp' },
-  },
-  {
-    id: 2,
-    title: 'Dashboard yüklenme performansı',
-    description: 'Dashboard sayfası çok yavaş açılıyor',
-    ticketPriorityId: 2,
-    ticketStatusId: 1,
-    assignedUserId: 3,
-    createdAt: '2026-02-19T14:30:00',
-    status: { id: 1, name: 'Açık', isClosed: false },
-    priority: { id: 2, name: 'Yüksek', level: 2 },
-    assignedUser: { id: 3, name: 'Elif Kaya' },
-    firm: { id: 2, name: 'Digital Solutions' },
-  },
-  {
-    id: 3,
-    title: 'Rapor export özelliği',
-    description: 'PDF export çalışmıyor, boş dosya indiriliyor',
-    ticketPriorityId: 3,
-    ticketStatusId: 2,
-    assignedUserId: 2,
-    createdAt: '2026-02-18T09:15:00',
-    status: { id: 2, name: 'Devam Ediyor', isClosed: false },
-    priority: { id: 3, name: 'Normal', level: 3 },
-    assignedUser: { id: 2, name: 'Ahmet Yılmaz' },
-    firm: { id: 1, name: 'Tech Corp' },
-  },
-  {
-    id: 4,
-    title: 'E-posta bildirim ayarları',
-    description: 'Bildirim tercihleri kaydedilmiyor',
-    ticketPriorityId: 4,
-    ticketStatusId: 3,
-    assignedUserId: null,
-    createdAt: '2026-02-17T16:45:00',
-    status: { id: 3, name: 'Çözümlendi', isClosed: true },
-    priority: { id: 4, name: 'Düşük', level: 4 },
-    assignedUser: null,
-    firm: { id: 3, name: 'Startup Inc' },
-  },
-  {
-    id: 5,
-    title: 'Mobil uyumluluk sorunları',
-    description: 'iOS cihazlarda menü açılmıyor',
-    ticketPriorityId: 2,
-    ticketStatusId: 1,
-    assignedUserId: 4,
-    createdAt: '2026-02-16T11:20:00',
-    status: { id: 1, name: 'Açık', isClosed: false },
-    priority: { id: 2, name: 'Yüksek', level: 2 },
-    assignedUser: { id: 4, name: 'Mehmet Demir' },
-    firm: { id: 2, name: 'Digital Solutions' },
-  },
-  {
-    id: 6,
-    title: 'Fatura entegrasyonu',
-    description: 'E-fatura sistemiyle entegrasyon yapılması gerekiyor',
-    ticketPriorityId: 3,
-    ticketStatusId: 1,
-    assignedUserId: null,
-    createdAt: '2026-02-15T08:00:00',
-    status: { id: 1, name: 'Açık', isClosed: false },
-    priority: { id: 3, name: 'Normal', level: 3 },
-    assignedUser: null,
-    firm: { id: 1, name: 'Tech Corp' },
-  },
-];

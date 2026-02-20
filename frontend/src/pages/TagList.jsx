@@ -25,7 +25,7 @@ export default function TagList() {
     tagsApi
       .getAll()
       .then(setTags)
-      .catch(() => setTags(demoTags))
+      .catch(() => setTags([]))
       .finally(() => setLoading(false));
   };
 
@@ -71,11 +71,9 @@ export default function TagList() {
     }
   };
 
-  const data = tags.length > 0 ? tags : demoTags;
-
   return (
     <div>
-      <Header title="Etiketler" subtitle={`${data.length} etiket`} />
+      <Header title="Etiketler" subtitle={`${tags.length} etiket`} />
 
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
@@ -94,7 +92,7 @@ export default function TagList() {
           {/* Grid */}
           {loading ? (
             <LoadingGrid />
-          ) : data.length === 0 ? (
+          ) : tags.length === 0 ? (
             <EmptyState
               icon={TagsIcon}
               title="Etiket bulunamadı"
@@ -111,7 +109,7 @@ export default function TagList() {
             />
           ) : (
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {data.map((tag) => (
+              {tags.map((tag) => (
                 <div
                   key={tag.id}
                   className="flex items-start gap-3 p-4 rounded-xl border border-surface-200 hover:border-surface-300 transition-colors bg-surface-0"
@@ -241,12 +239,3 @@ function LoadingGrid() {
     </div>
   );
 }
-
-const demoTags = [
-  { id: 1, name: 'bug', description: 'Hata bildirimi', colorHex: '#EF4444' },
-  { id: 2, name: 'feature', description: 'Yeni özellik talebi', colorHex: '#3B82F6' },
-  { id: 3, name: 'improvement', description: 'İyileştirme', colorHex: '#10B981' },
-  { id: 4, name: 'urgent', description: 'Acil müdahale gerekli', colorHex: '#F59E0B' },
-  { id: 5, name: 'backend', description: 'Sunucu tarafı', colorHex: '#8B5CF6' },
-  { id: 6, name: 'frontend', description: 'Arayüz tarafı', colorHex: '#EC4899' },
-];

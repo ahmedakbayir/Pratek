@@ -27,6 +27,8 @@ namespace Protekh.Api.Controllers
                 .Include(t => t.AssignedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
+                .Include(t => t.TicketTags).ThenInclude(tt => tt.Tag)
+                .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
 
             return Ok(tickets);
@@ -43,6 +45,7 @@ namespace Protekh.Api.Controllers
                 .Include(t => t.AssignedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
+                .Include(t => t.TicketTags).ThenInclude(tt => tt.Tag)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (ticket == null)
@@ -74,7 +77,15 @@ namespace Protekh.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(model);
+            // Reload with navigation properties
+            var created = await _context.Tickets
+                .Include(t => t.Firm)
+                .Include(t => t.AssignedUser)
+                .Include(t => t.Status)
+                .Include(t => t.Priority)
+                .FirstOrDefaultAsync(t => t.Id == model.Id);
+
+            return Ok(created);
         }
 
         // --------------------------------------------------
@@ -109,7 +120,15 @@ namespace Protekh.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(ticket);
+            // Reload with navigation properties
+            var updated = await _context.Tickets
+                .Include(t => t.Firm)
+                .Include(t => t.AssignedUser)
+                .Include(t => t.Status)
+                .Include(t => t.Priority)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            return Ok(updated);
         }
 
         // --------------------------------------------------
