@@ -16,6 +16,7 @@ namespace Protekh.Api.Data
         public DbSet<Tag> Tags { get; set; }
         public DbSet<Ticket> Tickets { get; set; }
         public DbSet<TicketTag> TicketTags { get; set; }
+        public DbSet<TicketComment> TicketComments { get; set; }
         public DbSet<EventLog> EventLogs { get; set; }
 
         public DbSet<EntityTypeLookup> EntityTypes { get; set; }
@@ -36,6 +37,7 @@ namespace Protekh.Api.Data
             modelBuilder.Entity<Tag>().ToTable("tag");
             modelBuilder.Entity<Ticket>().ToTable("ticket");
             modelBuilder.Entity<TicketTag>().ToTable("ticket_tag");
+            modelBuilder.Entity<TicketComment>().ToTable("ticket_comment");
             modelBuilder.Entity<EventLog>().ToTable("event_log");
 
             modelBuilder.Entity<EntityTypeLookup>().ToTable("entity_type");
@@ -67,6 +69,20 @@ namespace Protekh.Api.Data
                 .HasOne<Tag>()
                 .WithMany()
                 .HasForeignKey(tt => tt.TagId);
+
+            // ---- COMMENT RELATIONS ----
+
+            modelBuilder.Entity<TicketComment>()
+                .HasOne(c => c.Ticket)
+                .WithMany()
+                .HasForeignKey(c => c.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TicketComment>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // ---- EVENT LOG RELATIONS ----
 

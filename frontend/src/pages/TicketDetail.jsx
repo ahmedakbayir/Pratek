@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
@@ -11,6 +11,7 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
+  Send,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -28,6 +29,9 @@ export default function TicketDetail() {
   const navigate = useNavigate();
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
 
   useEffect(() => {
     ticketsApi
@@ -35,7 +39,45 @@ export default function TicketDetail() {
       .then(setTicket)
       .catch(() => setTicket(demoTicket))
       .finally(() => setLoading(false));
+
+    ticketsApi
+      .getComments(id)
+      .then(setComments)
+      .catch(() => setComments(demoComments));
   }, [id]);
+
+  const handleDelete = async () => {
+    if (!confirm('Bu ticket\'ı silmek istediğinize emin misiniz?')) return;
+    try {
+      await ticketsApi.delete(id);
+      navigate('/tickets');
+    } catch {
+      alert('Silme sırasında hata oluştu.');
+    }
+  };
+
+  const handleSendComment = async () => {
+    if (!newComment.trim()) return;
+    setSendingComment(true);
+    try {
+      const comment = await ticketsApi.addComment(id, { content: newComment, userId: 1 });
+      setComments((prev) => [comment, ...prev]);
+      setNewComment('');
+    } catch {
+      setComments((prev) => [
+        {
+          id: Date.now(),
+          content: newComment,
+          createdAt: new Date().toISOString(),
+          user: { name: 'Ben' },
+        },
+        ...prev,
+      ]);
+      setNewComment('');
+    } finally {
+      setSendingComment(false);
+    }
+  };
 
   const data = ticket || demoTicket;
   const prio = priorityConfig[data.ticketPriorityId] || priorityConfig[3];
@@ -60,7 +102,6 @@ export default function TicketDetail() {
       <Header title={`#${data.id} ${data.title}`} />
 
       <div className="p-6">
-        {/* Breadcrumb */}
         <button
           onClick={() => navigate('/tickets')}
           className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-surface-700 mb-4 transition-colors cursor-pointer"
@@ -72,7 +113,7 @@ export default function TicketDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Title & Description Card */}
+            {/* Title & Description */}
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-5 border-b border-surface-200">
                 <div className="flex items-start justify-between">
@@ -86,10 +127,16 @@ export default function TicketDetail() {
                     <h2 className="text-xl font-semibold text-surface-900">{data.title}</h2>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer">
+                    <button
+                      onClick={() => navigate(`/tickets/${data.id}/edit`)}
+                      className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
+                    >
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    <button className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer">
+                    <button
+                      onClick={handleDelete}
+                      className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -102,39 +149,50 @@ export default function TicketDetail() {
               </div>
             </div>
 
-            {/* Activity Feed */}
+            {/* Comments */}
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-4 border-b border-surface-200">
                 <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-surface-400" />
-                  Aktivite
+                  Yorumlar
+                  {comments.length > 0 && (
+                    <span className="text-xs text-surface-400 font-normal">({comments.length})</span>
+                  )}
                 </h3>
               </div>
-              <div className="divide-y divide-surface-100">
-                {demoActivity.map((item, i) => (
-                  <div key={i} className="px-6 py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 mt-0.5 shrink-0">
-                        {item.user.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm">
-                          <span className="font-medium text-surface-900">{item.user}</span>
-                          <span className="text-surface-500"> {item.action}</span>
-                        </p>
-                        {item.comment && (
-                          <div className="mt-2 p-3 bg-surface-50 rounded-lg text-sm text-surface-700 border border-surface-100">
-                            {item.comment}
+
+              {comments.length > 0 ? (
+                <div className="divide-y divide-surface-100">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="px-6 py-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 mt-0.5 shrink-0">
+                          {comment.user?.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-surface-900">
+                              {comment.user?.name || 'Kullanıcı'}
+                            </span>
+                            <span className="text-xs text-surface-400">
+                              {formatDateTime(comment.createdAt)}
+                            </span>
                           </div>
-                        )}
-                        <span className="text-xs text-surface-400 mt-1 block">{item.time}</span>
+                          <div className="mt-1.5 p-3 bg-surface-50 rounded-lg text-sm text-surface-700 border border-surface-100">
+                            {comment.content}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-center">
+                  <p className="text-sm text-surface-400">Henüz yorum yok</p>
+                </div>
+              )}
 
-              {/* Comment input */}
+              {/* Comment Input */}
               <div className="px-6 py-4 border-t border-surface-200">
                 <div className="flex gap-3">
                   <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs font-medium text-white shrink-0">
@@ -144,11 +202,24 @@ export default function TicketDetail() {
                     <textarea
                       placeholder="Yorum ekle..."
                       rows={2}
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleSendComment();
+                        }
+                      }}
                       className="w-full px-3 py-2 text-sm bg-surface-50 border border-surface-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
                     />
-                    <div className="flex justify-end mt-2">
-                      <button className="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
-                        Gönder
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-surface-400">Ctrl+Enter ile gönder</span>
+                      <button
+                        onClick={handleSendComment}
+                        disabled={!newComment.trim() || sendingComment}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {sendingComment ? 'Gönderiliyor...' : 'Gönder'}
                       </button>
                     </div>
                   </div>
@@ -159,7 +230,6 @@ export default function TicketDetail() {
 
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Details Card */}
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
               <SidebarItem
                 icon={User}
@@ -208,8 +278,11 @@ export default function TicketDetail() {
                 Etiketler
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {demoTags.map((tag) => (
-                  <Badge key={tag} variant="primary">{tag}</Badge>
+                {(data.ticketTags && data.ticketTags.length > 0
+                  ? data.ticketTags.map((tt) => tt.tag?.name || `Tag`)
+                  : demoTags
+                ).map((tag, i) => (
+                  <Badge key={i} variant="primary">{tag}</Badge>
                 ))}
                 <button className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer">
                   + Ekle
@@ -264,21 +337,17 @@ const demoTicket = {
 
 const demoTags = ['bug', 'auth', 'backend', 'acil'];
 
-const demoActivity = [
+const demoComments = [
   {
-    user: 'Ahmet Yılmaz',
-    action: 'ticket\'ı üzerine aldı',
-    time: '2 saat önce',
+    id: 1,
+    content: 'Auth servisinde token expire süresinde bir sorun olabilir. İnceliyorum.',
+    createdAt: '2026-02-20T12:00:00',
+    user: { name: 'Elif Kaya' },
   },
   {
-    user: 'Elif Kaya',
-    action: 'yorum ekledi',
-    comment: 'Auth servisinde token expire süresinde bir sorun olabilir. İnceliyorum.',
-    time: '3 saat önce',
-  },
-  {
-    user: 'Admin',
-    action: 'ticket\'ı oluşturdu',
-    time: '5 saat önce',
+    id: 2,
+    content: 'Ticket oluşturuldu ve atandı.',
+    createdAt: '2026-02-20T10:00:00',
+    user: { name: 'Admin' },
   },
 ];

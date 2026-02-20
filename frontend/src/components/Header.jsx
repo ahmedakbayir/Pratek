@@ -1,8 +1,20 @@
+import { useState } from 'react';
 import { Search, Bell, Plus } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Header({ title, subtitle }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get('q') || '');
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (query.trim()) {
+      navigate(`/tickets?q=${encodeURIComponent(query.trim())}`);
+    } else {
+      navigate('/tickets');
+    }
+  };
 
   return (
     <header className="h-16 bg-surface-0 border-b border-surface-200 flex items-center justify-between px-6 sticky top-0 z-20">
@@ -15,14 +27,16 @@ export default function Header({ title, subtitle }) {
 
       <div className="flex items-center gap-3">
         {/* Search */}
-        <div className="relative">
+        <form onSubmit={handleSearch} className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
           <input
             type="text"
-            placeholder="Ara..."
+            placeholder="Ticket ara..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             className="pl-9 pr-4 py-1.5 text-sm bg-surface-100 border border-surface-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
           />
-        </div>
+        </form>
 
         {/* New Ticket */}
         <button
