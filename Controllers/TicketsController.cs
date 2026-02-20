@@ -78,6 +78,83 @@ namespace Protekh.Api.Controllers
         }
 
         // --------------------------------------------------
+        // UPDATE
+        // --------------------------------------------------
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, Ticket model)
+        {
+            var ticket = await _context.Tickets.FindAsync(id);
+            if (ticket == null)
+                return NotFound();
+
+            ticket.Title = model.Title;
+            ticket.Description = model.Description;
+            ticket.TicketPriorityId = model.TicketPriorityId;
+            ticket.TicketStatusId = model.TicketStatusId;
+            ticket.FirmId = model.FirmId;
+            ticket.AssignedUserId = model.AssignedUserId;
+            ticket.UpdatedAt = DateTime.UtcNow;
+            ticket.UpdatedBy = model.UpdatedBy;
+
+            await _context.SaveChangesAsync();
+
+            _context.EventLogs.Add(new EventLog
+            {
+                EntityTypeId = 2,
+                EventTypeId = 2,
+                EntityId = ticket.Id,
+                Description = $"Ticket updated: {ticket.Title}",
+                UserId = model.UpdatedBy
+            });
+
+            await _context.SaveChangesAsync();
+
+            return Ok(ticket);
+        }
+
+        // --------------------------------------------------
+        // GET COMMENTS
+        // --------------------------------------------------
+        [HttpGet("{id}/comments")]
+        public async Task<IActionResult> GetComments(int id)
+        {
+            var comments = await _context.TicketComments
+                .Where(c => c.TicketId == id)
+                .Include(c => c.User)
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
+
+            return Ok(comments);
+        }
+
+        // --------------------------------------------------
+        // ADD COMMENT
+        // --------------------------------------------------
+        [HttpPost("{id}/comments")]
+        public async Task<IActionResult> AddComment(int id, TicketComment model)
+        {
+            model.TicketId = id;
+            model.CreatedAt = DateTime.UtcNow;
+
+            _context.TicketComments.Add(model);
+            await _context.SaveChangesAsync();
+
+            _context.EventLogs.Add(new EventLog
+            {
+                EntityTypeId = 2,
+                EventTypeId = 2,
+                EntityId = id,
+                Description = "Comment added",
+                UserId = model.UserId
+            });
+
+            await _context.SaveChangesAsync();
+
+            await _context.Entry(model).Reference(c => c.User).LoadAsync();
+            return Ok(model);
+        }
+
+        // --------------------------------------------------
         // ASSIGN
         // --------------------------------------------------
         [HttpPost("{id}/assign/{userId}")]

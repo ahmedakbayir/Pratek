@@ -4,7 +4,11 @@ import Dashboard from './pages/Dashboard';
 import TicketList from './pages/TicketList';
 import TicketDetail from './pages/TicketDetail';
 import CreateTicket from './pages/CreateTicket';
-import Placeholder from './pages/Placeholder';
+import EditTicket from './pages/EditTicket';
+import UserList from './pages/UserList';
+import FirmList from './pages/FirmList';
+import TagList from './pages/TagList';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -15,10 +19,11 @@ export default function App() {
           <Route path="tickets" element={<TicketList />} />
           <Route path="tickets/new" element={<CreateTicket />} />
           <Route path="tickets/:id" element={<TicketDetail />} />
-          <Route path="users" element={<Placeholder title="Kullanıcılar" />} />
-          <Route path="firms" element={<Placeholder title="Firmalar" />} />
-          <Route path="tags" element={<Placeholder title="Etiketler" />} />
-          <Route path="settings" element={<Placeholder title="Ayarlar" />} />
+          <Route path="tickets/:id/edit" element={<EditTicket />} />
+          <Route path="users" element={<UserList />} />
+          <Route path="firms" element={<FirmList />} />
+          <Route path="tags" element={<TagList />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>
