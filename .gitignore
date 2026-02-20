@@ -1,0 +1,26 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Rider / VSCode
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment configs
+appsettings.Development.json
+appsettings.Local.json
+
+# Publish
+publish/
