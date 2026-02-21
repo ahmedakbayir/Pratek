@@ -27,7 +27,7 @@ async function request(url, options = {}) {
           message = body.replace(/<[^>]*>/g, ' ').substring(0, 300).trim() || message;
         }
       } else {
-        message += ' (boş response — backend http://localhost:5295 portunda çalışıyor mu?)';
+        message += ' (boş response — backend http://localhost:3001 portunda çalışıyor mu?)';
       }
     } catch { /* ignore */ }
     throw new Error(message);

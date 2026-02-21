@@ -31,6 +31,15 @@ app.use(async (_req, _res, next) => {
 });
 
 // ──────────────────────────────────────
+// ASYNC ERROR WRAPPER
+// ──────────────────────────────────────
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch((err) => {
+    console.error(`[ERROR] ${req.method} ${req.url}:`, err);
+    res.status(500).json({ error: err.message || 'Internal Server Error' });
+  });
+
+// ──────────────────────────────────────
 // HELPERS
 // ──────────────────────────────────────
 function now() {
@@ -117,57 +126,57 @@ async function toTicketJson(row) {
 // ══════════════════════════════════════
 // FIRMS
 // ══════════════════════════════════════
-app.get('/api/firms', async (_req, res) => {
+app.get('/api/firms', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM firm');
   res.json(result.recordset.map((r) => ({ id: r.Id, name: r.Name })));
-});
+}));
 
-app.get('/api/firms/:id', async (req, res) => {
+app.get('/api/firms/:id', asyncHandler(async (req, res) => {
   const result = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM firm WHERE Id = @id');
   const row = result.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ id: row.Id, name: row.Name });
-});
+}));
 
-app.post('/api/firms', async (req, res) => {
+app.post('/api/firms', asyncHandler(async (req, res) => {
   const { name } = req.body;
   const result = await pool
     .request()
     .input('name', sql.NVarChar, name)
     .query('INSERT INTO firm (Name) OUTPUT INSERTED.Id VALUES (@name)');
   res.json({ id: result.recordset[0].Id, name });
-});
+}));
 
-app.put('/api/firms/:id', async (req, res) => {
+app.put('/api/firms/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM firm WHERE Id = @id');
   if (!check.recordset[0]) return res.status(404).json({ error: 'Not found' });
   await pool.request().input('name', sql.NVarChar, req.body.name).input('id', sql.Int, req.params.id).query('UPDATE firm SET Name = @name WHERE Id = @id');
   res.json({ id: Number(req.params.id), name: req.body.name });
-});
+}));
 
-app.delete('/api/firms/:id', async (req, res) => {
+app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM firm WHERE Id = @id');
   if (!check.recordset[0]) return res.status(404).json({ error: 'Not found' });
   await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM firm WHERE Id = @id');
   res.json({ success: true });
-});
+}));
 
 // ══════════════════════════════════════
 // TAGS
 // ══════════════════════════════════════
-app.get('/api/tags', async (_req, res) => {
+app.get('/api/tags', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM tag');
   res.json(result.recordset.map((r) => ({ id: r.Id, name: r.Name, description: r.Description, colorHex: r.ColorHex })));
-});
+}));
 
-app.get('/api/tags/:id', async (req, res) => {
+app.get('/api/tags/:id', asyncHandler(async (req, res) => {
   const result = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM tag WHERE Id = @id');
   const row = result.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ id: row.Id, name: row.Name, description: row.Description, colorHex: row.ColorHex });
-});
+}));
 
-app.post('/api/tags', async (req, res) => {
+app.post('/api/tags', asyncHandler(async (req, res) => {
   const { name, description, colorHex } = req.body;
   const result = await pool
     .request()
@@ -176,9 +185,9 @@ app.post('/api/tags', async (req, res) => {
     .input('colorHex', sql.NVarChar, colorHex ?? null)
     .query('INSERT INTO tag (Name, Description, ColorHex) OUTPUT INSERTED.Id VALUES (@name, @description, @colorHex)');
   res.json({ id: result.recordset[0].Id, name, description: description ?? null, colorHex: colorHex ?? null });
-});
+}));
 
-app.put('/api/tags/:id', async (req, res) => {
+app.put('/api/tags/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM tag WHERE Id = @id');
   if (!check.recordset[0]) return res.status(404).json({ error: 'Not found' });
   await pool
@@ -189,31 +198,31 @@ app.put('/api/tags/:id', async (req, res) => {
     .input('id', sql.Int, req.params.id)
     .query('UPDATE tag SET Name = @name, Description = @description, ColorHex = @colorHex WHERE Id = @id');
   res.json({ id: Number(req.params.id), name: req.body.name, description: req.body.description ?? null, colorHex: req.body.colorHex ?? null });
-});
+}));
 
-app.delete('/api/tags/:id', async (req, res) => {
+app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM tag WHERE Id = @id');
   if (!check.recordset[0]) return res.status(404).json({ error: 'Not found' });
   await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM tag WHERE Id = @id');
   res.json({ success: true });
-});
+}));
 
 // ══════════════════════════════════════
 // USERS
 // ══════════════════════════════════════
-app.get('/api/users', async (_req, res) => {
+app.get('/api/users', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM [user]');
   res.json(result.recordset.map((r) => ({ id: r.Id, name: r.Name, mail: r.Mail, tel: r.Tel, roleId: r.RoleId, password: r.Password })));
-});
+}));
 
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', asyncHandler(async (req, res) => {
   const result = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM [user] WHERE Id = @id');
   const row = result.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ id: row.Id, name: row.Name, mail: row.Mail, tel: row.Tel, roleId: row.RoleId });
-});
+}));
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', asyncHandler(async (req, res) => {
   const { name, mail, password, tel, roleId } = req.body;
   const result = await pool
     .request()
@@ -224,9 +233,9 @@ app.post('/api/users', async (req, res) => {
     .input('roleId', sql.Int, roleId ?? 2)
     .query('INSERT INTO [user] (Name, Mail, Password, Tel, RoleId) OUTPUT INSERTED.Id VALUES (@name, @mail, @password, @tel, @roleId)');
   res.json({ id: result.recordset[0].Id, name, mail, tel, roleId: roleId ?? 2 });
-});
+}));
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM [user] WHERE Id = @id');
   const row = check.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -239,32 +248,32 @@ app.put('/api/users/:id', async (req, res) => {
     .input('id', sql.Int, req.params.id)
     .query('UPDATE [user] SET Name = @name, Mail = @mail, Tel = @tel, RoleId = @roleId WHERE Id = @id');
   res.json({ id: Number(req.params.id), name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.RoleId });
-});
+}));
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM [user] WHERE Id = @id');
   if (!check.recordset[0]) return res.status(404).json({ error: 'Not found' });
   await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM [user] WHERE Id = @id');
   res.json({ success: true });
-});
+}));
 
 // ══════════════════════════════════════
 // TICKETS
 // ══════════════════════════════════════
-app.get('/api/tickets', async (_req, res) => {
+app.get('/api/tickets', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM ticket ORDER BY CreatedAt DESC');
   const tickets = await Promise.all(result.recordset.map(toTicketJson));
   res.json(tickets);
-});
+}));
 
-app.get('/api/tickets/:id', async (req, res) => {
+app.get('/api/tickets/:id', asyncHandler(async (req, res) => {
   const result = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   const row = result.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(await toTicketJson(row));
-});
+}));
 
-app.post('/api/tickets', async (req, res) => {
+app.post('/api/tickets', asyncHandler(async (req, res) => {
   const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy } = req.body;
   const createdAt = new Date();
   const result = await pool
@@ -288,9 +297,9 @@ app.post('/api/tickets', async (req, res) => {
 
   const created = await pool.request().input('id', sql.Int, newId).query('SELECT * FROM ticket WHERE Id = @id');
   res.json(await toTicketJson(created.recordset[0]));
-});
+}));
 
-app.put('/api/tickets/:id', async (req, res) => {
+app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   const row = check.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -317,19 +326,19 @@ app.put('/api/tickets/:id', async (req, res) => {
 
   const updated = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   res.json(await toTicketJson(updated.recordset[0]));
-});
+}));
 
-app.delete('/api/tickets/:id', async (req, res) => {
+app.delete('/api/tickets/:id', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   const row = check.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
   await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM ticket WHERE Id = @id');
   await logEvent(2, 4, row.Id, 'Ticket deleted', null);
   res.json({ success: true });
-});
+}));
 
 // ── Ticket Comments ──
-app.get('/api/tickets/:id/comments', async (req, res) => {
+app.get('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
   const result = await pool
     .request()
     .input('ticketId', sql.Int, req.params.id)
@@ -350,9 +359,9 @@ app.get('/api/tickets/:id/comments', async (req, res) => {
         : null,
     }))
   );
-});
+}));
 
-app.post('/api/tickets/:id/comments', async (req, res) => {
+app.post('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
   const { content, userId } = req.body;
   const createdAt = new Date();
   const result = await pool
@@ -376,10 +385,10 @@ app.post('/api/tickets/:id/comments', async (req, res) => {
     createdAt,
     user: user ? { id: user.Id, name: user.Name, mail: user.Mail, tel: user.Tel, roleId: user.RoleId } : null,
   });
-});
+}));
 
 // ── Assign ──
-app.post('/api/tickets/:id/assign/:userId', async (req, res) => {
+app.post('/api/tickets/:id/assign/:userId', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   const row = check.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -391,10 +400,10 @@ app.post('/api/tickets/:id/assign/:userId', async (req, res) => {
   await logEvent(2, 3, row.Id, `Assigned to user ${req.params.userId}`, Number(req.params.userId));
   const updated = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   res.json(await toTicketJson(updated.recordset[0]));
-});
+}));
 
 // ── Status Change ──
-app.post('/api/tickets/:id/status/:statusId', async (req, res) => {
+app.post('/api/tickets/:id/status/:statusId', asyncHandler(async (req, res) => {
   const check = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   const row = check.recordset[0];
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -406,10 +415,10 @@ app.post('/api/tickets/:id/status/:statusId', async (req, res) => {
   await logEvent(2, 2, row.Id, `Status changed to ${req.params.statusId}`, row.AssignedUserId);
   const updated = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM ticket WHERE Id = @id');
   res.json(await toTicketJson(updated.recordset[0]));
-});
+}));
 
 // ── Tags on Ticket ──
-app.post('/api/tickets/:id/tag/:tagId', async (req, res) => {
+app.post('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
   const userId = req.query.userId ?? 0;
   const exists = await pool
     .request()
@@ -426,9 +435,9 @@ app.post('/api/tickets/:id/tag/:tagId', async (req, res) => {
     .query('INSERT INTO ticket_tag (TicketId, TagId, CreatedBy, CreatedAt) VALUES (@ticketId, @tagId, @createdBy, @createdAt)');
   await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} added`, Number(userId));
   res.json({ success: true });
-});
+}));
 
-app.delete('/api/tickets/:id/tag/:tagId', async (req, res) => {
+app.delete('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
   const userId = req.query.userId ?? 0;
   const tag = await pool
     .request()
@@ -443,18 +452,18 @@ app.delete('/api/tickets/:id/tag/:tagId', async (req, res) => {
     .query('DELETE FROM ticket_tag WHERE TicketId = @ticketId AND TagId = @tagId');
   await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} removed`, Number(userId));
   res.json({ success: true });
-});
+}));
 
 // ── Lookup endpoints ──
-app.get('/api/ticket-statuses', async (_req, res) => {
+app.get('/api/ticket-statuses', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM ticket_status ORDER BY OrderNo');
   res.json(result.recordset.map((r) => ({ id: r.Id, name: r.Name, isClosed: !!r.IsClosed, orderNo: r.OrderNo })));
-});
+}));
 
-app.get('/api/ticket-priorities', async (_req, res) => {
+app.get('/api/ticket-priorities', asyncHandler(async (_req, res) => {
   const result = await pool.request().query('SELECT * FROM ticket_priority ORDER BY Level');
   res.json(result.recordset.map((r) => ({ id: r.Id, name: r.Name, level: r.Level })));
-});
+}));
 
 // ──────────────────────────────────────
 // START
