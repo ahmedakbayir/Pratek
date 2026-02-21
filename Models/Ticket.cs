@@ -14,7 +14,7 @@ namespace Protekh.Api.Models
         [Required]
         public string Title { get; set; }
 
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         // -------------------------
         // FK FIELDS
@@ -37,12 +37,12 @@ namespace Protekh.Api.Models
         // -------------------------
         // NAVIGATION PROPERTIES
         // -------------------------
-        public Firm Firm { get; set; }
-        public User AssignedUser { get; set; }
+        public Firm? Firm { get; set; }
+        public User? AssignedUser { get; set; }
 
-        public TicketStatus Status { get; set; }
-        public TicketPriority Priority { get; set; }
+        public TicketStatus? Status { get; set; }
+        public TicketPriority? Priority { get; set; }
 
-        public ICollection<TicketTag> TicketTags { get; set; }
+        public ICollection<TicketTag>? TicketTags { get; set; }
     }
 }
