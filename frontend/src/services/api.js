@@ -1,25 +1,33 @@
 const API_BASE = '/api';
 
 async function request(url, options = {}) {
-  const res = await fetch(`${API_BASE}${url}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${url}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+  } catch (networkErr) {
+    throw new Error('Backend bağlantı hatası: ' + networkErr.message);
+  }
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     try {
       const body = await res.text();
-      try {
-        const json = JSON.parse(body);
-        message = json.detail || json.title || json.errors
-          ? JSON.stringify(json.errors)
-          : body.substring(0, 500);
-      } catch {
-        message = body.substring(0, 500) || message;
+      if (body) {
+        try {
+          const json = JSON.parse(body);
+          message = json.detail || json.error || json.title || JSON.stringify(json);
+        } catch {
+          // Not JSON — might be HTML; grab first meaningful line
+          message = body.replace(/<[^>]*>/g, ' ').substring(0, 300).trim() || message;
+        }
+      } else {
+        message += ' (boş response — backend http://localhost:5295 portunda çalışıyor mu?)';
       }
     } catch { /* ignore */ }
     throw new Error(message);
