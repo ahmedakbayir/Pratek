@@ -10,7 +10,7 @@
         public int CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
 
-        public Ticket Ticket { get; set; }
-        public Tag Tag { get; set; }
+        public Ticket? Ticket { get; set; }
+        public Tag? Tag { get; set; }
     }
 }

@@ -11,7 +11,7 @@ namespace Protekh.Api.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public Ticket Ticket { get; set; }
-        public User User { get; set; }
+        public Ticket? Ticket { get; set; }
+        public User? User { get; set; }
     }
 }
