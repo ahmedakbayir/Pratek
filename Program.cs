@@ -27,6 +27,26 @@ using (var scope = app.Services.CreateScope())
     DbSeeder.Seed(db);
 }
 
+// Global exception handler – returns JSON so the frontend can display the real error
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (Exception ex)
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        var inner = ex.InnerException?.Message;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = ex.Message,
+            detail = inner
+        });
+    }
+});
+
 app.UseCors("AllowFrontend");
 
 app.UseSwagger();

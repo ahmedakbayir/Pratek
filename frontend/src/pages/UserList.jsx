@@ -65,8 +65,9 @@ export default function UserList() {
       }
       setShowModal(false);
       load();
-    } catch {
-      alert('Kayıt sırasında hata oluştu.');
+    } catch (err) {
+      console.error('User save error:', err);
+      alert('Kayıt sırasında hata oluştu:\n' + err.message);
     } finally {
       setSaving(false);
     }
@@ -77,8 +78,9 @@ export default function UserList() {
     try {
       await usersApi.delete(id);
       load();
-    } catch {
-      alert('Silme sırasında hata oluştu.');
+    } catch (err) {
+      console.error('User delete error:', err);
+      alert('Silme sırasında hata oluştu:\n' + err.message);
     }
   };
 

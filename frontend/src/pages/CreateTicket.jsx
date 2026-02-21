@@ -39,8 +39,9 @@ export default function CreateTicket() {
       };
       await ticketsApi.create(payload);
       navigate('/tickets');
-    } catch {
-      alert('Ticket oluşturulurken hata oluştu.');
+    } catch (err) {
+      console.error('Ticket create error:', err);
+      alert('Ticket oluşturulurken hata oluştu:\n' + err.message);
     } finally {
       setSaving(false);
     }

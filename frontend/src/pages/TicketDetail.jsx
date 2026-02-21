@@ -52,8 +52,9 @@ export default function TicketDetail() {
     try {
       await ticketsApi.delete(id);
       navigate('/tickets');
-    } catch {
-      alert('Silme sirasinda hata olustu.');
+    } catch (err) {
+      console.error('Ticket delete error:', err);
+      alert('Silme sirasinda hata olustu:\n' + err.message);
     }
   };
 
@@ -64,8 +65,9 @@ export default function TicketDetail() {
       const comment = await ticketsApi.addComment(id, { content: newComment, userId: 1 });
       setComments((prev) => [comment, ...prev]);
       setNewComment('');
-    } catch {
-      alert('Yorum gonderilemedi.');
+    } catch (err) {
+      console.error('Comment error:', err);
+      alert('Yorum gonderilemedi:\n' + err.message);
     } finally {
       setSendingComment(false);
     }

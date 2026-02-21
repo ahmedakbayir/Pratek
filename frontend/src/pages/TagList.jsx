@@ -54,8 +54,9 @@ export default function TagList() {
       }
       setShowModal(false);
       load();
-    } catch {
-      alert('Kayıt sırasında hata oluştu.');
+    } catch (err) {
+      console.error('Tag save error:', err);
+      alert('Kayıt sırasında hata oluştu:\n' + err.message);
     } finally {
       setSaving(false);
     }
@@ -66,8 +67,9 @@ export default function TagList() {
     try {
       await tagsApi.delete(id);
       load();
-    } catch {
-      alert('Silme sırasında hata oluştu.');
+    } catch (err) {
+      console.error('Tag delete error:', err);
+      alert('Silme sırasında hata oluştu:\n' + err.message);
     }
   };
 

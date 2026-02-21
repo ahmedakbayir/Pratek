@@ -52,8 +52,9 @@ export default function FirmList() {
       }
       setShowModal(false);
       load();
-    } catch {
-      alert('Kayıt sırasında hata oluştu.');
+    } catch (err) {
+      console.error('Firm save error:', err);
+      alert('Kayıt sırasında hata oluştu:\n' + err.message);
     } finally {
       setSaving(false);
     }
@@ -64,8 +65,9 @@ export default function FirmList() {
     try {
       await firmsApi.delete(id);
       load();
-    } catch {
-      alert('Silme sırasında hata oluştu.');
+    } catch (err) {
+      console.error('Firm delete error:', err);
+      alert('Silme sırasında hata oluştu:\n' + err.message);
     }
   };
 
