@@ -58,8 +58,9 @@ export default function EditTicket() {
       };
       await ticketsApi.update(id, payload);
       navigate(`/tickets/${id}`);
-    } catch {
-      alert('Güncelleme sırasında hata oluştu.');
+    } catch (err) {
+      console.error('Ticket update error:', err);
+      alert('Güncelleme sırasında hata oluştu:\n' + err.message);
     } finally {
       setSaving(false);
     }

@@ -2,12 +2,27 @@ const API_BASE = '/api';
 
 async function request(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...options.headers,
+    },
     ...options,
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = await res.text();
+      try {
+        const json = JSON.parse(body);
+        message = json.detail || json.title || json.errors
+          ? JSON.stringify(json.errors)
+          : body.substring(0, 500);
+      } catch {
+        message = body.substring(0, 500) || message;
+      }
+    } catch { /* ignore */ }
+    throw new Error(message);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') return null;
   return res.json();
