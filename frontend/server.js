@@ -47,7 +47,10 @@ function createSqlServerAdapter(conn) {
     get: async (sql, params) => (await query(sql, params))[0] || null,
     insert: async (sql, params) => {
       const rows = await query(sql, params);
-      return rows[0]?.Id;
+      // msnodesqlv8 may return Id in different casing
+      const row = rows[0];
+      if (!row) return undefined;
+      return row.Id ?? row.id ?? row.ID ?? Object.values(row)[0];
     },
     run: async (sql, params) => { await query(sql, params); },
   };
@@ -240,7 +243,14 @@ async function toTicketJson(row) {
 // ══════════════════════════════════════
 app.get('/api/debug', asyncHandler(async (_req, res) => {
   const firms = await db.all('SELECT * FROM firm');
-  res.json({ engine: db.type, firmCount: firms.length, firms });
+  const firstFirm = firms[0] || null;
+  res.json({
+    engine: db.type,
+    firmCount: firms.length,
+    columnNames: firstFirm ? Object.keys(firstFirm) : [],
+    rawFirstRow: firstFirm,
+    firms,
+  });
 }));
 
 // ══════════════════════════════════════
