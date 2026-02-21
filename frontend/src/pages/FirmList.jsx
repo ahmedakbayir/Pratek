@@ -23,7 +23,7 @@ export default function FirmList() {
     firmsApi
       .getAll()
       .then(setFirms)
-      .catch(() => setFirms(demoFirms))
+      .catch(() => setFirms([]))
       .finally(() => setLoading(false));
   };
 
@@ -69,11 +69,9 @@ export default function FirmList() {
     }
   };
 
-  const data = firms.length > 0 ? firms : demoFirms;
-
   return (
     <div>
-      <Header title="Firmalar" subtitle={`${data.length} firma`} />
+      <Header title="Firmalar" subtitle={`${firms.length} firma`} />
 
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
@@ -99,7 +97,7 @@ export default function FirmList() {
           {/* Rows */}
           {loading ? (
             <LoadingRows />
-          ) : data.length === 0 ? (
+          ) : firms.length === 0 ? (
             <EmptyState
               icon={Building2}
               title="Firma bulunamadı"
@@ -116,7 +114,7 @@ export default function FirmList() {
             />
           ) : (
             <div className="divide-y divide-surface-100">
-              {data.map((firm) => (
+              {firms.map((firm) => (
                 <div key={firm.id} className="grid grid-cols-[auto_1fr_80px] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                   <span className="text-xs font-mono text-surface-400 w-10">#{firm.id}</span>
                   <div className="flex items-center gap-3 min-w-0">
@@ -205,10 +203,3 @@ function LoadingRows() {
     </div>
   );
 }
-
-const demoFirms = [
-  { id: 1, name: 'Tech Corp' },
-  { id: 2, name: 'Digital Solutions' },
-  { id: 3, name: 'Startup Inc' },
-  { id: 4, name: 'Mega Yazılım' },
-];

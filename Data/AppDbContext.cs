@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Protekh.Api.Models;
 
 namespace Protekh.Api.Data
@@ -46,29 +46,45 @@ namespace Protekh.Api.Data
             modelBuilder.Entity<TicketPriority>().ToTable("ticket_priority");
             modelBuilder.Entity<Yetki>().ToTable("yetki");
 
-            // ---- RELATIONS ----
+            // ---- TICKET RELATIONS ----
 
             modelBuilder.Entity<Ticket>()
-                .HasOne<User>()
+                .HasOne(t => t.AssignedUser)
                 .WithMany()
                 .HasForeignKey(t => t.AssignedUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Ticket>()
+                .HasOne(t => t.Firm)
+                .WithMany()
+                .HasForeignKey(t => t.FirmId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Ticket>()
+                .HasOne(t => t.Status)
+                .WithMany()
+                .HasForeignKey(t => t.TicketStatusId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Ticket>()
-                .HasOne<Firm>()
+                .HasOne(t => t.Priority)
                 .WithMany()
-                .HasForeignKey(t => t.FirmId)
+                .HasForeignKey(t => t.TicketPriorityId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<TicketTag>()
-                .HasOne<Ticket>()
-                .WithMany()
-                .HasForeignKey(tt => tt.TicketId);
+            modelBuilder.Entity<Ticket>()
+                .HasMany(t => t.TicketTags)
+                .WithOne(tt => tt.Ticket)
+                .HasForeignKey(tt => tt.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ---- TICKET TAG RELATIONS ----
 
             modelBuilder.Entity<TicketTag>()
-                .HasOne<Tag>()
+                .HasOne(tt => tt.Tag)
                 .WithMany()
-                .HasForeignKey(tt => tt.TagId);
+                .HasForeignKey(tt => tt.TagId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // ---- COMMENT RELATIONS ----
 

@@ -35,7 +35,7 @@ export default function UserList() {
     usersApi
       .getAll()
       .then(setUsers)
-      .catch(() => setUsers(demoUsers))
+      .catch(() => setUsers([]))
       .finally(() => setLoading(false));
   };
 
@@ -82,11 +82,9 @@ export default function UserList() {
     }
   };
 
-  const data = users.length > 0 ? users : demoUsers;
-
   return (
     <div>
-      <Header title="Kullanıcılar" subtitle={`${data.length} kullanıcı`} />
+      <Header title="Kullanıcılar" subtitle={`${users.length} kullanıcı`} />
 
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
@@ -114,7 +112,7 @@ export default function UserList() {
           {/* Rows */}
           {loading ? (
             <LoadingRows />
-          ) : data.length === 0 ? (
+          ) : users.length === 0 ? (
             <EmptyState
               icon={UsersIcon}
               title="Kullanıcı bulunamadı"
@@ -131,7 +129,7 @@ export default function UserList() {
             />
           ) : (
             <div className="divide-y divide-surface-100">
-              {data.map((user) => {
+              {users.map((user) => {
                 const role = roleConfig[user.roleId] || roleConfig[2];
                 return (
                   <div key={user.id} className="grid grid-cols-[1fr_200px_140px_120px_80px] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
@@ -290,11 +288,3 @@ function LoadingRows() {
     </div>
   );
 }
-
-const demoUsers = [
-  { id: 1, name: 'Admin', mail: 'admin@protekh.com', tel: '0532 111 2233', roleId: 1 },
-  { id: 2, name: 'Ahmet Yılmaz', mail: 'ahmet@protekh.com', tel: '0533 222 3344', roleId: 2 },
-  { id: 3, name: 'Elif Kaya', mail: 'elif@protekh.com', tel: '0534 333 4455', roleId: 2 },
-  { id: 4, name: 'Mehmet Demir', mail: 'mehmet@protekh.com', tel: '0535 444 5566', roleId: 3 },
-  { id: 5, name: 'Zeynep Çelik', mail: 'zeynep@protekh.com', tel: '0536 555 6677', roleId: 3 },
-];
