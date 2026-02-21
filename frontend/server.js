@@ -1,5 +1,4 @@
 import express from 'express';
-import sql from 'mssql/msnodesqlv8.js';
 import cors from 'cors';
 
 const app = express();
@@ -11,22 +10,44 @@ app.use(express.json());
 // ──────────────────────────────────────
 // SQL SERVER CONNECTION
 // ──────────────────────────────────────
-const pool = new sql.ConnectionPool({
-  connectionString:
-    'Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;',
-});
+let sql = null;
+let pool = null;
+let dbError = null;
 
-let poolReady = pool.connect();
-poolReady
-  .then(() => console.log('Connected to SQL Server (localdb)'))
-  .catch((err) => {
-    console.error('SQL Server connection failed:', err);
-    process.exit(1);
+try {
+  const mod = await import('mssql/msnodesqlv8.js');
+  sql = mod.default;
+  console.log('[DB] msnodesqlv8 driver loaded');
+
+  pool = new sql.ConnectionPool({
+    connectionString:
+      'Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;',
   });
 
-// Ensure pool is ready before handling requests
-app.use(async (_req, _res, next) => {
-  await poolReady;
+  await pool.connect();
+  console.log('[DB] Connected to SQL Server (localdb)\\MSSQLLocalDB → protekh_db');
+} catch (err) {
+  dbError = err;
+  console.error('════════════════════════════════════════════════════');
+  console.error('[DB] SQL Server bağlantısı BAŞARISIZ:');
+  console.error('     ' + err.message);
+  console.error('');
+  console.error('  Olası çözümler:');
+  console.error('  1. msnodesqlv8 yüklü mü?  →  npm install msnodesqlv8');
+  console.error('  2. ODBC Driver kurulu mu?  →  "ODBC Driver 17 for SQL Server"');
+  console.error('  3. LocalDB çalışıyor mu?   →  sqllocaldb start MSSQLLocalDB');
+  console.error('════════════════════════════════════════════════════');
+}
+
+// Middleware — DB yoksa anlamlı hata dön
+app.use((req, res, next) => {
+  if (!pool || dbError) {
+    return res.status(503).json({
+      error: 'Veritabanı bağlantısı yok',
+      detail: dbError?.message || 'Pool oluşturulamadı',
+      hint: 'Terminal çıktısını kontrol edin.',
+    });
+  }
   next();
 });
 
