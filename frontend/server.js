@@ -16,28 +16,35 @@ app.use(express.json());
 // Queries use SQL Server @param syntax everywhere.
 // SQLite adapter converts @param → $param and strips OUTPUT INSERTED.Id.
 
-function createSqlServerAdapter(pool) {
+function createSqlServerAdapter(pool, sql) {
+  function sqlType(v) {
+    if (v === null || v === undefined) return sql.NVarChar;
+    if (typeof v === 'string') return sql.NVarChar;
+    if (typeof v === 'number') return Number.isInteger(v) ? sql.Int : sql.Float;
+    if (typeof v === 'boolean') return sql.Bit;
+    if (v instanceof Date) return sql.DateTime2;
+    return sql.NVarChar;
+  }
+  function bind(req, params) {
+    for (const [k, v] of Object.entries(params)) req.input(k, sqlType(v), v ?? null);
+  }
   return {
     type: 'sqlserver',
     all: async (query, params = {}) => {
-      const req = pool.request();
-      for (const [k, v] of Object.entries(params)) req.input(k, v);
+      const req = pool.request(); bind(req, params);
       return (await req.query(query)).recordset;
     },
     get: async (query, params = {}) => {
-      const req = pool.request();
-      for (const [k, v] of Object.entries(params)) req.input(k, v);
+      const req = pool.request(); bind(req, params);
       return (await req.query(query)).recordset[0] || null;
     },
     insert: async (query, params = {}) => {
-      const req = pool.request();
-      for (const [k, v] of Object.entries(params)) req.input(k, v);
+      const req = pool.request(); bind(req, params);
       const result = await req.query(query);
       return result.recordset[0]?.Id;
     },
     run: async (query, params = {}) => {
-      const req = pool.request();
-      for (const [k, v] of Object.entries(params)) req.input(k, v);
+      const req = pool.request(); bind(req, params);
       await req.query(query);
     },
   };
@@ -75,7 +82,7 @@ try {
     connectionString: 'Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;',
   });
   await pool.connect();
-  db = createSqlServerAdapter(pool);
+  db = createSqlServerAdapter(pool, sql);
   console.log('════════════════════════════════════════════════════');
   console.log('[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db');
   console.log('════════════════════════════════════════════════════');
