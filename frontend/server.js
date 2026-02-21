@@ -11,80 +11,116 @@ app.use(cors());
 app.use(express.json());
 
 // ──────────────────────────────────────
-// DATABASE ADAPTER
+// SHARED: convert @param → ? positional
 // ──────────────────────────────────────
-// Queries use SQL Server @param syntax everywhere.
-// SQLite adapter converts @param → $param and strips OUTPUT INSERTED.Id.
+function toPositional(query, params = {}) {
+  const values = [];
+  const sql = query.replace(/@(\w+)/g, (_, name) => {
+    values.push(params[name] ?? null);
+    return '?';
+  });
+  return { sql, values };
+}
 
-function createSqlServerAdapter(pool, sql) {
-  function sqlType(v) {
-    if (v === null || v === undefined) return sql.NVarChar;
-    if (typeof v === 'string') return sql.NVarChar;
-    if (typeof v === 'number') return Number.isInteger(v) ? sql.Int : sql.Float;
-    if (typeof v === 'boolean') return sql.Bit;
-    if (v instanceof Date) return sql.DateTime2;
-    return sql.NVarChar;
-  }
-  function bind(req, params) {
-    for (const [k, v] of Object.entries(params)) req.input(k, sqlType(v), v ?? null);
+function stripOutput(query) {
+  return query.replace(/\s*OUTPUT\s+INSERTED\.Id\s*/i, ' ');
+}
+
+// ──────────────────────────────────────
+// ADAPTERS
+// ──────────────────────────────────────
+
+// SQL Server via msnodesqlv8 (direct, no mssql wrapper)
+function createSqlServerAdapter(conn) {
+  function query(sql, params = {}) {
+    const { sql: q, values } = toPositional(sql, params);
+    return new Promise((resolve, reject) => {
+      conn.query(q, values, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
   }
   return {
     type: 'sqlserver',
-    all: async (query, params = {}) => {
-      const req = pool.request(); bind(req, params);
-      return (await req.query(query)).recordset;
+    all: async (sql, params) => await query(sql, params),
+    get: async (sql, params) => (await query(sql, params))[0] || null,
+    insert: async (sql, params) => {
+      const rows = await query(sql, params);
+      return rows[0]?.Id;
     },
-    get: async (query, params = {}) => {
-      const req = pool.request(); bind(req, params);
-      return (await req.query(query)).recordset[0] || null;
-    },
-    insert: async (query, params = {}) => {
-      const req = pool.request(); bind(req, params);
-      const result = await req.query(query);
-      return result.recordset[0]?.Id;
-    },
-    run: async (query, params = {}) => {
-      const req = pool.request(); bind(req, params);
-      await req.query(query);
-    },
+    run: async (sql, params) => { await query(sql, params); },
   };
 }
 
+// SQLite via better-sqlite3
 function createSqliteAdapter(sqliteDb) {
-  const toSqlite = (query) => query.replace(/@(\w+)/g, '$$$1');
-  const toParams = (params) => {
-    const out = {};
-    for (const [k, v] of Object.entries(params)) out[`$${k}`] = v instanceof Date ? v.toISOString() : v;
-    return out;
-  };
-  const stripOutput = (query) => query.replace(/\s*OUTPUT\s+INSERTED\.Id\s*/i, ' ');
-
+  function toSqliteVals(values) {
+    return values.map((v) => (v instanceof Date ? v.toISOString() : v));
+  }
   return {
     type: 'sqlite',
-    all: async (query, params = {}) => sqliteDb.prepare(toSqlite(query)).all(toParams(params)),
-    get: async (query, params = {}) => sqliteDb.prepare(toSqlite(query)).get(toParams(params)) || null,
-    insert: async (query, params = {}) => {
-      const result = sqliteDb.prepare(toSqlite(stripOutput(query))).run(toParams(params));
+    all: async (sql, params = {}) => {
+      const { sql: q, values } = toPositional(sql, params);
+      return sqliteDb.prepare(q).all(...toSqliteVals(values));
+    },
+    get: async (sql, params = {}) => {
+      const { sql: q, values } = toPositional(sql, params);
+      return sqliteDb.prepare(q).get(...toSqliteVals(values)) || null;
+    },
+    insert: async (sql, params = {}) => {
+      const { sql: q, values } = toPositional(stripOutput(sql), params);
+      const result = sqliteDb.prepare(q).run(...toSqliteVals(values));
       return Number(result.lastInsertRowid);
     },
-    run: async (query, params = {}) => { sqliteDb.prepare(toSqlite(query)).run(toParams(params)); },
+    run: async (sql, params = {}) => {
+      const { sql: q, values } = toPositional(sql, params);
+      sqliteDb.prepare(q).run(...toSqliteVals(values));
+    },
   };
 }
 
 // ──────────────────────────────────────
-// CONNECT: SQL Server first, SQLite fallback
+// CONNECT: msnodesqlv8 → SQLite fallback
 // ──────────────────────────────────────
 let db;
 
+async function tryOpenSqlServer() {
+  const msnodesqlv8 = (await import('msnodesqlv8')).default;
+
+  const drivers = [
+    'ODBC Driver 17 for SQL Server',
+    'ODBC Driver 18 for SQL Server',
+    'SQL Server Native Client 11.0',
+  ];
+
+  for (const driver of drivers) {
+    const connStr = `Driver={${driver}};Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;`;
+    try {
+      const conn = await new Promise((resolve, reject) => {
+        msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
+      });
+      // Test query to verify connection
+      await new Promise((resolve, reject) => {
+        conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
+      });
+      console.log(`[DB] Driver: ${driver}`);
+      return conn;
+    } catch {
+      // Try next driver
+    }
+  }
+  throw new Error('Hiçbir ODBC driver ile bağlanılamadı');
+}
+
 try {
-  const { default: sql } = await import('mssql/msnodesqlv8.js');
-  const pool = new sql.ConnectionPool({
-    connectionString: 'Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;',
-  });
-  await pool.connect();
-  db = createSqlServerAdapter(pool, sql);
+  const conn = await tryOpenSqlServer();
+  db = createSqlServerAdapter(conn);
+  // Verify by reading firm count
+  const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
   console.log('════════════════════════════════════════════════════');
-  console.log('[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db');
+  console.log(`[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db`);
+  console.log(`[DB] Firma sayısı: ${firms[0]?.c ?? 0}`);
   console.log('════════════════════════════════════════════════════');
 } catch (err) {
   console.warn(`[DB] SQL Server kullanılamıyor: ${err.message}`);
@@ -96,7 +132,6 @@ try {
   sqliteDb.pragma('journal_mode = WAL');
   sqliteDb.pragma('foreign_keys = ON');
 
-  // Create tables
   sqliteDb.exec(`
     CREATE TABLE IF NOT EXISTS entity_type (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS event_type (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);
@@ -112,7 +147,6 @@ try {
     CREATE TABLE IF NOT EXISTS event_log (Id INTEGER PRIMARY KEY AUTOINCREMENT, EntityTypeId INTEGER NOT NULL REFERENCES entity_type(Id), EventTypeId INTEGER NOT NULL REFERENCES event_type(Id), EntityId INTEGER NOT NULL, Description TEXT, UserId INTEGER, CreatedAt TEXT NOT NULL);
   `);
 
-  // Seed lookup data
   function seedIfEmpty(table, rows) {
     const count = sqliteDb.prepare(`SELECT COUNT(*) as c FROM ${table}`).get().c;
     if (count === 0) {
@@ -151,7 +185,7 @@ try {
 }
 
 // ──────────────────────────────────────
-// ASYNC ERROR WRAPPER
+// ERROR WRAPPER
 // ──────────────────────────────────────
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch((err) => {
@@ -200,6 +234,14 @@ async function toTicketJson(row) {
     })),
   };
 }
+
+// ══════════════════════════════════════
+// DIAGNOSTIC
+// ══════════════════════════════════════
+app.get('/api/debug', asyncHandler(async (_req, res) => {
+  const firms = await db.all('SELECT * FROM firm');
+  res.json({ engine: db.type, firmCount: firms.length, firms });
+}));
 
 // ══════════════════════════════════════
 // FIRMS

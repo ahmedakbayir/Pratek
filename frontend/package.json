@@ -22,7 +22,6 @@
     "react-router-dom": "^7.13.0"
   },
   "optionalDependencies": {
-    "mssql": "^11.0.1",
     "msnodesqlv8": "^4.2.1"
   },
   "devDependencies": {
