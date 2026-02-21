@@ -12,7 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "mssql": "^11.0.1",
+    "msnodesqlv8": "^4.2.1",
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
