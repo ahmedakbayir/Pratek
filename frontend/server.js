@@ -30,6 +30,23 @@ function stripOutput(query) {
 // ADAPTERS
 // ──────────────────────────────────────
 
+// Normalize row: add PascalCase alias for every column so r.Id, r.Name etc. always work
+// regardless of what casing msnodesqlv8 returns (could be Id, id, ID, etc.)
+function normalizeRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    out[k] = v; // keep original key
+    // Add PascalCase version: first char upper + rest as-is
+    const pascal = k.charAt(0).toUpperCase() + k.slice(1);
+    if (!(pascal in out)) out[pascal] = v;
+    // Also add camelCase version: first char lower + rest as-is
+    const camel = k.charAt(0).toLowerCase() + k.slice(1);
+    if (!(camel in out)) out[camel] = v;
+  }
+  return out;
+}
+
 // SQL Server via msnodesqlv8 (direct, no mssql wrapper)
 function createSqlServerAdapter(conn) {
   function query(sql, params = {}) {
@@ -37,7 +54,7 @@ function createSqlServerAdapter(conn) {
     return new Promise((resolve, reject) => {
       conn.query(q, values, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows || []);
+        else resolve((rows || []).map(normalizeRow));
       });
     });
   }
@@ -47,10 +64,9 @@ function createSqlServerAdapter(conn) {
     get: async (sql, params) => (await query(sql, params))[0] || null,
     insert: async (sql, params) => {
       const rows = await query(sql, params);
-      // msnodesqlv8 may return Id in different casing
       const row = rows[0];
       if (!row) return undefined;
-      return row.Id ?? row.id ?? row.ID ?? Object.values(row)[0];
+      return row.Id ?? Object.values(row)[0];
     },
     run: async (sql, params) => { await query(sql, params); },
   };
@@ -248,6 +264,7 @@ app.get('/api/debug', asyncHandler(async (_req, res) => {
     engine: db.type,
     firmCount: firms.length,
     columnNames: firstFirm ? Object.keys(firstFirm) : [],
+    sampleAccess: firstFirm ? { 'Id': firstFirm.Id, 'id': firstFirm.id, 'Name': firstFirm.Name, 'name': firstFirm.name } : null,
     rawFirstRow: firstFirm,
     firms,
   });
