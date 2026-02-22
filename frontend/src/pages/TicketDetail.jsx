@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -12,10 +12,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Send,
+  X,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
-import { ticketsApi } from '../services/api';
+import { ticketsApi, tagsApi } from '../services/api';
 
 const priorityConfig = {
   1: { label: 'Kritik', variant: 'danger', icon: AlertCircle },
@@ -33,6 +34,9 @@ export default function TicketDetail() {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
+  const [allTags, setAllTags] = useState([]);
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const tagPickerRef = useRef(null);
 
   useEffect(() => {
     ticketsApi
@@ -45,7 +49,25 @@ export default function TicketDetail() {
       .getComments(id)
       .then(setComments)
       .catch(() => setComments([]));
+
+    tagsApi
+      .getAll()
+      .then(setAllTags)
+      .catch(() => setAllTags([]));
   }, [id]);
+
+  // Close tag picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (tagPickerRef.current && !tagPickerRef.current.contains(e.target)) {
+        setShowTagPicker(false);
+      }
+    };
+    if (showTagPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTagPicker]);
 
   const handleDelete = async () => {
     if (!confirm('Bu ticket\'i silmek istediginize emin misiniz?')) return;
@@ -72,6 +94,34 @@ export default function TicketDetail() {
       setSendingComment(false);
     }
   };
+
+  const handleAddTag = async (tagId) => {
+    try {
+      await ticketsApi.addTag(id, tagId, 1);
+      const updated = await ticketsApi.get(id);
+      setTicket(updated);
+      setShowTagPicker(false);
+    } catch (err) {
+      console.error('Tag ekleme hatasi:', err);
+      alert('Etiket eklenemedi:\n' + err.message);
+    }
+  };
+
+  const handleRemoveTag = async (tagId) => {
+    try {
+      await ticketsApi.removeTag(id, tagId, 1);
+      const updated = await ticketsApi.get(id);
+      setTicket(updated);
+    } catch (err) {
+      console.error('Tag kaldirma hatasi:', err);
+      alert('Etiket kaldirildi:\n' + err.message);
+    }
+  };
+
+  // Tags not yet assigned to this ticket
+  const availableTags = allTags.filter(
+    (tag) => !ticket?.ticketTags?.some((tt) => tt.tagId === tag.id)
+  );
 
   if (loading) {
     return (
@@ -290,14 +340,56 @@ export default function TicketDetail() {
               <div className="flex flex-wrap gap-1.5">
                 {ticket.ticketTags && ticket.ticketTags.length > 0 ? (
                   ticket.ticketTags.map((tt) => (
-                    <Badge key={tt.id} variant="primary">{tt.tag?.name || 'Tag'}</Badge>
+                    <span
+                      key={tt.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                      style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+                    >
+                      {tt.tag?.name || 'Tag'}
+                      <button
+                        onClick={() => handleRemoveTag(tt.tagId)}
+                        className="ml-0.5 hover:opacity-70 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
                   ))
                 ) : (
                   <span className="text-xs text-surface-400">Etiket yok</span>
                 )}
-                <button className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer">
-                  + Ekle
-                </button>
+                <div className="relative" ref={tagPickerRef}>
+                  <button
+                    onClick={() => setShowTagPicker(!showTagPicker)}
+                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer"
+                  >
+                    + Ekle
+                  </button>
+                  {showTagPicker && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-surface-0 rounded-lg border border-surface-200 shadow-lg z-10">
+                      {availableTags.length > 0 ? (
+                        <div className="py-1 max-h-48 overflow-y-auto">
+                          {availableTags.map((tag) => (
+                            <button
+                              key={tag.id}
+                              onClick={() => handleAddTag(tag.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+                            >
+                              <div
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: tag.colorHex || '#6B7280' }}
+                              />
+                              {tag.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-2 text-xs text-surface-400">
+                          Eklenecek etiket kalmadi
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
