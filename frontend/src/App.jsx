@@ -9,6 +9,7 @@ import UserList from './pages/UserList';
 import FirmList from './pages/FirmList';
 import TagList from './pages/TagList';
 import ProductList from './pages/ProductList';
+import ProductFirmMatrix from './pages/ProductFirmMatrix';
 import Settings from './pages/Settings';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="users" element={<UserList />} />
           <Route path="firms" element={<FirmList />} />
           <Route path="products" element={<ProductList />} />
+          <Route path="product-firm-matrix" element={<ProductFirmMatrix />} />
           <Route path="tags" element={<TagList />} />
           <Route path="settings" element={<Settings />} />
         </Route>
