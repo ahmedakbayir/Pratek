@@ -238,7 +238,7 @@ export default function TicketList() {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr_120px_100px_140px_120px_44px] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span>Ticket</span>
             <span>Durum</span>
             <span>Öncelik</span>
@@ -287,7 +287,7 @@ function TicketRow({ ticket }) {
   return (
     <Link
       to={`/tickets/${ticket.id}`}
-      className="grid grid-cols-[1fr_120px_100px_140px_120px_44px] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors"
+      className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors"
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ function LoadingRows() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="grid grid-cols-[1fr_120px_100px_140px_120px_44px] gap-3 px-5 py-3.5 animate-pulse"
+          className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse"
         >
           <div className="space-y-2">
             <div className="h-4 bg-surface-200 rounded w-56" />

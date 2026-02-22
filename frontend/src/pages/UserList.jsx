@@ -103,7 +103,7 @@ export default function UserList() {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr_200px_140px_120px_80px] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span>Ad</span>
             <span>E-posta</span>
             <span>Telefon</span>
@@ -134,7 +134,7 @@ export default function UserList() {
               {users.map((user) => {
                 const role = roleConfig[user.roleId] || roleConfig[2];
                 return (
-                  <div key={user.id} className="grid grid-cols-[1fr_200px_140px_120px_80px] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
+                  <div key={user.id} className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">
                         {user.name?.charAt(0) || '?'}
@@ -276,7 +276,7 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-surface-100">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[1fr_200px_140px_120px_80px] gap-3 px-5 py-3.5 animate-pulse">
+        <div key={i} className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-surface-200" />
             <div className="h-4 bg-surface-200 rounded w-32" />

@@ -90,7 +90,7 @@ export default function FirmList() {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[auto_1fr_80px] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span className="w-10">ID</span>
             <span>Firma Adı</span>
             <span />
@@ -117,7 +117,7 @@ export default function FirmList() {
           ) : (
             <div className="divide-y divide-surface-100">
               {firms.map((firm) => (
-                <div key={firm.id} className="grid grid-cols-[auto_1fr_80px] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
+                <div key={firm.id} className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                   <span className="text-xs font-mono text-surface-400 w-10">#{firm.id}</span>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
@@ -193,7 +193,7 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-surface-100">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[auto_1fr_80px] gap-3 px-5 py-3.5 animate-pulse">
+        <div key={i} className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="h-4 bg-surface-200 rounded w-8" />
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-surface-200" />
