@@ -48,6 +48,7 @@ export const ticketsApi = {
   removeTag: (id, tagId, userId) => request(`/tickets/${id}/tag/${tagId}?userId=${userId}`, { method: 'DELETE' }),
   getComments: (id) => request(`/tickets/${id}/comments`),
   addComment: (id, data) => request(`/tickets/${id}/comments`, { method: 'POST', body: JSON.stringify(data) }),
+  getActivity: (id) => request(`/tickets/${id}/activity`),
 };
 
 export const usersApi = {
@@ -72,6 +73,18 @@ export const tagsApi = {
   create: (data) => request('/tags', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/tags/${id}`, { method: 'DELETE' }),
+};
+
+export const rolesApi = {
+  getAll: () => request('/roles'),
+};
+
+export const statusesApi = {
+  getAll: () => request('/ticket-statuses'),
+};
+
+export const prioritiesApi = {
+  getAll: () => request('/ticket-priorities'),
 };
 
 export const productsApi = {

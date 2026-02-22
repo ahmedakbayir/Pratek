@@ -12,18 +12,15 @@ import {
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { usersApi } from '../services/api';
+import { usersApi, rolesApi } from '../services/api';
 
-const roleConfig = {
-  1: { label: 'Admin', variant: 'danger' },
-  2: { label: 'Agent', variant: 'info' },
-  3: { label: 'Müşteri', variant: 'default' },
-};
+const roleVariants = ['default', 'danger', 'info', 'default', 'warning', 'success', 'primary'];
 
 const emptyForm = { name: '', mail: '', password: '', tel: '', roleId: 2 };
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -32,10 +29,11 @@ export default function UserList() {
 
   const load = () => {
     setLoading(true);
-    usersApi
-      .getAll()
-      .then(setUsers)
-      .catch(() => setUsers([]))
+    Promise.all([
+      usersApi.getAll().catch(() => []),
+      rolesApi.getAll().catch(() => []),
+    ])
+      .then(([u, r]) => { setUsers(u || []); setRoles(r || []); })
       .finally(() => setLoading(false));
   };
 
@@ -132,7 +130,8 @@ export default function UserList() {
           ) : (
             <div className="divide-y divide-surface-100">
               {users.map((user) => {
-                const role = roleConfig[user.roleId] || roleConfig[2];
+                const roleName = roles.find((r) => r.id === user.roleId)?.name || `Rol #${user.roleId}`;
+                const variant = roleVariants[user.roleId] || 'default';
                 return (
                   <div key={user.id} className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
@@ -150,7 +149,7 @@ export default function UserList() {
                       {user.tel || '-'}
                     </div>
                     <div>
-                      <Badge variant={role.variant}>{role.label}</Badge>
+                      <Badge variant={variant}>{roleName}</Badge>
                     </div>
                     <div className="flex items-center gap-1 justify-end">
                       <button
@@ -224,9 +223,9 @@ export default function UserList() {
                 onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))}
                 className="input-field"
               >
-                <option value={1}>Admin</option>
-                <option value={2}>Agent</option>
-                <option value={3}>Müşteri</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
               </select>
             </Field>
             <div className="flex justify-end gap-3 pt-2">

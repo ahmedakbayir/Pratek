@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, usersApi, firmsApi } from '../services/api';
+import { ticketsApi, usersApi, firmsApi, productsApi } from '../services/api';
 
 export default function CreateTicket() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
   const [firms, setFirms] = useState([]);
+  const [products, setProducts] = useState([]);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -16,11 +17,13 @@ export default function CreateTicket() {
     ticketStatusId: 1,
     firmId: '',
     assignedUserId: '',
+    productId: '',
   });
 
   useEffect(() => {
     usersApi.getAll().then(setUsers).catch(() => {});
     firmsApi.getAll().then(setFirms).catch(() => {});
+    productsApi.getAll().then(setProducts).catch(() => {});
   }, []);
 
   const update = (field) => (e) =>
@@ -36,6 +39,7 @@ export default function CreateTicket() {
         ticketStatusId: Number(form.ticketStatusId),
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
+        productId: form.productId ? Number(form.productId) : null,
       };
       await ticketsApi.create(payload);
       navigate('/tickets');
@@ -125,6 +129,29 @@ export default function CreateTicket() {
                   />
                 )}
               </div>
+            </div>
+
+            {/* Product */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                Ürün
+              </label>
+              {products.length > 0 ? (
+                <select value={form.productId} onChange={update('productId')} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  value={form.productId}
+                  onChange={update('productId')}
+                  placeholder="Ürün ID (opsiyonel)"
+                  className="input-field"
+                />
+              )}
             </div>
 
             {/* Assigned User */}

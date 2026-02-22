@@ -121,6 +121,9 @@ async function tryOpenSqlServer() {
 try {
   const conn = await tryOpenSqlServer();
   db = createSqlServerAdapter(conn);
+  // Ensure product_id column exists on ticket table
+  try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ticket') AND name = 'product_id') ALTER TABLE ticket ADD product_id INT NULL"); } catch { /* ignore */ }
+
   const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
   console.log('════════════════════════════════════════════════════');
   console.log(`[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db`);
@@ -184,6 +187,9 @@ try {
     { id: 1, name: 'Admin' }, { id: 2, name: 'Agent' }, { id: 3, name: 'Müşteri' },
   ]);
 
+  // Add product_id column to ticket if not exists
+  try { sqliteDb.exec('ALTER TABLE ticket ADD COLUMN product_id INTEGER REFERENCES product(id)'); } catch { /* already exists */ }
+
   db = createSqliteAdapter(sqliteDb);
   console.log('════════════════════════════════════════════════════');
   console.log(`[DB] SQLite → ${dbPath}`);
@@ -218,25 +224,29 @@ async function toTicketJson(row) {
   const user = row.assigned_user_id ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.assigned_user_id }) : null;
   const status = await db.get('SELECT * FROM ticket_status WHERE id = @id', { id: row.status_id });
   const priority = await db.get('SELECT * FROM ticket_priority WHERE id = @id', { id: row.priority_id });
+  const product = row.product_id ? await db.get('SELECT * FROM product WHERE id = @id', { id: row.product_id }) : null;
+  const createdByUser = row.created_by ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.created_by }) : null;
   const tags = await db.all(
     `SELECT tt.*, t.name, t.description AS tag_description, t.color_hex
      FROM ticket_tag tt JOIN tag t ON tt.tag_id = t.id WHERE tt.ticket_id = @ticketId AND tt.removed_at IS NULL`,
     { ticketId: row.id }
   );
-  
-  // Since ticket table does not have 'created_at', fetch the creation log from event_log
+
   const createEvent = await db.get('SELECT created_at FROM event_log WHERE entity_type_id = 2 AND entity_id = @id AND event_type_id = 1', { id: row.id });
 
   return {
     id: row.id, title: row.title, description: row.description,
     firmId: row.firm_id, assignedUserId: row.assigned_user_id,
     ticketStatusId: row.status_id, ticketPriorityId: row.priority_id,
-    createdAt: createEvent ? createEvent.created_at : null, 
+    productId: row.product_id ?? null,
+    createdAt: createEvent ? createEvent.created_at : null,
     createdBy: row.created_by,
     firm: firm ? { id: firm.id, name: firm.name } : null,
     assignedUser: user ? { id: user.id, name: user.name, mail: user.mail, tel: user.tel, roleId: user.yetki_id } : null,
     status: status ? { id: status.id, name: status.name, isClosed: !!status.is_closed, orderNo: status.order_no } : null,
     priority: priority ? { id: priority.id, name: priority.name, level: priority.level } : null,
+    product: product ? { id: product.id, name: (product.name || '').trim() } : null,
+    createdByUser: createdByUser ? { id: createdByUser.id, name: createdByUser.name } : null,
     ticketTags: tags.map((tt) => ({
       ticketId: tt.ticket_id, tagId: tt.tag_id, createdBy: tt.created_by, createdAt: tt.created_at,
       tag: { id: tt.tag_id, name: tt.name, description: tt.tag_description, colorHex: tt.color_hex },
@@ -386,16 +396,16 @@ app.get('/api/tickets/:id', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/tickets', asyncHandler(async (req, res) => {
-  const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy } = req.body;
+  const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy, productId } = req.body;
   const newId = await db.insert(
-    `INSERT INTO ticket (title, description, firm_id, assigned_user_id, status_id, priority_id, created_by)
+    `INSERT INTO ticket (title, description, firm_id, assigned_user_id, status_id, priority_id, created_by, product_id)
      OUTPUT INSERTED.id
-     VALUES (@title, @description, @firmId, @assignedUserId, @ticketStatusId, @ticketPriorityId, @createdBy)`,
+     VALUES (@title, @description, @firmId, @assignedUserId, @ticketStatusId, @ticketPriorityId, @createdBy, @productId)`,
     {
       title, description: description ?? null,
       firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
       ticketStatusId: ticketStatusId ?? 1, ticketPriorityId: ticketPriorityId ?? 3,
-      createdBy: createdBy ?? null,
+      createdBy: createdBy ?? null, productId: productId ?? null,
     }
   );
   await logEvent(2, 1, newId, `Ticket created: ${title}`, createdBy);
@@ -407,14 +417,15 @@ app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
   const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
 
-  const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, updatedBy } = req.body;
+  const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, updatedBy, productId } = req.body;
   await db.run(
     `UPDATE ticket SET title=@title, description=@description, priority_id=@ticketPriorityId,
-     status_id=@ticketStatusId, firm_id=@firmId, assigned_user_id=@assignedUserId WHERE id=@id`,
+     status_id=@ticketStatusId, firm_id=@firmId, assigned_user_id=@assignedUserId, product_id=@productId WHERE id=@id`,
     {
       title, description: description ?? null,
       ticketPriorityId, ticketStatusId,
       firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
+      productId: productId ?? null,
       id: Number(req.params.id),
     }
   );
@@ -483,16 +494,34 @@ app.post('/api/tickets/:id/status/:statusId', asyncHandler(async (req, res) => {
 // ── Tags on Ticket ──
 app.post('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
   const userId = Number(req.query.userId ?? 0);
-  const exists = await db.get(
+  const ticketId = Number(req.params.id);
+  const tagId = Number(req.params.tagId);
+
+  const active = await db.get(
     'SELECT 1 AS x FROM ticket_tag WHERE ticket_id = @ticketId AND tag_id = @tagId AND removed_at IS NULL',
-    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId) }
+    { ticketId, tagId }
   );
-  if (exists) return res.status(400).json({ error: 'Tag already exists' });
-  await db.run(
-    'INSERT INTO ticket_tag (ticket_id, tag_id, created_by, created_at) VALUES (@ticketId, @tagId, @createdBy, @createdAt)',
-    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId), createdBy: userId, createdAt: now() }
+  if (active) return res.status(400).json({ error: 'Tag already exists' });
+
+  // Check if soft-deleted row exists (re-add scenario)
+  const softDeleted = await db.get(
+    'SELECT 1 AS x FROM ticket_tag WHERE ticket_id = @ticketId AND tag_id = @tagId AND removed_at IS NOT NULL',
+    { ticketId, tagId }
   );
-  await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} added`, userId);
+
+  if (softDeleted) {
+    await db.run(
+      'UPDATE ticket_tag SET removed_at = NULL, removed_by = NULL, created_by = @createdBy, created_at = @createdAt WHERE ticket_id = @ticketId AND tag_id = @tagId',
+      { ticketId, tagId, createdBy: userId, createdAt: now() }
+    );
+  } else {
+    await db.run(
+      'INSERT INTO ticket_tag (ticket_id, tag_id, created_by, created_at) VALUES (@ticketId, @tagId, @createdBy, @createdAt)',
+      { ticketId, tagId, createdBy: userId, createdAt: now() }
+    );
+  }
+
+  await logEvent(2, 2, ticketId, `Tag ${tagId} added`, userId);
   res.json({ success: true });
 }));
 
@@ -621,6 +650,70 @@ app.get('/api/ticket-statuses', asyncHandler(async (_req, res) => {
 app.get('/api/ticket-priorities', asyncHandler(async (_req, res) => {
   const rows = await db.all('SELECT * FROM ticket_priority ORDER BY level');
   res.json(rows.map((r) => ({ id: r.id, name: r.name, level: r.level })));
+}));
+
+// ══════════════════════════════════════
+// ROLES (yetki)
+// ══════════════════════════════════════
+app.get('/api/roles', asyncHandler(async (_req, res) => {
+  const rows = await db.all('SELECT * FROM yetki ORDER BY id');
+  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
+}));
+
+// ══════════════════════════════════════
+// TICKET ACTIVITY (comments + tag events merged)
+// ══════════════════════════════════════
+app.get('/api/tickets/:id/activity', asyncHandler(async (req, res) => {
+  const ticketId = Number(req.params.id);
+
+  const comments = await db.all(
+    `SELECT c.*, u.name AS user_name FROM ticket_comment c
+     LEFT JOIN [user] u ON c.user_id = u.id
+     WHERE c.ticket_id = @ticketId`,
+    { ticketId }
+  );
+
+  const tagEvents = await db.all(
+    `SELECT el.*, u.name AS user_name FROM event_log el
+     LEFT JOIN [user] u ON el.created_by = u.id
+     WHERE el.entity_type_id = 2 AND el.entity_id = @ticketId
+       AND (el.description LIKE 'Tag % added' OR el.description LIKE 'Tag % removed')`,
+    { ticketId }
+  );
+
+  const activity = [];
+
+  for (const c of comments) {
+    activity.push({
+      type: 'comment',
+      id: `comment-${c.id}`,
+      content: c.content,
+      userId: c.user_id,
+      userName: c.user_name,
+      createdAt: c.created_at,
+    });
+  }
+
+  for (const ev of tagEvents) {
+    const match = ev.description.match(/^Tag (\d+) (added|removed)$/);
+    if (!match) continue;
+    const tagId = Number(match[1]);
+    const action = match[2];
+    const tag = await db.get('SELECT * FROM tag WHERE id = @id', { id: tagId });
+    activity.push({
+      type: action === 'added' ? 'tag_added' : 'tag_removed',
+      id: `tag-${ev.id}`,
+      tagId,
+      tagName: tag?.name || `Tag #${tagId}`,
+      colorHex: tag?.color_hex,
+      userId: ev.created_by,
+      userName: ev.user_name,
+      createdAt: ev.created_at,
+    });
+  }
+
+  activity.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  res.json(activity);
 }));
 
 // ──────────────────────────────────────

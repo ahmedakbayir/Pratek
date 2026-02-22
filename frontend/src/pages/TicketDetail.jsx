@@ -13,10 +13,14 @@ import {
   AlertCircle,
   Send,
   X,
+  Package,
+  Plus,
+  Minus,
+  UserPlus,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
-import { ticketsApi, tagsApi } from '../services/api';
+import { ticketsApi, tagsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
 
 const priorityConfig = {
   1: { label: 'Kritik', variant: 'danger', icon: AlertCircle },
@@ -31,41 +35,53 @@ export default function TicketDetail() {
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [comments, setComments] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
   const [allTags, setAllTags] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [allFirms, setAllFirms] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
+  const [allStatuses, setAllStatuses] = useState([]);
+  const [allPriorities, setAllPriorities] = useState([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const tagPickerRef = useRef(null);
 
+  const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
+  const loadActivity = () => ticketsApi.getActivity(id).then(setActivity).catch(() => setActivity([]));
+
   useEffect(() => {
-    ticketsApi
-      .get(id)
-      .then(setTicket)
+    Promise.all([
+      ticketsApi.get(id),
+      ticketsApi.getActivity(id).catch(() => []),
+      tagsApi.getAll().catch(() => []),
+      usersApi.getAll().catch(() => []),
+      firmsApi.getAll().catch(() => []),
+      productsApi.getAll().catch(() => []),
+      statusesApi.getAll().catch(() => []),
+      prioritiesApi.getAll().catch(() => []),
+    ])
+      .then(([t, act, tags, users, firms, products, statuses, priorities]) => {
+        setTicket(t);
+        setActivity(act || []);
+        setAllTags(tags || []);
+        setAllUsers(users || []);
+        setAllFirms(firms || []);
+        setAllProducts(products || []);
+        setAllStatuses(statuses || []);
+        setAllPriorities(priorities || []);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-
-    ticketsApi
-      .getComments(id)
-      .then(setComments)
-      .catch(() => setComments([]));
-
-    tagsApi
-      .getAll()
-      .then(setAllTags)
-      .catch(() => setAllTags([]));
   }, [id]);
 
-  // Close tag picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (tagPickerRef.current && !tagPickerRef.current.contains(e.target)) {
         setShowTagPicker(false);
       }
     };
-    if (showTagPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    if (showTagPicker) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTagPicker]);
 
@@ -75,8 +91,7 @@ export default function TicketDetail() {
       await ticketsApi.delete(id);
       navigate('/tickets');
     } catch (err) {
-      console.error('Ticket delete error:', err);
-      alert('Silme sirasinda hata olustu:\n' + err.message);
+      alert('Silme hatasi:\n' + err.message);
     }
   };
 
@@ -84,11 +99,10 @@ export default function TicketDetail() {
     if (!newComment.trim()) return;
     setSendingComment(true);
     try {
-      const comment = await ticketsApi.addComment(id, { content: newComment, userId: 1 });
-      setComments((prev) => [comment, ...prev]);
+      await ticketsApi.addComment(id, { content: newComment, userId: 1 });
       setNewComment('');
+      loadActivity();
     } catch (err) {
-      console.error('Comment error:', err);
       alert('Yorum gonderilemedi:\n' + err.message);
     } finally {
       setSendingComment(false);
@@ -98,11 +112,9 @@ export default function TicketDetail() {
   const handleAddTag = async (tagId) => {
     try {
       await ticketsApi.addTag(id, tagId, 1);
-      const updated = await ticketsApi.get(id);
-      setTicket(updated);
+      await Promise.all([loadTicket(), loadActivity()]);
       setShowTagPicker(false);
     } catch (err) {
-      console.error('Tag ekleme hatasi:', err);
       alert('Etiket eklenemedi:\n' + err.message);
     }
   };
@@ -110,15 +122,32 @@ export default function TicketDetail() {
   const handleRemoveTag = async (tagId) => {
     try {
       await ticketsApi.removeTag(id, tagId, 1);
-      const updated = await ticketsApi.get(id);
-      setTicket(updated);
+      await Promise.all([loadTicket(), loadActivity()]);
     } catch (err) {
-      console.error('Tag kaldirma hatasi:', err);
-      alert('Etiket kaldirildi:\n' + err.message);
+      alert('Etiket kaldirilamadi:\n' + err.message);
     }
   };
 
-  // Tags not yet assigned to this ticket
+  // Inline update helper
+  const updateTicket = async (patch) => {
+    try {
+      const payload = {
+        title: ticket.title,
+        description: ticket.description,
+        ticketPriorityId: ticket.ticketPriorityId,
+        ticketStatusId: ticket.ticketStatusId,
+        firmId: ticket.firmId,
+        assignedUserId: ticket.assignedUserId,
+        productId: ticket.productId,
+        ...patch,
+      };
+      const updated = await ticketsApi.update(id, payload);
+      setTicket(updated);
+    } catch (err) {
+      alert('Guncelleme hatasi:\n' + err.message);
+    }
+  };
+
   const availableTags = allTags.filter(
     (tag) => !ticket?.ticketTags?.some((tt) => tt.tagId === tag.id)
   );
@@ -144,10 +173,7 @@ export default function TicketDetail() {
         <Header title="Ticket Detay" />
         <div className="p-6 text-center">
           <p className="text-sm text-surface-500">Ticket bulunamadi.</p>
-          <button
-            onClick={() => navigate('/tickets')}
-            className="mt-3 text-sm text-primary-600 hover:text-primary-700 font-medium"
-          >
+          <button onClick={() => navigate('/tickets')} className="mt-3 text-sm text-primary-600 hover:text-primary-700 font-medium">
             Ticket listesine don
           </button>
         </div>
@@ -209,46 +235,69 @@ export default function TicketDetail() {
               </div>
             </div>
 
-            {/* Comments */}
+            {/* Activity Timeline */}
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-4 border-b border-surface-200">
                 <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-surface-400" />
-                  Yorumlar
-                  {comments.length > 0 && (
-                    <span className="text-xs text-surface-400 font-normal">({comments.length})</span>
+                  Aktivite
+                  {activity.length > 0 && (
+                    <span className="text-xs text-surface-400 font-normal">({activity.length})</span>
                   )}
                 </h3>
               </div>
 
-              {comments.length > 0 ? (
+              {activity.length > 0 ? (
                 <div className="divide-y divide-surface-100">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="px-6 py-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 mt-0.5 shrink-0">
-                          {comment.user?.name?.charAt(0) || '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-surface-900">
-                              {comment.user?.name || 'Kullanici'}
-                            </span>
-                            <span className="text-xs text-surface-400">
-                              {formatDateTime(comment.createdAt)}
-                            </span>
+                  {activity.map((item) =>
+                    item.type === 'comment' ? (
+                      <div key={item.id} className="px-6 py-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 mt-0.5 shrink-0">
+                            {item.userName?.charAt(0) || '?'}
                           </div>
-                          <div className="mt-1.5 p-3 bg-surface-50 rounded-lg text-sm text-surface-700 border border-surface-100">
-                            {comment.content}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-surface-900">
+                                {item.userName || 'Kullanici'}
+                              </span>
+                              <span className="text-xs text-surface-400">
+                                {formatDateTime(item.createdAt)}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 p-3 bg-surface-50 rounded-lg text-sm text-surface-700 border border-surface-100">
+                              {item.content}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={item.id} className="px-6 py-3">
+                        <div className="flex items-center gap-2 text-xs text-surface-500">
+                          {item.type === 'tag_added' ? (
+                            <Plus className="w-3.5 h-3.5 text-success" />
+                          ) : (
+                            <Minus className="w-3.5 h-3.5 text-danger" />
+                          )}
+                          <span className="font-medium text-surface-700">{item.userName || 'Sistem'}</span>
+                          <span>
+                            {item.type === 'tag_added' ? 'etiket ekledi:' : 'etiketi kaldirdi:'}
+                          </span>
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium rounded-full text-white"
+                            style={{ backgroundColor: item.colorHex || '#6B7280' }}
+                          >
+                            {item.tagName}
+                          </span>
+                          <span className="text-surface-400 ml-auto">{formatDateTime(item.createdAt)}</span>
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               ) : (
                 <div className="px-6 py-8 text-center">
-                  <p className="text-sm text-surface-400">Henuz yorum yok</p>
+                  <p className="text-sm text-surface-400">Henuz aktivite yok</p>
                 </div>
               )}
 
@@ -265,9 +314,7 @@ export default function TicketDetail() {
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                          handleSendComment();
-                        }
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendComment();
                       }}
                       className="w-full px-3 py-2 text-sm bg-surface-50 border border-surface-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
                     />
@@ -291,44 +338,78 @@ export default function TicketDetail() {
           {/* Sidebar */}
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
+              {/* Status */}
+              <SidebarSelect
+                icon={CheckCircle2}
+                label="Durum"
+                value={ticket.ticketStatusId}
+                options={allStatuses.map((s) => ({ value: s.id, label: s.name }))}
+                onChange={(val) => updateTicket({ ticketStatusId: Number(val) })}
+              />
+              {/* Priority */}
+              <SidebarSelect
+                icon={AlertCircle}
+                label="Oncelik"
+                value={ticket.ticketPriorityId}
+                options={allPriorities.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(val) => updateTicket({ ticketPriorityId: Number(val) })}
+              />
+              {/* Assigned User */}
+              <SidebarSelect
+                icon={UserPlus}
+                label="Atanan Kisi"
+                value={ticket.assignedUserId || ''}
+                options={[
+                  { value: '', label: 'Atanmadi' },
+                  ...allUsers.map((u) => ({ value: u.id, label: u.name })),
+                ]}
+                onChange={(val) => updateTicket({ assignedUserId: val ? Number(val) : null })}
+              />
+              {/* Firm */}
+              <SidebarSelect
+                icon={Building2}
+                label="Firma"
+                value={ticket.firmId || ''}
+                options={[
+                  { value: '', label: 'Belirtilmedi' },
+                  ...allFirms.map((f) => ({ value: f.id, label: f.name })),
+                ]}
+                onChange={(val) => updateTicket({ firmId: val ? Number(val) : null })}
+              />
+              {/* Product */}
+              <SidebarSelect
+                icon={Package}
+                label="Urun"
+                value={ticket.productId || ''}
+                options={[
+                  { value: '', label: 'Belirtilmedi' },
+                  ...allProducts.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                onChange={(val) => updateTicket({ productId: val ? Number(val) : null })}
+              />
+              {/* Creator (read-only) */}
               <SidebarItem
                 icon={User}
-                label="Atanan Kisi"
+                label="Olusturan"
                 value={
-                  ticket.assignedUser ? (
+                  ticket.createdByUser ? (
                     <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-medium text-primary-700">
-                        {ticket.assignedUser.name?.charAt(0)}
+                      <div className="w-5 h-5 rounded-full bg-surface-200 flex items-center justify-center text-[10px] font-medium text-surface-600">
+                        {ticket.createdByUser.name?.charAt(0)}
                       </div>
-                      {ticket.assignedUser.name}
+                      {ticket.createdByUser.name}
                     </div>
                   ) : (
-                    <span className="text-surface-400">Atanmadi</span>
+                    <span className="text-surface-400">Bilinmiyor</span>
                   )
                 }
               />
-              <SidebarItem
-                icon={AlertCircle}
-                label="Oncelik"
-                value={<Badge variant={prio.variant}>{prio.label}</Badge>}
-              />
-              <SidebarItem
-                icon={Building2}
-                label="Firma"
-                value={ticket.firm?.name || <span className="text-surface-400">Belirtilmedi</span>}
-              />
+              {/* Created date (read-only) */}
               <SidebarItem
                 icon={Clock}
                 label="Olusturulma"
                 value={formatDateTime(ticket.createdAt)}
               />
-              {ticket.updatedAt && (
-                <SidebarItem
-                  icon={Clock}
-                  label="Guncelleme"
-                  value={formatDateTime(ticket.updatedAt)}
-                />
-              )}
             </div>
 
             {/* Tags */}
@@ -341,7 +422,7 @@ export default function TicketDetail() {
                 {ticket.ticketTags && ticket.ticketTags.length > 0 ? (
                   ticket.ticketTags.map((tt) => (
                     <span
-                      key={tt.id}
+                      key={tt.tagId}
                       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
                       style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
                     >
@@ -395,6 +476,26 @@ export default function TicketDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SidebarSelect({ icon: Icon, label, value, options, onChange }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3">
+      <span className="flex items-center gap-2 text-sm text-surface-500">
+        <Icon className="w-4 h-4" />
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-sm font-medium text-surface-900 bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-right pr-0 max-w-[160px] truncate"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
