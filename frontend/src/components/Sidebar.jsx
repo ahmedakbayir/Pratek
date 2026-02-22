@@ -5,6 +5,7 @@ import {
   Users,
   Building2,
   Package,
+  Grid3x3,
   Tags,
   Settings,
   Shield,
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/users', icon: Users, label: 'Kullanıcılar' },
   { to: '/firms', icon: Building2, label: 'Firmalar' },
   { to: '/products', icon: Package, label: 'Ürünler' },
+  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi' },
   { to: '/tags', icon: Tags, label: 'Etiketler' },
 ];
 
