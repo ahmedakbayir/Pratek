@@ -8,6 +8,7 @@ import EditTicket from './pages/EditTicket';
 import UserList from './pages/UserList';
 import FirmList from './pages/FirmList';
 import TagList from './pages/TagList';
+import ProductList from './pages/ProductList';
 import Settings from './pages/Settings';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="tickets/:id/edit" element={<EditTicket />} />
           <Route path="users" element={<UserList />} />
           <Route path="firms" element={<FirmList />} />
+          <Route path="products" element={<ProductList />} />
           <Route path="tags" element={<TagList />} />
           <Route path="settings" element={<Settings />} />
         </Route>

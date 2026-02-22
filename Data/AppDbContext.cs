@@ -17,6 +17,8 @@ namespace Protekh.Api.Data
         public DbSet<Ticket> Tickets { get; set; }
         public DbSet<TicketTag> TicketTags { get; set; }
         public DbSet<TicketComment> TicketComments { get; set; }
+        public DbSet<Product> Products { get; set; }
+        public DbSet<FirmProduct> FirmProducts { get; set; }
         public DbSet<EventLog> EventLogs { get; set; }
 
         public DbSet<EntityTypeLookup> EntityTypes { get; set; }
@@ -38,6 +40,8 @@ namespace Protekh.Api.Data
             modelBuilder.Entity<Ticket>().ToTable("ticket");
             modelBuilder.Entity<TicketTag>().ToTable("ticket_tag");
             modelBuilder.Entity<TicketComment>().ToTable("ticket_comment");
+            modelBuilder.Entity<Product>().ToTable("product");
+            modelBuilder.Entity<FirmProduct>().ToTable("firm_product");
             modelBuilder.Entity<EventLog>().ToTable("event_log");
 
             modelBuilder.Entity<EntityTypeLookup>().ToTable("entity_type");
@@ -99,6 +103,28 @@ namespace Protekh.Api.Data
                 .WithMany()
                 .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // ---- PRODUCT RELATIONS ----
+
+            modelBuilder.Entity<Product>()
+                .HasOne(p => p.Manager)
+                .WithMany()
+                .HasForeignKey(p => p.ManagerId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ---- FIRM_PRODUCT RELATIONS ----
+
+            modelBuilder.Entity<FirmProduct>()
+                .HasOne(fp => fp.Firm)
+                .WithMany()
+                .HasForeignKey(fp => fp.FirmId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FirmProduct>()
+                .HasOne(fp => fp.Product)
+                .WithMany(p => p.FirmProducts)
+                .HasForeignKey(fp => fp.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // ---- EVENT LOG RELATIONS ----
 

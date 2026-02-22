@@ -73,3 +73,13 @@ export const tagsApi = {
   update: (id, data) => request(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/tags/${id}`, { method: 'DELETE' }),
 };
+
+export const productsApi = {
+  getAll: () => request('/products'),
+  get: (id) => request(`/products/${id}`),
+  create: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+  addFirm: (id, firmId) => request(`/products/${id}/firms/${firmId}`, { method: 'POST' }),
+  removeFirm: (id, firmId) => request(`/products/${id}/firms/${firmId}`, { method: 'DELETE' }),
+};
