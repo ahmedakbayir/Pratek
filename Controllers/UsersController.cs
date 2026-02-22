@@ -63,6 +63,24 @@ namespace Protekh.Api.Controllers
             if (user == null)
                 return NotFound();
 
+            // Nullify user references on tickets to avoid FK constraint violations
+            var tickets = await _context.Tickets
+                .Where(t => t.AssignedUserId == id)
+                .ToListAsync();
+            foreach (var ticket in tickets)
+                ticket.AssignedUserId = null;
+
+            // Remove comments by this user (UserId is non-nullable)
+            var comments = _context.TicketComments.Where(c => c.UserId == id);
+            _context.TicketComments.RemoveRange(comments);
+
+            // Nullify user references on event logs
+            var eventLogs = await _context.EventLogs
+                .Where(e => e.UserId == id)
+                .ToListAsync();
+            foreach (var log in eventLogs)
+                log.UserId = null;
+
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
             return Ok();

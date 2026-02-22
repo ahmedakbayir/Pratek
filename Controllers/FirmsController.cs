@@ -60,6 +60,11 @@ namespace Protekh.Api.Controllers
             if (firm == null)
                 return NotFound();
 
+            // Nullify firm references on tickets to avoid FK constraint violations
+            var tickets = await _context.Tickets.Where(t => t.FirmId == id).ToListAsync();
+            foreach (var ticket in tickets)
+                ticket.FirmId = null;
+
             _context.Firms.Remove(firm);
             await _context.SaveChangesAsync();
             return Ok();
