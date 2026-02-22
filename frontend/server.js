@@ -23,31 +23,18 @@ function toPositional(query, params = {}) {
 }
 
 function stripOutput(query) {
-  return query.replace(/\s*OUTPUT\s+INSERTED\.Id\s*/i, ' ');
+  return query.replace(/\s*OUTPUT\s+INSERTED\.id\s*/i, ' ');
 }
 
 // ──────────────────────────────────────
 // ADAPTERS
 // ──────────────────────────────────────
-
-// Normalize row: add PascalCase alias for every column so r.Id, r.Name etc. always work
-// regardless of what casing msnodesqlv8 returns (could be Id, id, ID, etc.)
 function normalizeRow(row) {
   if (!row || typeof row !== 'object') return row;
-  const out = {};
-  for (const [k, v] of Object.entries(row)) {
-    out[k] = v; // keep original key
-    // Add PascalCase version: first char upper + rest as-is
-    const pascal = k.charAt(0).toUpperCase() + k.slice(1);
-    if (!(pascal in out)) out[pascal] = v;
-    // Also add camelCase version: first char lower + rest as-is
-    const camel = k.charAt(0).toLowerCase() + k.slice(1);
-    if (!(camel in out)) out[camel] = v;
-  }
-  return out;
+  return row;
 }
 
-// SQL Server via msnodesqlv8 (direct, no mssql wrapper)
+// SQL Server via msnodesqlv8
 function createSqlServerAdapter(conn) {
   function query(sql, params = {}) {
     const { sql: q, values } = toPositional(sql, params);
@@ -66,7 +53,7 @@ function createSqlServerAdapter(conn) {
       const rows = await query(sql, params);
       const row = rows[0];
       if (!row) return undefined;
-      return row.Id ?? Object.values(row)[0];
+      return row.id ?? Object.values(row)[0];
     },
     run: async (sql, params) => { await query(sql, params); },
   };
@@ -119,7 +106,6 @@ async function tryOpenSqlServer() {
       const conn = await new Promise((resolve, reject) => {
         msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
       });
-      // Test query to verify connection
       await new Promise((resolve, reject) => {
         conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
       });
@@ -135,7 +121,6 @@ async function tryOpenSqlServer() {
 try {
   const conn = await tryOpenSqlServer();
   db = createSqlServerAdapter(conn);
-  // Verify by reading firm count
   const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
   console.log('════════════════════════════════════════════════════');
   console.log(`[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db`);
@@ -152,18 +137,18 @@ try {
   sqliteDb.pragma('foreign_keys = ON');
 
   sqliteDb.exec(`
-    CREATE TABLE IF NOT EXISTS entity_type (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS event_type (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS ticket_status (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL, IsClosed INTEGER NOT NULL DEFAULT 0, OrderNo INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS ticket_priority (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL, Level INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS yetki (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS [user] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL DEFAULT '', Mail TEXT NOT NULL DEFAULT '', Password TEXT NOT NULL DEFAULT '', Tel TEXT NOT NULL DEFAULT '', RoleId INTEGER NOT NULL DEFAULT 2);
-    CREATE TABLE IF NOT EXISTS firm (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS tag (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL, Description TEXT, ColorHex TEXT);
-    CREATE TABLE IF NOT EXISTS ticket (Id INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT NOT NULL, Description TEXT, FirmId INTEGER REFERENCES firm(Id) ON DELETE SET NULL, AssignedUserId INTEGER REFERENCES [user](Id) ON DELETE SET NULL, TicketStatusId INTEGER NOT NULL REFERENCES ticket_status(Id), TicketPriorityId INTEGER NOT NULL REFERENCES ticket_priority(Id), CreatedAt TEXT NOT NULL, CreatedBy INTEGER, UpdatedAt TEXT, UpdatedBy INTEGER);
-    CREATE TABLE IF NOT EXISTS ticket_tag (Id INTEGER PRIMARY KEY AUTOINCREMENT, TicketId INTEGER NOT NULL REFERENCES ticket(Id) ON DELETE CASCADE, TagId INTEGER NOT NULL REFERENCES tag(Id) ON DELETE CASCADE, CreatedBy INTEGER NOT NULL DEFAULT 0, CreatedAt TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS ticket_comment (Id INTEGER PRIMARY KEY AUTOINCREMENT, TicketId INTEGER NOT NULL REFERENCES ticket(Id) ON DELETE CASCADE, UserId INTEGER NOT NULL REFERENCES [user](Id), Content TEXT NOT NULL DEFAULT '', CreatedAt TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS event_log (Id INTEGER PRIMARY KEY AUTOINCREMENT, EntityTypeId INTEGER NOT NULL REFERENCES entity_type(Id), EventTypeId INTEGER NOT NULL REFERENCES event_type(Id), EntityId INTEGER NOT NULL, Description TEXT, UserId INTEGER, CreatedAt TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS entity_type (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS event_type (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS ticket_status (id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_closed INTEGER NOT NULL DEFAULT 0, order_no INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS ticket_priority (id INTEGER PRIMARY KEY, name TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS yetki (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS [user] (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', mail TEXT NOT NULL DEFAULT '', password TEXT NOT NULL DEFAULT '', tel TEXT NOT NULL DEFAULT '', firm_id INTEGER REFERENCES firm(id), yetki_id INTEGER NOT NULL DEFAULT 2);
+    CREATE TABLE IF NOT EXISTS firm (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, inactive INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, color_hex TEXT);
+    CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, firm_id INTEGER REFERENCES firm(id) ON DELETE SET NULL, created_by INTEGER REFERENCES [user](id), assigned_user_id INTEGER REFERENCES [user](id) ON DELETE SET NULL, status_id INTEGER NOT NULL REFERENCES ticket_status(id), priority_id INTEGER NOT NULL REFERENCES ticket_priority(id), due_date TEXT);
+    CREATE TABLE IF NOT EXISTS ticket_tag (ticket_id INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, tag_id INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE, created_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, removed_at TEXT, removed_by INTEGER, PRIMARY KEY(ticket_id, tag_id));
+    CREATE TABLE IF NOT EXISTS ticket_comment (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES [user](id), content TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS event_log (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, entity_type_id INTEGER NOT NULL REFERENCES entity_type(id), entity_id INTEGER NOT NULL, event_type_id INTEGER NOT NULL REFERENCES event_type(id), description TEXT, created_by INTEGER, old_value TEXT, new_value TEXT);
   `);
 
   function seedIfEmpty(table, rows) {
@@ -176,25 +161,25 @@ try {
     }
   }
   seedIfEmpty('ticket_status', [
-    { Id: 1, Name: 'Açık', IsClosed: 0, OrderNo: 1 },
-    { Id: 2, Name: 'Devam Ediyor', IsClosed: 0, OrderNo: 2 },
-    { Id: 3, Name: 'Çözümlendi', IsClosed: 1, OrderNo: 3 },
-    { Id: 4, Name: 'Kapalı', IsClosed: 1, OrderNo: 4 },
+    { id: 1, name: 'Açık', is_closed: 0, order_no: 1 },
+    { id: 2, name: 'Devam Ediyor', is_closed: 0, order_no: 2 },
+    { id: 3, name: 'Çözümlendi', is_closed: 1, order_no: 3 },
+    { id: 4, name: 'Kapalı', is_closed: 1, order_no: 4 },
   ]);
   seedIfEmpty('ticket_priority', [
-    { Id: 1, Name: 'Kritik', Level: 1 },
-    { Id: 2, Name: 'Yüksek', Level: 2 },
-    { Id: 3, Name: 'Normal', Level: 3 },
-    { Id: 4, Name: 'Düşük', Level: 4 },
+    { id: 1, name: 'Kritik', level: 1 },
+    { id: 2, name: 'Yüksek', level: 2 },
+    { id: 3, name: 'Normal', level: 3 },
+    { id: 4, name: 'Düşük', level: 4 },
   ]);
   seedIfEmpty('entity_type', [
-    { Id: 1, Name: 'User' }, { Id: 2, Name: 'Ticket' }, { Id: 3, Name: 'Firm' }, { Id: 4, Name: 'Tag' },
+    { id: 1, name: 'User' }, { id: 2, name: 'Ticket' }, { id: 3, name: 'Firm' }, { id: 4, name: 'Tag' },
   ]);
   seedIfEmpty('event_type', [
-    { Id: 1, Name: 'Created' }, { Id: 2, Name: 'Updated' }, { Id: 3, Name: 'Assigned' }, { Id: 4, Name: 'Deleted' },
+    { id: 1, name: 'Created' }, { id: 2, name: 'Updated' }, { id: 3, name: 'Assigned' }, { id: 4, name: 'Deleted' },
   ]);
   seedIfEmpty('yetki', [
-    { Id: 1, Name: 'Admin' }, { Id: 2, Name: 'Agent' }, { Id: 3, Name: 'Müşteri' },
+    { id: 1, name: 'Admin' }, { id: 2, name: 'Agent' }, { id: 3, name: 'Müşteri' },
   ]);
 
   db = createSqliteAdapter(sqliteDb);
@@ -219,7 +204,7 @@ function now() { return new Date(); }
 
 async function logEvent(entityTypeId, eventTypeId, entityId, description, userId) {
   await db.run(
-    `INSERT INTO event_log (EntityTypeId, EventTypeId, EntityId, Description, UserId, CreatedAt)
+    `INSERT INTO event_log (entity_type_id, event_type_id, entity_id, description, created_by, created_at)
      VALUES (@entityTypeId, @eventTypeId, @entityId, @description, @userId, @createdAt)`,
     { entityTypeId, eventTypeId, entityId, description, userId: userId ?? null, createdAt: now() }
   );
@@ -227,29 +212,32 @@ async function logEvent(entityTypeId, eventTypeId, entityId, description, userId
 
 async function toTicketJson(row) {
   if (!row) return null;
-  const firm = row.FirmId ? await db.get('SELECT * FROM firm WHERE Id = @id', { id: row.FirmId }) : null;
-  const user = row.AssignedUserId ? await db.get('SELECT * FROM [user] WHERE Id = @id', { id: row.AssignedUserId }) : null;
-  const status = await db.get('SELECT * FROM ticket_status WHERE Id = @id', { id: row.TicketStatusId });
-  const priority = await db.get('SELECT * FROM ticket_priority WHERE Id = @id', { id: row.TicketPriorityId });
+  const firm = row.firm_id ? await db.get('SELECT * FROM firm WHERE id = @id', { id: row.firm_id }) : null;
+  const user = row.assigned_user_id ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.assigned_user_id }) : null;
+  const status = await db.get('SELECT * FROM ticket_status WHERE id = @id', { id: row.status_id });
+  const priority = await db.get('SELECT * FROM ticket_priority WHERE id = @id', { id: row.priority_id });
   const tags = await db.all(
-    `SELECT tt.*, t.Name, t.Description AS TagDescription, t.ColorHex
-     FROM ticket_tag tt JOIN tag t ON tt.TagId = t.Id WHERE tt.TicketId = @ticketId`,
-    { ticketId: row.Id }
+    `SELECT tt.*, t.name, t.description AS tag_description, t.color_hex
+     FROM ticket_tag tt JOIN tag t ON tt.tag_id = t.id WHERE tt.ticket_id = @ticketId AND tt.removed_at IS NULL`,
+    { ticketId: row.id }
   );
+  
+  // Since ticket table does not have 'created_at', fetch the creation log from event_log
+  const createEvent = await db.get('SELECT created_at FROM event_log WHERE entity_type_id = 2 AND entity_id = @id AND event_type_id = 1', { id: row.id });
 
   return {
-    id: row.Id, title: row.Title, description: row.Description,
-    firmId: row.FirmId, assignedUserId: row.AssignedUserId,
-    ticketStatusId: row.TicketStatusId, ticketPriorityId: row.TicketPriorityId,
-    createdAt: row.CreatedAt, createdBy: row.CreatedBy,
-    updatedAt: row.UpdatedAt, updatedBy: row.UpdatedBy,
-    firm: firm ? { id: firm.Id, name: firm.Name } : null,
-    assignedUser: user ? { id: user.Id, name: user.Name, mail: user.Mail, tel: user.Tel, roleId: user.RoleId } : null,
-    status: status ? { id: status.Id, name: status.Name, isClosed: !!status.IsClosed, orderNo: status.OrderNo } : null,
-    priority: priority ? { id: priority.Id, name: priority.Name, level: priority.Level } : null,
+    id: row.id, title: row.title, description: row.description,
+    firmId: row.firm_id, assignedUserId: row.assigned_user_id,
+    ticketStatusId: row.status_id, ticketPriorityId: row.priority_id,
+    createdAt: createEvent ? createEvent.created_at : null, 
+    createdBy: row.created_by,
+    firm: firm ? { id: firm.id, name: firm.name } : null,
+    assignedUser: user ? { id: user.id, name: user.name, mail: user.mail, tel: user.tel, roleId: user.yetki_id } : null,
+    status: status ? { id: status.id, name: status.name, isClosed: !!status.is_closed, orderNo: status.order_no } : null,
+    priority: priority ? { id: priority.id, name: priority.name, level: priority.level } : null,
     ticketTags: tags.map((tt) => ({
-      id: tt.Id, ticketId: tt.TicketId, tagId: tt.TagId, createdBy: tt.CreatedBy, createdAt: tt.CreatedAt,
-      tag: { id: tt.TagId, name: tt.Name, description: tt.TagDescription, colorHex: tt.ColorHex },
+      ticketId: tt.ticket_id, tagId: tt.tag_id, createdBy: tt.created_by, createdAt: tt.created_at,
+      tag: { id: tt.tag_id, name: tt.name, description: tt.tag_description, colorHex: tt.color_hex },
     })),
   };
 }
@@ -259,13 +247,9 @@ async function toTicketJson(row) {
 // ══════════════════════════════════════
 app.get('/api/debug', asyncHandler(async (_req, res) => {
   const firms = await db.all('SELECT * FROM firm');
-  const firstFirm = firms[0] || null;
   res.json({
     engine: db.type,
     firmCount: firms.length,
-    columnNames: firstFirm ? Object.keys(firstFirm) : [],
-    sampleAccess: firstFirm ? { 'Id': firstFirm.Id, 'id': firstFirm.id, 'Name': firstFirm.Name, 'name': firstFirm.name } : null,
-    rawFirstRow: firstFirm,
     firms,
   });
 }));
@@ -275,32 +259,32 @@ app.get('/api/debug', asyncHandler(async (_req, res) => {
 // ══════════════════════════════════════
 app.get('/api/firms', asyncHandler(async (_req, res) => {
   const rows = await db.all('SELECT * FROM firm');
-  res.json(rows.map((r) => ({ id: r.Id, name: r.Name })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
 }));
 
 app.get('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.Id, name: row.Name });
+  res.json({ id: row.id, name: row.name });
 }));
 
 app.post('/api/firms', asyncHandler(async (req, res) => {
   const { name } = req.body;
-  const newId = await db.insert('INSERT INTO firm (Name) OUTPUT INSERTED.Id VALUES (@name)', { name });
+  const newId = await db.insert('INSERT INTO firm (name) OUTPUT INSERTED.id VALUES (@name)', { name });
   res.json({ id: newId, name });
 }));
 
 app.put('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE firm SET Name = @name WHERE Id = @id', { name: req.body.name, id: Number(req.params.id) });
+  await db.run('UPDATE firm SET name = @name WHERE id = @id', { name: req.body.name, id: Number(req.params.id) });
   res.json({ id: Number(req.params.id), name: req.body.name });
 }));
 
 app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM firm WHERE Id = @id', { id: Number(req.params.id) });
+  await db.run('DELETE FROM firm WHERE id = @id', { id: Number(req.params.id) });
   res.json({ success: true });
 }));
 
@@ -309,38 +293,38 @@ app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
 // ══════════════════════════════════════
 app.get('/api/tags', asyncHandler(async (_req, res) => {
   const rows = await db.all('SELECT * FROM tag');
-  res.json(rows.map((r) => ({ id: r.Id, name: r.Name, description: r.Description, colorHex: r.ColorHex })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, description: r.description, colorHex: r.color_hex })));
 }));
 
 app.get('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.Id, name: row.Name, description: row.Description, colorHex: row.ColorHex });
+  res.json({ id: row.id, name: row.name, description: row.description, colorHex: row.color_hex });
 }));
 
 app.post('/api/tags', asyncHandler(async (req, res) => {
   const { name, description, colorHex } = req.body;
   const newId = await db.insert(
-    'INSERT INTO tag (Name, Description, ColorHex) OUTPUT INSERTED.Id VALUES (@name, @description, @colorHex)',
+    'INSERT INTO tag (name, description, color_hex) OUTPUT INSERTED.id VALUES (@name, @description, @colorHex)',
     { name, description: description ?? null, colorHex: colorHex ?? null }
   );
   res.json({ id: newId, name, description: description ?? null, colorHex: colorHex ?? null });
 }));
 
 app.put('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
   await db.run(
-    'UPDATE tag SET Name = @name, Description = @description, ColorHex = @colorHex WHERE Id = @id',
+    'UPDATE tag SET name = @name, description = @description, color_hex = @colorHex WHERE id = @id',
     { name: req.body.name, description: req.body.description ?? null, colorHex: req.body.colorHex ?? null, id: Number(req.params.id) }
   );
   res.json({ id: Number(req.params.id), name: req.body.name, description: req.body.description ?? null, colorHex: req.body.colorHex ?? null });
 }));
 
 app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM tag WHERE Id = @id', { id: Number(req.params.id) });
+  await db.run('DELETE FROM tag WHERE id = @id', { id: Number(req.params.id) });
   res.json({ success: true });
 }));
 
@@ -349,38 +333,38 @@ app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
 // ══════════════════════════════════════
 app.get('/api/users', asyncHandler(async (_req, res) => {
   const rows = await db.all('SELECT * FROM [user]');
-  res.json(rows.map((r) => ({ id: r.Id, name: r.Name, mail: r.Mail, tel: r.Tel, roleId: r.RoleId, password: r.Password })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, mail: r.mail, tel: r.tel, roleId: r.yetki_id, password: r.password })));
 }));
 
 app.get('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.Id, name: row.Name, mail: row.Mail, tel: row.Tel, roleId: row.RoleId });
+  res.json({ id: row.id, name: row.name, mail: row.mail, tel: row.tel, roleId: row.yetki_id });
 }));
 
 app.post('/api/users', asyncHandler(async (req, res) => {
   const { name, mail, password, tel, roleId } = req.body;
   const newId = await db.insert(
-    'INSERT INTO [user] (Name, Mail, Password, Tel, RoleId) OUTPUT INSERTED.Id VALUES (@name, @mail, @password, @tel, @roleId)',
+    'INSERT INTO [user] (name, mail, password, tel, yetki_id) OUTPUT INSERTED.id VALUES (@name, @mail, @password, @tel, @roleId)',
     { name: name ?? '', mail: mail ?? '', password: password ?? '', tel: tel ?? '', roleId: roleId ?? 2 }
   );
   res.json({ id: newId, name, mail, tel, roleId: roleId ?? 2 });
 }));
 
 app.put('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
   await db.run(
-    'UPDATE [user] SET Name = @name, Mail = @mail, Tel = @tel, RoleId = @roleId WHERE Id = @id',
-    { name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.RoleId, id: Number(req.params.id) }
+    'UPDATE [user] SET name = @name, mail = @mail, tel = @tel, yetki_id = @roleId WHERE id = @id',
+    { name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.yetki_id, id: Number(req.params.id) }
   );
-  res.json({ id: Number(req.params.id), name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.RoleId });
+  res.json({ id: Number(req.params.id), name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.yetki_id });
 }));
 
 app.delete('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM [user] WHERE Id = @id', { id: Number(req.params.id) });
+  await db.run('DELETE FROM [user] WHERE id = @id', { id: Number(req.params.id) });
   res.json({ success: true });
 }));
 
@@ -388,13 +372,13 @@ app.delete('/api/users/:id', asyncHandler(async (req, res) => {
 // TICKETS
 // ══════════════════════════════════════
 app.get('/api/tickets', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticket ORDER BY CreatedAt DESC');
+  const rows = await db.all('SELECT * FROM ticket ORDER BY id DESC');
   const tickets = await Promise.all(rows.map(toTicketJson));
   res.json(tickets);
 }));
 
 app.get('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(await toTicketJson(row));
 }));
@@ -402,61 +386,60 @@ app.get('/api/tickets/:id', asyncHandler(async (req, res) => {
 app.post('/api/tickets', asyncHandler(async (req, res) => {
   const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy } = req.body;
   const newId = await db.insert(
-    `INSERT INTO ticket (Title, Description, FirmId, AssignedUserId, TicketStatusId, TicketPriorityId, CreatedAt, CreatedBy)
-     OUTPUT INSERTED.Id
-     VALUES (@title, @description, @firmId, @assignedUserId, @ticketStatusId, @ticketPriorityId, @createdAt, @createdBy)`,
+    `INSERT INTO ticket (title, description, firm_id, assigned_user_id, status_id, priority_id, created_by)
+     OUTPUT INSERTED.id
+     VALUES (@title, @description, @firmId, @assignedUserId, @ticketStatusId, @ticketPriorityId, @createdBy)`,
     {
       title, description: description ?? null,
       firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
       ticketStatusId: ticketStatusId ?? 1, ticketPriorityId: ticketPriorityId ?? 3,
-      createdAt: now(), createdBy: createdBy ?? null,
+      createdBy: createdBy ?? null,
     }
   );
   await logEvent(2, 1, newId, `Ticket created: ${title}`, createdBy);
-  const created = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: newId });
+  const created = await db.get('SELECT * FROM ticket WHERE id = @id', { id: newId });
   res.json(await toTicketJson(created));
 }));
 
 app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
 
   const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, updatedBy } = req.body;
   await db.run(
-    `UPDATE ticket SET Title=@title, Description=@description, TicketPriorityId=@ticketPriorityId,
-     TicketStatusId=@ticketStatusId, FirmId=@firmId, AssignedUserId=@assignedUserId,
-     UpdatedAt=@updatedAt, UpdatedBy=@updatedBy WHERE Id=@id`,
+    `UPDATE ticket SET title=@title, description=@description, priority_id=@ticketPriorityId,
+     status_id=@ticketStatusId, firm_id=@firmId, assigned_user_id=@assignedUserId WHERE id=@id`,
     {
       title, description: description ?? null,
       ticketPriorityId, ticketStatusId,
       firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
-      updatedAt: now(), updatedBy: updatedBy ?? null, id: Number(req.params.id),
+      id: Number(req.params.id),
     }
   );
-  await logEvent(2, 2, row.Id, `Ticket updated: ${title}`, updatedBy);
-  const updated = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  await logEvent(2, 2, row.id, `Ticket updated: ${title}`, updatedBy);
+  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   res.json(await toTicketJson(updated));
 }));
 
 app.delete('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
-  await logEvent(2, 4, row.Id, 'Ticket deleted', null);
+  await db.run('DELETE FROM ticket WHERE id = @id', { id: Number(req.params.id) });
+  await logEvent(2, 4, row.id, 'Ticket deleted', null);
   res.json({ success: true });
 }));
 
 // ── Ticket Comments ──
 app.get('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
   const rows = await db.all(
-    `SELECT c.*, u.Name AS UserName, u.Mail AS UserMail, u.Tel AS UserTel, u.RoleId AS UserRoleId
-     FROM ticket_comment c LEFT JOIN [user] u ON c.UserId = u.Id
-     WHERE c.TicketId = @ticketId ORDER BY c.CreatedAt DESC`,
+    `SELECT c.*, u.name AS user_name, u.mail AS user_mail, u.tel AS user_tel, u.yetki_id AS user_yetki_id
+     FROM ticket_comment c LEFT JOIN [user] u ON c.user_id = u.id
+     WHERE c.ticket_id = @ticketId ORDER BY c.created_at DESC`,
     { ticketId: Number(req.params.id) }
   );
   res.json(rows.map((r) => ({
-    id: r.Id, ticketId: r.TicketId, userId: r.UserId, content: r.Content, createdAt: r.CreatedAt,
-    user: r.UserName ? { id: r.UserId, name: r.UserName, mail: r.UserMail, tel: r.UserTel, roleId: r.UserRoleId } : null,
+    id: r.id, ticketId: r.ticket_id, userId: r.user_id, content: r.content, createdAt: r.created_at,
+    user: r.user_name ? { id: r.user_id, name: r.user_name, mail: r.user_mail, tel: r.user_tel, roleId: r.user_yetki_id } : null,
   })));
 }));
 
@@ -464,34 +447,34 @@ app.post('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
   const { content, userId } = req.body;
   const createdAt = now();
   const newId = await db.insert(
-    'INSERT INTO ticket_comment (TicketId, UserId, Content, CreatedAt) OUTPUT INSERTED.Id VALUES (@ticketId, @userId, @content, @createdAt)',
+    'INSERT INTO ticket_comment (ticket_id, user_id, content, created_at) OUTPUT INSERTED.id VALUES (@ticketId, @userId, @content, @createdAt)',
     { ticketId: Number(req.params.id), userId, content, createdAt }
   );
   await logEvent(2, 2, Number(req.params.id), 'Comment added', userId);
-  const user = await db.get('SELECT * FROM [user] WHERE Id = @id', { id: userId });
+  const user = await db.get('SELECT * FROM [user] WHERE id = @id', { id: userId });
   res.json({
     id: newId, ticketId: Number(req.params.id), userId, content, createdAt,
-    user: user ? { id: user.Id, name: user.Name, mail: user.Mail, tel: user.Tel, roleId: user.RoleId } : null,
+    user: user ? { id: user.id, name: user.name, mail: user.mail, tel: user.tel, roleId: user.yetki_id } : null,
   });
 }));
 
 // ── Assign ──
 app.post('/api/tickets/:id/assign/:userId', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE ticket SET AssignedUserId = @userId WHERE Id = @id', { userId: Number(req.params.userId), id: Number(req.params.id) });
-  await logEvent(2, 3, row.Id, `Assigned to user ${req.params.userId}`, Number(req.params.userId));
-  const updated = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  await db.run('UPDATE ticket SET assigned_user_id = @userId WHERE id = @id', { userId: Number(req.params.userId), id: Number(req.params.id) });
+  await logEvent(2, 3, row.id, `Assigned to user ${req.params.userId}`, Number(req.params.userId));
+  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   res.json(await toTicketJson(updated));
 }));
 
 // ── Status Change ──
 app.post('/api/tickets/:id/status/:statusId', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE ticket SET TicketStatusId = @statusId WHERE Id = @id', { statusId: Number(req.params.statusId), id: Number(req.params.id) });
-  await logEvent(2, 2, row.Id, `Status changed to ${req.params.statusId}`, row.AssignedUserId);
-  const updated = await db.get('SELECT * FROM ticket WHERE Id = @id', { id: Number(req.params.id) });
+  await db.run('UPDATE ticket SET status_id = @statusId WHERE id = @id', { statusId: Number(req.params.statusId), id: Number(req.params.id) });
+  await logEvent(2, 2, row.id, `Status changed to ${req.params.statusId}`, row.assigned_user_id);
+  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   res.json(await toTicketJson(updated));
 }));
 
@@ -499,12 +482,12 @@ app.post('/api/tickets/:id/status/:statusId', asyncHandler(async (req, res) => {
 app.post('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
   const userId = Number(req.query.userId ?? 0);
   const exists = await db.get(
-    'SELECT 1 AS x FROM ticket_tag WHERE TicketId = @ticketId AND TagId = @tagId',
+    'SELECT 1 AS x FROM ticket_tag WHERE ticket_id = @ticketId AND tag_id = @tagId AND removed_at IS NULL',
     { ticketId: Number(req.params.id), tagId: Number(req.params.tagId) }
   );
   if (exists) return res.status(400).json({ error: 'Tag already exists' });
   await db.run(
-    'INSERT INTO ticket_tag (TicketId, TagId, CreatedBy, CreatedAt) VALUES (@ticketId, @tagId, @createdBy, @createdAt)',
+    'INSERT INTO ticket_tag (ticket_id, tag_id, created_by, created_at) VALUES (@ticketId, @tagId, @createdBy, @createdAt)',
     { ticketId: Number(req.params.id), tagId: Number(req.params.tagId), createdBy: userId, createdAt: now() }
   );
   await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} added`, userId);
@@ -514,13 +497,13 @@ app.post('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
 app.delete('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
   const userId = Number(req.query.userId ?? 0);
   const tag = await db.get(
-    'SELECT * FROM ticket_tag WHERE TicketId = @ticketId AND TagId = @tagId',
+    'SELECT * FROM ticket_tag WHERE ticket_id = @ticketId AND tag_id = @tagId AND removed_at IS NULL',
     { ticketId: Number(req.params.id), tagId: Number(req.params.tagId) }
   );
   if (!tag) return res.status(404).json({ error: 'Not found' });
   await db.run(
-    'DELETE FROM ticket_tag WHERE TicketId = @ticketId AND TagId = @tagId',
-    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId) }
+    'UPDATE ticket_tag SET removed_at = @removedAt, removed_by = @removedBy WHERE ticket_id = @ticketId AND tag_id = @tagId',
+    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId), removedAt: now(), removedBy: userId }
   );
   await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} removed`, userId);
   res.json({ success: true });
@@ -528,13 +511,13 @@ app.delete('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
 
 // ── Lookup endpoints ──
 app.get('/api/ticket-statuses', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticket_status ORDER BY OrderNo');
-  res.json(rows.map((r) => ({ id: r.Id, name: r.Name, isClosed: !!r.IsClosed, orderNo: r.OrderNo })));
+  const rows = await db.all('SELECT * FROM ticket_status ORDER BY order_no');
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, isClosed: !!r.is_closed, orderNo: r.order_no })));
 }));
 
 app.get('/api/ticket-priorities', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticket_priority ORDER BY Level');
-  res.json(rows.map((r) => ({ id: r.Id, name: r.Name, level: r.Level })));
+  const rows = await db.all('SELECT * FROM ticket_priority ORDER BY level');
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, level: r.level })));
 }));
 
 // ──────────────────────────────────────
