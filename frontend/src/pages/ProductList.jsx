@@ -56,7 +56,7 @@ export default function ProductList() {
     try {
       const payload = {
         name: form.name,
-        managerId: form.managerId ? Number(form.managerId) : null,
+        managerId: Number(form.managerId),
       };
       if (editing) {
         await productsApi.update(editing.id, payload);
@@ -158,7 +158,7 @@ export default function ProductList() {
                   <div className="flex items-center gap-1 flex-wrap">
                     {product.firmProducts && product.firmProducts.length > 0 ? (
                       product.firmProducts.map((fp) => (
-                        <Badge key={fp.id} variant="default">
+                        <Badge key={fp.firmId} variant="default">
                           {fp.firm?.name || `#${fp.firmId}`}
                         </Badge>
                       ))
@@ -216,9 +216,10 @@ export default function ProductList() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                  Sorumlu Kullanıcı
+                  Sorumlu Kullanıcı <span className="text-danger">*</span>
                 </label>
                 <select
+                  required
                   value={form.managerId}
                   onChange={(e) => setForm((f) => ({ ...f, managerId: e.target.value }))}
                   className="input-field"

@@ -110,9 +110,12 @@ namespace Protekh.Api.Data
                 .HasOne(p => p.Manager)
                 .WithMany()
                 .HasForeignKey(p => p.ManagerId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
 
             // ---- FIRM_PRODUCT RELATIONS ----
+
+            modelBuilder.Entity<FirmProduct>()
+                .HasKey(fp => new { fp.FirmId, fp.ProductId });
 
             modelBuilder.Entity<FirmProduct>()
                 .HasOne(fp => fp.Firm)

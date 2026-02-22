@@ -46,7 +46,6 @@ namespace Protekh.Api.Controllers
             _context.Products.Add(model);
             await _context.SaveChangesAsync();
 
-            // Reload with includes
             var product = await _context.Products
                 .Include(p => p.Manager)
                 .FirstOrDefaultAsync(p => p.Id == model.Id);
@@ -65,7 +64,6 @@ namespace Protekh.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            // Reload with includes
             var updated = await _context.Products
                 .Include(p => p.Manager)
                 .Include(p => p.FirmProducts!)
