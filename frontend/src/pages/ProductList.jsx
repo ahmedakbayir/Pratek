@@ -27,9 +27,12 @@ export default function ProductList() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([productsApi.getAll(), usersApi.getAll(), firmsApi.getAll()])
+    Promise.all([
+      productsApi.getAll().catch(() => []),
+      usersApi.getAll().catch(() => []),
+      firmsApi.getAll().catch(() => []),
+    ])
       .then(([p, u, f]) => { setProducts(p || []); setUsers(u || []); setFirms(f || []); })
-      .catch(() => { setProducts([]); setUsers([]); setFirms([]); })
       .finally(() => setLoading(false));
   };
 
