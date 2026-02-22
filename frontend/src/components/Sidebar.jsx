@@ -4,6 +4,7 @@ import {
   Ticket,
   Users,
   Building2,
+  Package,
   Tags,
   Settings,
   Shield,
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/tickets', icon: Ticket, label: 'Ticket\'lar' },
   { to: '/users', icon: Users, label: 'Kullanıcılar' },
   { to: '/firms', icon: Building2, label: 'Firmalar' },
+  { to: '/products', icon: Package, label: 'Ürünler' },
   { to: '/tags', icon: Tags, label: 'Etiketler' },
 ];
 
