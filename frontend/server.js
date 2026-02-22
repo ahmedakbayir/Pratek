@@ -149,6 +149,8 @@ try {
     CREATE TABLE IF NOT EXISTS ticket_tag (ticket_id INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, tag_id INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE, created_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, removed_at TEXT, removed_by INTEGER, PRIMARY KEY(ticket_id, tag_id));
     CREATE TABLE IF NOT EXISTS ticket_comment (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES [user](id), content TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS event_log (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, entity_type_id INTEGER NOT NULL REFERENCES entity_type(id), entity_id INTEGER NOT NULL, event_type_id INTEGER NOT NULL REFERENCES event_type(id), description TEXT, created_by INTEGER, old_value TEXT, new_value TEXT);
+    CREATE TABLE IF NOT EXISTS product (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', manager_id INTEGER NOT NULL REFERENCES [user](id));
+    CREATE TABLE IF NOT EXISTS firm_product (firm_id INTEGER NOT NULL REFERENCES firm(id) ON DELETE CASCADE, product_id INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE, PRIMARY KEY(firm_id, product_id));
   `);
 
   function seedIfEmpty(table, rows) {
@@ -506,6 +508,96 @@ app.delete('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
     { ticketId: Number(req.params.id), tagId: Number(req.params.tagId), removedAt: now(), removedBy: userId }
   );
   await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} removed`, userId);
+  res.json({ success: true });
+}));
+
+// ══════════════════════════════════════
+// PRODUCTS
+// ══════════════════════════════════════
+async function toProductJson(row) {
+  if (!row) return null;
+  const manager = row.manager_id ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.manager_id }) : null;
+  const fps = await db.all(
+    'SELECT fp.*, f.name AS firm_name FROM firm_product fp JOIN firm f ON fp.firm_id = f.id WHERE fp.product_id = @productId',
+    { productId: row.id }
+  );
+  return {
+    id: row.id,
+    name: (row.name || '').trim(),
+    managerId: row.manager_id,
+    manager: manager ? { id: manager.id, name: manager.name, mail: manager.mail, tel: manager.tel, roleId: manager.yetki_id } : null,
+    firmProducts: fps.map((fp) => ({
+      firmId: fp.firm_id,
+      productId: fp.product_id,
+      firm: { id: fp.firm_id, name: fp.firm_name },
+    })),
+  };
+}
+
+app.get('/api/products', asyncHandler(async (_req, res) => {
+  const rows = await db.all('SELECT * FROM product ORDER BY id DESC');
+  const products = await Promise.all(rows.map(toProductJson));
+  res.json(products);
+}));
+
+app.get('/api/products/:id', asyncHandler(async (req, res) => {
+  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(await toProductJson(row));
+}));
+
+app.post('/api/products', asyncHandler(async (req, res) => {
+  const { name, managerId } = req.body;
+  const newId = await db.insert(
+    'INSERT INTO product (name, manager_id) OUTPUT INSERTED.id VALUES (@name, @managerId)',
+    { name: name ?? '', managerId }
+  );
+  const created = await db.get('SELECT * FROM product WHERE id = @id', { id: newId });
+  res.json(await toProductJson(created));
+}));
+
+app.put('/api/products/:id', asyncHandler(async (req, res) => {
+  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  await db.run(
+    'UPDATE product SET name = @name, manager_id = @managerId WHERE id = @id',
+    { name: req.body.name, managerId: req.body.managerId, id: Number(req.params.id) }
+  );
+  const updated = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
+  res.json(await toProductJson(updated));
+}));
+
+app.delete('/api/products/:id', asyncHandler(async (req, res) => {
+  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  await db.run('DELETE FROM product WHERE id = @id', { id: Number(req.params.id) });
+  res.json({ success: true });
+}));
+
+// ── Product-Firm many-to-many ──
+app.post('/api/products/:id/firms/:firmId', asyncHandler(async (req, res) => {
+  const exists = await db.get(
+    'SELECT 1 AS x FROM firm_product WHERE product_id = @productId AND firm_id = @firmId',
+    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
+  );
+  if (exists) return res.status(400).json({ error: 'Bu firma zaten bu ürüne eklenmiş.' });
+  await db.run(
+    'INSERT INTO firm_product (product_id, firm_id) VALUES (@productId, @firmId)',
+    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
+  );
+  res.json({ success: true });
+}));
+
+app.delete('/api/products/:id/firms/:firmId', asyncHandler(async (req, res) => {
+  const fp = await db.get(
+    'SELECT 1 AS x FROM firm_product WHERE product_id = @productId AND firm_id = @firmId',
+    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
+  );
+  if (!fp) return res.status(404).json({ error: 'Not found' });
+  await db.run(
+    'DELETE FROM firm_product WHERE product_id = @productId AND firm_id = @firmId',
+    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
+  );
   res.json({ success: true });
 }));
 
