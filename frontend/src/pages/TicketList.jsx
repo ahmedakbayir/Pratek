@@ -296,12 +296,27 @@ function TicketRow({ ticket }) {
             {ticket.title}
           </span>
         </div>
-        {ticket.firm && (
-          <div className="flex items-center gap-1 mt-0.5 text-xs text-surface-500">
-            <Building2 className="w-3 h-3" />
-            {ticket.firm.name}
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {ticket.firm && (
+            <span className="flex items-center gap-1 text-xs text-surface-500">
+              <Building2 className="w-3 h-3" />
+              {ticket.firm.name}
+            </span>
+          )}
+          {ticket.ticketTags && ticket.ticketTags.length > 0 && (
+            <span className="flex items-center gap-1 flex-wrap">
+              {ticket.ticketTags.map((tt) => (
+                <span
+                  key={tt.tagId}
+                  className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-4"
+                  style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+                >
+                  {tt.tag?.name}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       </div>
 
       <div>

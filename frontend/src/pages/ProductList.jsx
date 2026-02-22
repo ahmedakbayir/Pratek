@@ -6,19 +6,16 @@ import {
   X,
   Package,
   User,
-  Building2,
 } from 'lucide-react';
 import Header from '../components/Header';
-import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { productsApi, usersApi, firmsApi } from '../services/api';
+import { productsApi, usersApi } from '../services/api';
 
 const emptyForm = { name: '', managerId: '' };
 
 export default function ProductList() {
   const [products, setProducts] = useState([]);
   const [users, setUsers] = useState([]);
-  const [firms, setFirms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -30,9 +27,8 @@ export default function ProductList() {
     Promise.all([
       productsApi.getAll().catch(() => []),
       usersApi.getAll().catch(() => []),
-      firmsApi.getAll().catch(() => []),
     ])
-      .then(([p, u, f]) => { setProducts(p || []); setUsers(u || []); setFirms(f || []); })
+      .then(([p, u]) => { setProducts(p || []); setUsers(u || []); })
       .finally(() => setLoading(false));
   };
 
@@ -103,11 +99,10 @@ export default function ProductList() {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[auto_1.5fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[auto_1.5fr_1.5fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span className="w-10">ID</span>
             <span>Ürün Adı</span>
             <span>Sorumlu</span>
-            <span>Firmalar</span>
             <span />
           </div>
 
@@ -132,7 +127,7 @@ export default function ProductList() {
           ) : (
             <div className="divide-y divide-surface-100">
               {products.map((product) => (
-                <div key={product.id} className="grid grid-cols-[auto_1.5fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
+                <div key={product.id} className="grid grid-cols-[auto_1.5fr_1.5fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                   <span className="text-xs font-mono text-surface-400 w-10">#{product.id}</span>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
@@ -153,17 +148,6 @@ export default function ProductList() {
                         <User className="w-3.5 h-3.5" />
                         Atanmadı
                       </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {product.firmProducts && product.firmProducts.length > 0 ? (
-                      product.firmProducts.map((fp) => (
-                        <Badge key={fp.firmId} variant="default">
-                          {fp.firm?.name || `#${fp.firmId}`}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-surface-400">-</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 justify-end">
@@ -250,14 +234,13 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-surface-100">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[auto_1.5fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
+        <div key={i} className="grid grid-cols-[auto_1.5fr_1.5fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="h-4 bg-surface-200 rounded w-8" />
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-surface-200" />
             <div className="h-4 bg-surface-200 rounded w-40" />
           </div>
           <div className="h-4 bg-surface-100 rounded w-28" />
-          <div className="h-5 bg-surface-100 rounded-full w-16" />
           <div />
         </div>
       ))}
