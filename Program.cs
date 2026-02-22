@@ -24,15 +24,6 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
-
-    // Ensure new tables exist even if DB was already created
-    db.Database.ExecuteSqlRaw(
-        "CREATE TABLE IF NOT EXISTS product (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL DEFAULT '', ManagerId INTEGER NULL, FOREIGN KEY (ManagerId) REFERENCES user(Id) ON DELETE SET NULL)");
-
-    db.Database.ExecuteSqlRaw(
-        "CREATE TABLE IF NOT EXISTS firm_product (Id INTEGER PRIMARY KEY AUTOINCREMENT, FirmId INTEGER NOT NULL, ProductId INTEGER NOT NULL, FOREIGN KEY (FirmId) REFERENCES firm(Id) ON DELETE CASCADE, FOREIGN KEY (ProductId) REFERENCES product(Id) ON DELETE CASCADE)");
-
-
     DbSeeder.Seed(db);
 }
 

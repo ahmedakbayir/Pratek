@@ -1,9 +1,13 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Protekh.Api.Models
 {
     public class FirmProduct
     {
-        public int Id { get; set; }
+        [Column("firm_id")]
         public int FirmId { get; set; }
+
+        [Column("product_id")]
         public int ProductId { get; set; }
 
         public Firm? Firm { get; set; }
