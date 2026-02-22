@@ -305,6 +305,10 @@ namespace Protekh.Api.Controllers
             if (ticket == null)
                 return NotFound();
 
+            // Remove related ticket tags first to avoid FK constraint violations
+            var ticketTags = _context.TicketTags.Where(tt => tt.TicketId == id);
+            _context.TicketTags.RemoveRange(ticketTags);
+
             _context.Tickets.Remove(ticket);
             await _context.SaveChangesAsync();
 
