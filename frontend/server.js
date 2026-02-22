@@ -548,10 +548,21 @@ app.get('/api/products/:id', asyncHandler(async (req, res) => {
 
 app.post('/api/products', asyncHandler(async (req, res) => {
   const { name, managerId } = req.body;
-  const newId = await db.insert(
-    'INSERT INTO product (name, manager_id) OUTPUT INSERTED.id VALUES (@name, @managerId)',
-    { name: name ?? '', managerId }
-  );
+  let newId;
+  if (db.type === 'sqlserver') {
+    // product.id is NOT IDENTITY in SQL Server – calculate next id manually
+    const maxRow = await db.get('SELECT ISNULL(MAX(id), 0) AS maxId FROM product');
+    newId = (maxRow?.maxId ?? 0) + 1;
+    await db.run(
+      'INSERT INTO product (id, name, manager_id) VALUES (@id, @name, @managerId)',
+      { id: newId, name: name ?? '', managerId }
+    );
+  } else {
+    newId = await db.insert(
+      'INSERT INTO product (name, manager_id) VALUES (@name, @managerId)',
+      { name: name ?? '', managerId }
+    );
+  }
   const created = await db.get('SELECT * FROM product WHERE id = @id', { id: newId });
   res.json(await toProductJson(created));
 }));
