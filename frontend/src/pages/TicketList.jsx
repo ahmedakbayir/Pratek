@@ -1041,7 +1041,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
         onClick={(e) => {
           if (wasDragged.current) e.preventDefault();
         }}
-        className={`block bg-surface-0 border rounded-lg p-3 transition-all select-none ${
+        className={`block bg-surface-50 border rounded-lg p-3 transition-all select-none ${
           isDragging
             ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
             : isDragOver
