@@ -95,27 +95,56 @@ async function tryOpenSqlServer() {
   const msnodesqlv8 = (await import('msnodesqlv8')).default;
 
   const drivers = [
-    'ODBC Driver 17 for SQL Server',
     'ODBC Driver 18 for SQL Server',
+    'ODBC Driver 17 for SQL Server',
     'SQL Server Native Client 11.0',
+    'SQL Server',
   ];
 
-  for (const driver of drivers) {
-    const connStr = `Driver={${driver}};Server=(localdb)\\MSSQLLocalDB;Database=protekh_db;Trusted_Connection=Yes;`;
+  const servers = [
+    '(localdb)\\MSSQLLocalDB',
+    'localhost',
+    '.\\SQLEXPRESS',
+    'localhost\\SQLEXPRESS',
+    '.',
+  ];
+
+  // Allow override via environment variable
+  if (process.env.DB_CONN) {
     try {
       const conn = await new Promise((resolve, reject) => {
-        msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
+        msnodesqlv8.open(process.env.DB_CONN, (err, c) => (err ? reject(err) : resolve(c)));
       });
       await new Promise((resolve, reject) => {
         conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
       });
-      console.log(`[DB] Driver: ${driver}`);
+      console.log(`[DB] Custom connection: DB_CONN`);
       return conn;
-    } catch {
-      // Try next driver
+    } catch (e) {
+      console.warn(`[DB] DB_CONN failed: ${e.message}`);
     }
   }
-  throw new Error('Hiçbir ODBC driver ile bağlanılamadı');
+
+  for (const driver of drivers) {
+    for (const server of servers) {
+      // Driver 18 requires TrustServerCertificate=Yes by default
+      const extra = driver.includes('18') ? 'TrustServerCertificate=Yes;' : '';
+      const connStr = `Driver={${driver}};Server=${server};Database=protekh_db;Trusted_Connection=Yes;${extra}`;
+      try {
+        const conn = await new Promise((resolve, reject) => {
+          msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
+        });
+        await new Promise((resolve, reject) => {
+          conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
+        });
+        console.log(`[DB] Driver: ${driver}, Server: ${server}`);
+        return conn;
+      } catch {
+        // Try next combination
+      }
+    }
+  }
+  throw new Error('Hiçbir ODBC driver/server ile bağlanılamadı');
 }
 
 try {
@@ -129,13 +158,18 @@ try {
   try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('product') AND name = 'order_no') ALTER TABLE product ADD order_no INT NOT NULL DEFAULT 0"); } catch { /* ignore */ }
 
   const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
+  const products = await db.all('SELECT COUNT(*) AS c FROM product');
+  const fpCount = await db.all('SELECT COUNT(*) AS c FROM firm_product');
   console.log('════════════════════════════════════════════════════');
-  console.log(`[DB] SQL Server (localdb)\\MSSQLLocalDB → protekh_db`);
-  console.log(`[DB] Firma sayısı: ${firms[0]?.c ?? 0}`);
+  console.log(`[DB] SQL Server → protekh_db`);
+  console.log(`[DB] Firma: ${firms[0]?.c ?? 0}, Ürün: ${products[0]?.c ?? 0}, Firma-Ürün: ${fpCount[0]?.c ?? 0}`);
   console.log('════════════════════════════════════════════════════');
 } catch (err) {
-  console.warn(`[DB] SQL Server kullanılamıyor: ${err.message}`);
-  console.log('[DB] SQLite fallback\'a geçiliyor...');
+  console.warn('╔════════════════════════════════════════════════════╗');
+  console.warn('║  ⚠ SQL Server bağlantısı başarısız!               ║');
+  console.warn(`║  Hata: ${err.message.substring(0, 44).padEnd(44)} ║`);
+  console.warn('║  SQLite fallback kullanılıyor (boş veri!)         ║');
+  console.warn('╚════════════════════════════════════════════════════╝');
 
   const Database = (await import('better-sqlite3')).default;
   const dbPath = join(__dirname, 'protekh.db');
@@ -365,18 +399,21 @@ app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
 // ── Firm → Products (for matrix-based filtering) ──
 app.get('/api/firms/:firmId/products', asyncHandler(async (req, res) => {
   const firmId = Number(req.params.firmId);
+  console.log(`[DEBUG] GET /api/firms/${firmId}/products → db.type=${db.type}`);
   let rows;
   try {
     rows = await db.all(
       `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.order_no ASC, p.id ASC`,
       { firmId }
     );
-  } catch {
+  } catch (e) {
+    console.warn(`[DEBUG] firm-products order_no query failed: ${e.message}`);
     rows = await db.all(
       `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.id ASC`,
       { firmId }
     );
   }
+  console.log(`[DEBUG] firm-products result: ${rows.length} rows`);
   res.json(rows.map((r) => ({ id: r.id, name: (r.name || '').trim() })));
 }));
 
