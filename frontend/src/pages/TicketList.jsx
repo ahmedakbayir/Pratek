@@ -47,6 +47,20 @@ const sortOptions = [
   { key: 'title-asc', label: 'Başlık (A-Z)' },
 ];
 
+function getStatusStyle(status) {
+  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' };
+  const name = (status.name || '').toLowerCase();
+  if (status.isClosed || name === 'closed' || name.includes('kapal'))
+    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' };
+  if (name === 'in_progress' || name.includes('devam') || name.includes('progress'))
+    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (name.includes('resolve') || name.includes('çözül') || name.includes('tamamlan'))
+    return { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (name.includes('bekle') || name.includes('wait'))
+    return { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' };
+  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' };
+}
+
 function toggleFilter(setter, id) {
   setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 }
@@ -157,8 +171,9 @@ export default function TicketList() {
         )}
 
         <div className="bg-surface-0 rounded-xl border border-surface-200">
-          {/* Row 1: Tabs + Sort */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
+          {/* Toolbar: Tabs + Filters + Sort */}
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-surface-200 flex-wrap">
+            {/* Tabs */}
             <div className="flex gap-1 bg-surface-100 p-0.5 rounded-lg">
               {statusTabs.map((tab) => (
                 <button
@@ -182,44 +197,10 @@ export default function TicketList() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <Link
-                to="/tickets/new"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Yeni Ticket
-              </Link>
+            {/* Divider */}
+            <div className="w-px h-6 bg-surface-200 mx-1" />
 
-              <div className="relative">
-                <button
-                  onClick={() => setShowSortMenu(!showSortMenu)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-600 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors cursor-pointer"
-                >
-                  {sortBy.includes('desc') ? <SortDesc className="w-3.5 h-3.5" /> : <SortAsc className="w-3.5 h-3.5" />}
-                  Sırala
-                </button>
-                {showSortMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-20 py-1">
-                    {sortOptions.map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => { setSortBy(opt.key); setShowSortMenu(false); }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer ${
-                          sortBy === opt.key ? 'bg-primary-50 text-primary-700 font-medium' : 'text-surface-700 hover:bg-surface-50'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Filter chips */}
-          <div className="flex items-center gap-2 px-5 py-2.5 border-b border-surface-100 bg-surface-50/40 flex-wrap">
+            {/* Filters */}
             <FilterDropdown
               label="Firma"
               options={firms.map((f) => ({ id: f.id, name: f.name }))}
@@ -258,18 +239,42 @@ export default function TicketList() {
             {anyFilterActive ? (
               <button
                 onClick={clearAllFilters}
-                className="ml-auto flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
               >
                 <X className="w-3 h-3" />
-                Tümünü temizle
+                Temizle
               </button>
-            ) : (
-              <span className="ml-auto text-xs text-surface-400">Filtre seçilmedi</span>
-            )}
+            ) : null}
+
+            {/* Sort - push to right */}
+            <div className="ml-auto relative">
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-600 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors cursor-pointer"
+              >
+                {sortBy.includes('desc') ? <SortDesc className="w-3.5 h-3.5" /> : <SortAsc className="w-3.5 h-3.5" />}
+                Sırala
+              </button>
+              {showSortMenu && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-20 py-1">
+                  {sortOptions.map((opt) => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setSortBy(opt.key); setShowSortMenu(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer ${
+                        sortBy === opt.key ? 'bg-primary-50 text-primary-700 font-medium' : 'text-surface-700 hover:bg-surface-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-200 bg-surface-50/50">
             <span>Ticket</span>
             <span>Durum</span>
             <span>Atanan</span>
@@ -306,9 +311,16 @@ export default function TicketList() {
               }
             />
           ) : (
-            <div className="divide-y divide-surface-100">
+            <div className="divide-y divide-surface-200">
               {processed.map((ticket) => (
-                <TicketRow key={ticket.id} ticket={ticket} />
+                <TicketRow
+                  key={ticket.id}
+                  ticket={ticket}
+                  onFilterFirm={(fid) => toggleFilter(setFirmFilter, fid)}
+                  onFilterProduct={(pid) => toggleFilter(setProductFilter, pid)}
+                  onFilterStatus={(sid) => toggleFilter(setStatusFilter, sid)}
+                  onFilterTag={(tid) => toggleFilter(setTagFilter, tid)}
+                />
               ))}
             </div>
           )}
@@ -387,16 +399,14 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
             </div>
           )}
           {count > 0 && (
-            <>
-              <div className="border-t border-surface-100 mt-1 pt-1">
-                <button
-                  onClick={() => { onClear(); setOpen(false); }}
-                  className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-surface-50 cursor-pointer"
-                >
-                  Temizle
-                </button>
-              </div>
-            </>
+            <div className="border-t border-surface-100 mt-1 pt-1">
+              <button
+                onClick={() => { onClear(); setOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-surface-50 cursor-pointer"
+              >
+                Temizle
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -405,8 +415,15 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
 }
 
 // ── Ticket row ───────────────────────────────────────────────────────────────
-function TicketRow({ ticket }) {
+function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterTag }) {
   const prio = priorityConfig[ticket.ticketPriorityId] || priorityConfig[3];
+  const ss = getStatusStyle(ticket.status);
+
+  const clickFilter = (e, handler) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handler();
+  };
 
   return (
     <Link
@@ -414,20 +431,23 @@ function TicketRow({ ticket }) {
       className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-start hover:bg-surface-50 transition-colors"
     >
       <div className="min-w-0">
-        {/* Satır 1: Başlık + Öncelik */}
+        {/* Row 1: Title + Priority */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-surface-900 truncate">
             {ticket.title}
           </span>
           <Badge variant={prio.variant}>{prio.label}</Badge>
         </div>
-        {/* Satır 2: ID · Firma · Ürün */}
+        {/* Row 2: ID · Firma · Ürün */}
         <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-surface-400">
           <span className="font-mono">#{ticket.id}</span>
           {ticket.firm && (
             <>
               <span>·</span>
-              <span className="flex items-center gap-1 text-surface-500">
+              <span
+                className="flex items-center gap-1 text-surface-500 hover:text-primary-600 cursor-pointer transition-colors"
+                onClick={(e) => clickFilter(e, () => onFilterFirm(ticket.firmId))}
+              >
                 <Building2 className="w-3 h-3" />
                 {ticket.firm.name}
               </span>
@@ -436,20 +456,24 @@ function TicketRow({ ticket }) {
           {ticket.product && (
             <>
               <span>·</span>
-              <span className="flex items-center gap-1 text-surface-500">
+              <span
+                className="flex items-center gap-1 text-surface-500 hover:text-primary-600 cursor-pointer transition-colors"
+                onClick={(e) => clickFilter(e, () => onFilterProduct(ticket.productId))}
+              >
                 <Package className="w-3 h-3" />
                 {ticket.product.name}
               </span>
             </>
           )}
         </div>
-        {/* Satır 3: Etiketler */}
+        {/* Row 3: Tags */}
         {ticket.ticketTags && ticket.ticketTags.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {ticket.ticketTags.map((tt) => (
               <span
                 key={tt.tagId}
-                className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
+                onClick={(e) => clickFilter(e, () => onFilterTag(tt.tagId))}
+                className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px] hover:opacity-80 cursor-pointer transition-opacity"
                 style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
               >
                 {tt.tag?.name}
@@ -460,9 +484,13 @@ function TicketRow({ ticket }) {
       </div>
 
       <div>
-        <Badge variant={ticket.status?.isClosed ? 'closed' : 'open'} dot>
-          {ticket.status?.name || 'Açık'}
-        </Badge>
+        <span
+          onClick={(e) => clickFilter(e, () => onFilterStatus(ticket.ticketStatusId))}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 transition-opacity ${ss.bg} ${ss.text}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`} />
+          {ticket.status?.name || 'Yeni'}
+        </span>
       </div>
 
       <div className="flex items-center gap-2 min-w-0">
@@ -502,7 +530,7 @@ function TicketRow({ ticket }) {
 
 function LoadingRows() {
   return (
-    <div className="divide-y divide-surface-100">
+    <div className="divide-y divide-surface-200">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="space-y-1.5">

@@ -29,6 +29,24 @@ const priorityConfig = {
   4: { label: 'Düşük', variant: 'default', icon: CheckCircle2 },
 };
 
+const priorityDotColors = {
+  1: '#EF4444',
+  2: '#F59E0B',
+  3: '#3B82F6',
+  4: '#9CA3AF',
+};
+
+function getStatusDotColor(name) {
+  if (!name) return '#3B82F6';
+  const n = name.toLowerCase();
+  if (n === 'new' || n === 'yeni') return '#3B82F6';
+  if (n === 'in_progress' || n.includes('devam') || n.includes('progress')) return '#F59E0B';
+  if (n.includes('resolve') || n.includes('çözül') || n.includes('tamamlan')) return '#10B981';
+  if (n === 'closed' || n.includes('kapal')) return '#6B7280';
+  if (n.includes('bekle') || n.includes('wait')) return '#8B5CF6';
+  return '#3B82F6';
+}
+
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -206,9 +224,7 @@ export default function TicketDetail() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-mono text-surface-400">#{ticket.id}</span>
-                      <Badge variant={ticket.status?.isClosed ? 'closed' : 'open'} dot>
-                        {ticket.status?.name || 'Acik'}
-                      </Badge>
+                      <StatusBadge status={ticket.status} />
                     </div>
                     <h2 className="text-xl font-semibold text-surface-900">{ticket.title}</h2>
                   </div>
@@ -345,22 +361,24 @@ export default function TicketDetail() {
                 value={ticket.ticketStatusId}
                 options={allStatuses.map((s) => ({ value: s.id, label: s.name }))}
                 onChange={(val) => updateTicket({ ticketStatusId: Number(val) })}
+                colorDot={getStatusDotColor(ticket.status?.name)}
               />
               {/* Priority */}
               <SidebarSelect
                 icon={AlertCircle}
-                label="Oncelik"
+                label="Öncelik"
                 value={ticket.ticketPriorityId}
                 options={allPriorities.map((p) => ({ value: p.id, label: p.name }))}
                 onChange={(val) => updateTicket({ ticketPriorityId: Number(val) })}
+                colorDot={priorityDotColors[ticket.ticketPriorityId]}
               />
               {/* Assigned User */}
               <SidebarSelect
                 icon={UserPlus}
-                label="Atanan Kisi"
+                label="Atanan Kişi"
                 value={ticket.assignedUserId || ''}
                 options={[
-                  { value: '', label: 'Atanmadi' },
+                  { value: '', label: 'Atanmadı' },
                   ...allUsers.map((u) => ({ value: u.id, label: u.name })),
                 ]}
                 onChange={(val) => updateTicket({ assignedUserId: val ? Number(val) : null })}
@@ -379,7 +397,7 @@ export default function TicketDetail() {
               {/* Product */}
               <SidebarSelect
                 icon={Package}
-                label="Urun"
+                label="Ürün"
                 value={ticket.productId || ''}
                 options={[
                   { value: '', label: 'Belirtilmedi' },
@@ -480,23 +498,55 @@ export default function TicketDetail() {
   );
 }
 
-function SidebarSelect({ icon: Icon, label, value, options, onChange }) {
+function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3">
+    <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50/60 transition-colors">
       <span className="flex items-center gap-2 text-sm text-surface-500">
         <Icon className="w-4 h-4" />
         {label}
       </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="text-sm font-medium text-surface-900 bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-right pr-0 max-w-[160px] truncate"
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      <div className="flex items-center gap-2 min-w-0">
+        {colorDot && (
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorDot }} />
+        )}
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="text-sm font-medium text-surface-800 bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 8px center',
+          }}
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const name = (status?.name || '').toLowerCase();
+  let bg, text, dot;
+  if (status?.isClosed || name === 'closed' || name.includes('kapal')) {
+    bg = 'bg-slate-100'; text = 'text-slate-600'; dot = 'bg-slate-400';
+  } else if (name === 'in_progress' || name.includes('devam') || name.includes('progress')) {
+    bg = 'bg-amber-50'; text = 'text-amber-700'; dot = 'bg-amber-500';
+  } else if (name.includes('resolve') || name.includes('çözül') || name.includes('tamamlan')) {
+    bg = 'bg-emerald-50'; text = 'text-emerald-700'; dot = 'bg-emerald-500';
+  } else if (name.includes('bekle') || name.includes('wait')) {
+    bg = 'bg-purple-50'; text = 'text-purple-700'; dot = 'bg-purple-500';
+  } else {
+    bg = 'bg-blue-50'; text = 'text-blue-700'; dot = 'bg-blue-500';
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+      {status?.name || 'Yeni'}
+    </span>
   );
 }
 
