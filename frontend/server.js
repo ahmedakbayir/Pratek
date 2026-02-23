@@ -189,6 +189,10 @@ try {
 
   // Add product_id column to ticket if not exists
   try { sqliteDb.exec('ALTER TABLE ticket ADD COLUMN product_id INTEGER REFERENCES product(id)'); } catch { /* already exists */ }
+  // Add order_no columns
+  try { sqliteDb.exec('ALTER TABLE firm ADD COLUMN order_no INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { sqliteDb.exec('ALTER TABLE [user] ADD COLUMN order_no INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { sqliteDb.exec('ALTER TABLE product ADD COLUMN order_no INTEGER NOT NULL DEFAULT 0'); } catch {}
 
   db = createSqliteAdapter(sqliteDb);
   console.log('════════════════════════════════════════════════════');
@@ -270,8 +274,8 @@ app.get('/api/debug', asyncHandler(async (_req, res) => {
 // FIRMS
 // ══════════════════════════════════════
 app.get('/api/firms', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM firm');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
+  const rows = await db.all('SELECT * FROM firm ORDER BY order_no ASC, id ASC');
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, orderNo: r.order_no ?? 0 })));
 }));
 
 app.get('/api/firms/:id', asyncHandler(async (req, res) => {
@@ -298,6 +302,16 @@ app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Not found' });
   await db.run('DELETE FROM firm WHERE id = @id', { id: Number(req.params.id) });
   res.json({ success: true });
+}));
+
+// ── Firm → Products (for matrix-based filtering) ──
+app.get('/api/firms/:firmId/products', asyncHandler(async (req, res) => {
+  const firmId = Number(req.params.firmId);
+  const rows = await db.all(
+    `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.order_no ASC, p.id ASC`,
+    { firmId }
+  );
+  res.json(rows.map((r) => ({ id: r.id, name: (r.name || '').trim() })));
 }));
 
 // ══════════════════════════════════════
@@ -344,8 +358,8 @@ app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
 // USERS
 // ══════════════════════════════════════
 app.get('/api/users', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM [user]');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, mail: r.mail, tel: r.tel, roleId: r.yetki_id, password: r.password })));
+  const rows = await db.all('SELECT * FROM [user] ORDER BY order_no ASC, id ASC');
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, mail: r.mail, tel: r.tel, roleId: r.yetki_id, password: r.password, orderNo: r.order_no ?? 0 })));
 }));
 
 app.get('/api/users/:id', asyncHandler(async (req, res) => {
@@ -418,6 +432,35 @@ app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Not found' });
 
   const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, updatedBy, productId } = req.body;
+
+  // Detect specific field changes for activity log
+  const changes = [];
+  if (row.status_id !== ticketStatusId) {
+    const oldS = await db.get('SELECT name FROM ticket_status WHERE id = @id', { id: row.status_id });
+    const newS = await db.get('SELECT name FROM ticket_status WHERE id = @id', { id: ticketStatusId });
+    changes.push({ field: 'status', oldVal: oldS?.name || null, newVal: newS?.name || null });
+  }
+  if (row.priority_id !== ticketPriorityId) {
+    const oldP = await db.get('SELECT name FROM ticket_priority WHERE id = @id', { id: row.priority_id });
+    const newP = await db.get('SELECT name FROM ticket_priority WHERE id = @id', { id: ticketPriorityId });
+    changes.push({ field: 'priority', oldVal: oldP?.name || null, newVal: newP?.name || null });
+  }
+  if ((row.assigned_user_id || null) !== (assignedUserId || null)) {
+    const oldU = row.assigned_user_id ? await db.get('SELECT name FROM [user] WHERE id = @id', { id: row.assigned_user_id }) : null;
+    const newU = assignedUserId ? await db.get('SELECT name FROM [user] WHERE id = @id', { id: assignedUserId }) : null;
+    changes.push({ field: 'assignedUser', oldVal: oldU?.name || null, newVal: newU?.name || null });
+  }
+  if ((row.firm_id || null) !== (firmId || null)) {
+    const oldF = row.firm_id ? await db.get('SELECT name FROM firm WHERE id = @id', { id: row.firm_id }) : null;
+    const newF = firmId ? await db.get('SELECT name FROM firm WHERE id = @id', { id: firmId }) : null;
+    changes.push({ field: 'firm', oldVal: oldF?.name || null, newVal: newF?.name || null });
+  }
+  if ((row.product_id || null) !== (productId || null)) {
+    const oldPr = row.product_id ? await db.get('SELECT name FROM product WHERE id = @id', { id: row.product_id }) : null;
+    const newPr = productId ? await db.get('SELECT name FROM product WHERE id = @id', { id: productId }) : null;
+    changes.push({ field: 'product', oldVal: (oldPr?.name || '').trim() || null, newVal: (newPr?.name || '').trim() || null });
+  }
+
   await db.run(
     `UPDATE ticket SET title=@title, description=@description, priority_id=@ticketPriorityId,
      status_id=@ticketStatusId, firm_id=@firmId, assigned_user_id=@assignedUserId, product_id=@productId WHERE id=@id`,
@@ -429,7 +472,19 @@ app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
       id: Number(req.params.id),
     }
   );
-  await logEvent(2, 2, row.id, `Ticket updated: ${title}`, updatedBy);
+
+  // Log each field change individually
+  for (const ch of changes) {
+    await db.run(
+      `INSERT INTO event_log (entity_type_id, event_type_id, entity_id, description, created_by, created_at, old_value, new_value)
+       VALUES (@entityTypeId, @eventTypeId, @entityId, @description, @userId, @createdAt, @oldValue, @newValue)`,
+      { entityTypeId: 2, eventTypeId: 2, entityId: row.id, description: `Field:${ch.field}`, userId: updatedBy ?? null, createdAt: now(), oldValue: ch.oldVal, newValue: ch.newVal }
+    );
+  }
+  if (changes.length === 0) {
+    await logEvent(2, 2, row.id, `Ticket updated: ${title}`, updatedBy);
+  }
+
   const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
   res.json(await toTicketJson(updated));
 }));
@@ -564,7 +619,7 @@ async function toProductJson(row) {
 }
 
 app.get('/api/products', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM product ORDER BY id DESC');
+  const rows = await db.all('SELECT * FROM product ORDER BY order_no ASC, id ASC');
   const products = await Promise.all(rows.map(toProductJson));
   res.json(products);
 }));
@@ -681,6 +736,14 @@ app.get('/api/tickets/:id/activity', asyncHandler(async (req, res) => {
     { ticketId }
   );
 
+  const fieldEvents = await db.all(
+    `SELECT el.*, u.name AS user_name FROM event_log el
+     LEFT JOIN [user] u ON el.created_by = u.id
+     WHERE el.entity_type_id = 2 AND el.entity_id = @ticketId
+       AND el.description LIKE 'Field:%'`,
+    { ticketId }
+  );
+
   const activity = [];
 
   for (const c of comments) {
@@ -706,6 +769,20 @@ app.get('/api/tickets/:id/activity', asyncHandler(async (req, res) => {
       tagId,
       tagName: tag?.name || `Tag #${tagId}`,
       colorHex: tag?.color_hex,
+      userId: ev.created_by,
+      userName: ev.user_name,
+      createdAt: ev.created_at,
+    });
+  }
+
+  for (const ev of fieldEvents) {
+    const field = ev.description.replace('Field:', '');
+    activity.push({
+      type: 'field_changed',
+      id: `field-${ev.id}`,
+      field,
+      oldValue: ev.old_value,
+      newValue: ev.new_value,
       userId: ev.created_by,
       userName: ev.user_name,
       createdAt: ev.created_at,

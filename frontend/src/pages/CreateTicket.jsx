@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, usersApi, firmsApi, productsApi } from '../services/api';
+import { ticketsApi, usersApi, firmsApi } from '../services/api';
 
 export default function CreateTicket() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
   const [firms, setFirms] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [firmProducts, setFirmProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -23,11 +24,28 @@ export default function CreateTicket() {
   useEffect(() => {
     usersApi.getAll().then(setUsers).catch(() => {});
     firmsApi.getAll().then(setFirms).catch(() => {});
-    productsApi.getAll().then(setProducts).catch(() => {});
   }, []);
+
+  // When firm changes, fetch products for that firm
+  useEffect(() => {
+    if (!form.firmId) {
+      setFirmProducts([]);
+      return;
+    }
+    setLoadingProducts(true);
+    firmsApi.getProducts(form.firmId)
+      .then(setFirmProducts)
+      .catch(() => setFirmProducts([]))
+      .finally(() => setLoadingProducts(false));
+  }, [form.firmId]);
 
   const update = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const handleFirmChange = (e) => {
+    const newFirmId = e.target.value;
+    setForm((prev) => ({ ...prev, firmId: newFirmId, productId: '' }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,6 +68,8 @@ export default function CreateTicket() {
       setSaving(false);
     }
   };
+
+  const productDisabled = !form.firmId;
 
   return (
     <div>
@@ -110,10 +130,10 @@ export default function CreateTicket() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                  Firma
+                  Firma (Bölge)
                 </label>
                 {firms.length > 0 ? (
-                  <select value={form.firmId} onChange={update('firmId')} className="input-field">
+                  <select value={form.firmId} onChange={handleFirmChange} className="input-field">
                     <option value="">Seçiniz...</option>
                     {firms.map((f) => (
                       <option key={f.id} value={f.id}>{f.name}</option>
@@ -123,7 +143,7 @@ export default function CreateTicket() {
                   <input
                     type="number"
                     value={form.firmId}
-                    onChange={update('firmId')}
+                    onChange={handleFirmChange}
                     placeholder="Firma ID (opsiyonel)"
                     className="input-field"
                   />
@@ -131,26 +151,29 @@ export default function CreateTicket() {
               </div>
             </div>
 
-            {/* Product */}
+            {/* Product - depends on firm selection */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">
                 Ürün
+                {productDisabled && (
+                  <span className="ml-2 text-xs font-normal text-surface-400">Önce firma seçiniz</span>
+                )}
               </label>
-              {products.length > 0 ? (
-                <select value={form.productId} onChange={update('productId')} className="input-field">
-                  <option value="">Seçiniz...</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  value={form.productId}
-                  onChange={update('productId')}
-                  placeholder="Ürün ID (opsiyonel)"
-                  className="input-field"
-                />
+              <select
+                value={form.productId}
+                onChange={update('productId')}
+                disabled={productDisabled}
+                className={`input-field ${productDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <option value="">
+                  {loadingProducts ? 'Yükleniyor...' : productDisabled ? 'Önce firma seçin' : 'Seçiniz...'}
+                </option>
+                {firmProducts.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {form.firmId && !loadingProducts && firmProducts.length === 0 && (
+                <p className="mt-1 text-xs text-surface-400">Bu firmaya tanımlı ürün bulunamadı.</p>
               )}
             </div>
 

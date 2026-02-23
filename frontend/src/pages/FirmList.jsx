@@ -89,16 +89,9 @@ export default function FirmList() {
             </button>
           </div>
 
-          {/* Table Header */}
-          <div className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
-            <span className="w-10">ID</span>
-            <span>Firma Adı</span>
-            <span />
-          </div>
-
-          {/* Rows */}
+          {/* Content */}
           {loading ? (
-            <LoadingRows />
+            <LoadingCards />
           ) : firms.length === 0 ? (
             <EmptyState
               icon={Building2}
@@ -115,17 +108,20 @@ export default function FirmList() {
               }
             />
           ) : (
-            <div className="divide-y divide-surface-100">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {firms.map((firm) => (
-                <div key={firm.id} className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
-                  <span className="text-xs font-mono text-surface-400 w-10">#{firm.id}</span>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                      <Building2 className="w-4 h-4 text-primary-600" />
-                    </div>
-                    <span className="text-sm font-medium text-surface-900 truncate">{firm.name}</span>
+                <div
+                  key={firm.id}
+                  className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-200 hover:border-primary-200 hover:bg-primary-50/30 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                    <Building2 className="w-4.5 h-4.5 text-primary-600" />
                   </div>
-                  <div className="flex items-center gap-1 justify-end">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-surface-900 truncate">{firm.name}</div>
+                    <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
+                  </div>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => openEdit(firm)}
                       className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
@@ -189,17 +185,16 @@ export default function FirmList() {
   );
 }
 
-function LoadingRows() {
+function LoadingCards() {
   return (
-    <div className="divide-y divide-surface-100">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[auto_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
-          <div className="h-4 bg-surface-200 rounded w-8" />
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-surface-200" />
-            <div className="h-4 bg-surface-200 rounded w-40" />
+    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-100 animate-pulse">
+          <div className="w-9 h-9 rounded-lg bg-surface-200" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-4 bg-surface-200 rounded w-24" />
+            <div className="h-3 bg-surface-100 rounded w-10" />
           </div>
-          <div />
         </div>
       ))}
     </div>
