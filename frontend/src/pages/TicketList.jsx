@@ -19,12 +19,14 @@ import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import { ticketsApi, firmsApi, productsApi, tagsApi, statusesApi } from '../services/api';
 
-const priorityConfig = {
-  1: { label: 'Kritik', variant: 'danger' },
-  2: { label: 'Yüksek', variant: 'warning' },
-  3: { label: 'Normal', variant: 'info' },
-  4: { label: 'Düşük', variant: 'default' },
-};
+function getPriorityVariant(name) {
+  if (!name) return { label: 'Normal', variant: 'info' };
+  const n = name.toLowerCase();
+  if (n.includes('kritik') || n.includes('critical')) return { label: name, variant: 'danger' };
+  if (n.includes('yüksek') || n.includes('high')) return { label: name, variant: 'warning' };
+  if (n.includes('düşük') || n.includes('low')) return { label: name, variant: 'default' };
+  return { label: name, variant: 'info' };
+}
 
 const STATIC_PRIORITIES = [
   { id: 1, name: 'Kritik' },
@@ -416,7 +418,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
 
 // ── Ticket row ───────────────────────────────────────────────────────────────
 function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterTag }) {
-  const prio = priorityConfig[ticket.ticketPriorityId] || priorityConfig[3];
+  const prio = getPriorityVariant(ticket.priority?.name);
   const ss = getStatusStyle(ticket.status);
 
   const clickFilter = (e, handler) => {
