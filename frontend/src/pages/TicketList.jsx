@@ -843,7 +843,7 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
   };
 
   return (
-    <div className="flex gap-3 p-4 overflow-x-auto pb-5 min-h-[420px]">
+    <div className="flex gap-3 p-4 overflow-x-auto pb-5" style={{ height: 'calc(100vh - 160px)' }}>
       {statuses.map((status) => {
         const columnTickets = tickets.filter((t) => t.ticketStatusId === status.id);
         const columnOrder = kanbanOrder[status.id] || columnTickets.map((t) => t.id);
@@ -906,7 +906,7 @@ function KanbanColumn({
   if (isCollapsed) {
     return (
       <div
-        className={`flex-shrink-0 w-10 flex flex-col items-center py-3 gap-2 border rounded-xl cursor-pointer transition-all select-none ${
+        className={`flex-shrink-0 w-10 h-full flex flex-col items-center py-3 gap-2 border rounded-xl cursor-pointer transition-all select-none ${
           isDragOver
             ? 'border-primary-400 bg-primary-50 shadow-sm'
             : 'border-surface-200 bg-surface-50 hover:bg-surface-100'
@@ -937,7 +937,7 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col rounded-xl border transition-colors ${
+      className={`flex-shrink-0 flex flex-col rounded-xl border transition-colors h-full ${
         isDragOver
           ? 'border-primary-300 bg-primary-50/20'
           : 'border-surface-200 bg-surface-50/30'
@@ -966,10 +966,7 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <div
-        className="flex-1 p-2 space-y-2 overflow-y-auto"
-        style={{ maxHeight: '65vh' }}
-      >
+      <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-0">
         {loading ? (
           [1, 2, 3].map((i) => (
             <div key={i} className="h-[88px] bg-surface-100 rounded-lg animate-pulse" />
@@ -1041,7 +1038,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
         onClick={(e) => {
           if (wasDragged.current) e.preventDefault();
         }}
-        className={`block bg-surface-50 border rounded-lg p-3 transition-all select-none ${
+        className={`block bg-surface-100 border rounded-lg p-3 transition-all select-none ${
           isDragging
             ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
             : isDragOver
