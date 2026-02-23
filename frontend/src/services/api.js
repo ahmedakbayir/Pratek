@@ -65,6 +65,7 @@ export const firmsApi = {
   create: (data) => request('/firms', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/firms/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/firms/${id}`, { method: 'DELETE' }),
+  getProducts: (firmId) => request(`/firms/${firmId}/products`),
 };
 
 export const tagsApi = {

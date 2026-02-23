@@ -47,6 +47,34 @@ function getStatusDotColor(name) {
   return '#3B82F6';
 }
 
+function getStatusSelectStyle(name) {
+  if (!name) return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
+  const n = name.toLowerCase();
+  if (n === 'closed' || n.includes('kapal')) return { bg: '#F1F5F9', color: '#475569', border: '#CBD5E1' };
+  if (n === 'in_progress' || n.includes('devam') || n.includes('progress')) return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
+  if (n.includes('resolve') || n.includes('çözül') || n.includes('tamamlan')) return { bg: '#ECFDF5', color: '#047857', border: '#6EE7B7' };
+  if (n.includes('bekle') || n.includes('wait')) return { bg: '#F5F3FF', color: '#6D28D9', border: '#C4B5FD' };
+  return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
+}
+
+function getPrioritySelectStyle(priorityId) {
+  switch (priorityId) {
+    case 1: return { bg: '#FEF2F2', color: '#B91C1C', border: '#FCA5A5' };
+    case 2: return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
+    case 3: return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
+    case 4: return { bg: '#F9FAFB', color: '#6B7280', border: '#D1D5DB' };
+    default: return {};
+  }
+}
+
+const fieldLabels = {
+  status: 'Durum',
+  priority: 'Öncelik',
+  assignedUser: 'Atanan Kişi',
+  firm: 'Firma',
+  product: 'Ürün',
+};
+
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -161,6 +189,7 @@ export default function TicketDetail() {
       };
       const updated = await ticketsApi.update(id, payload);
       setTicket(updated);
+      loadActivity();
     } catch (err) {
       alert('Guncelleme hatasi:\n' + err.message);
     }
@@ -287,6 +316,21 @@ export default function TicketDetail() {
                           </div>
                         </div>
                       </div>
+                    ) : item.type === 'field_changed' ? (
+                      <div key={item.id} className="px-6 py-3">
+                        <div className="flex items-center gap-2 text-xs text-surface-500">
+                          <Edit3 className="w-3.5 h-3.5 text-primary-500" />
+                          <span className="font-medium text-surface-700">{item.userName || 'Sistem'}</span>
+                          <span className="font-medium text-surface-600">{fieldLabels[item.field] || item.field}</span>
+                          <span>alanini degistirdi:</span>
+                          {item.oldValue && (
+                            <span className="line-through text-surface-400">{item.oldValue}</span>
+                          )}
+                          <span className="text-surface-400">→</span>
+                          <span className="font-medium text-surface-800">{item.newValue || 'Bos'}</span>
+                          <span className="text-surface-400 ml-auto">{formatDateTime(item.createdAt)}</span>
+                        </div>
+                      </div>
                     ) : (
                       <div key={item.id} className="px-6 py-3">
                         <div className="flex items-center gap-2 text-xs text-surface-500">
@@ -362,6 +406,7 @@ export default function TicketDetail() {
                 options={allStatuses.map((s) => ({ value: s.id, label: s.name }))}
                 onChange={(val) => updateTicket({ ticketStatusId: Number(val) })}
                 colorDot={getStatusDotColor(ticket.status?.name)}
+                selectStyle={getStatusSelectStyle(ticket.status?.name)}
               />
               {/* Priority */}
               <SidebarSelect
@@ -371,6 +416,7 @@ export default function TicketDetail() {
                 options={allPriorities.map((p) => ({ value: p.id, label: p.name }))}
                 onChange={(val) => updateTicket({ ticketPriorityId: Number(val) })}
                 colorDot={priorityDotColors[ticket.ticketPriorityId]}
+                selectStyle={getPrioritySelectStyle(ticket.ticketPriorityId)}
               />
               {/* Assigned User */}
               <SidebarSelect
@@ -498,7 +544,13 @@ export default function TicketDetail() {
   );
 }
 
-function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot }) {
+function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, selectStyle }) {
+  const inlineStyle = {
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 8px center',
+    ...(selectStyle ? { backgroundColor: selectStyle.bg, color: selectStyle.color, borderColor: selectStyle.border } : {}),
+  };
   return (
     <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50/60 transition-colors">
       <span className="flex items-center gap-2 text-sm text-surface-500">
@@ -512,12 +564,8 @@ function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot }
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="text-sm font-medium text-surface-800 bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right 8px center',
-          }}
+          className="text-sm font-semibold bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none"
+          style={inlineStyle}
         >
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
