@@ -198,9 +198,61 @@ try {
   try { sqliteDb.exec('ALTER TABLE [user] ADD COLUMN order_no INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { sqliteDb.exec('ALTER TABLE product ADD COLUMN order_no INTEGER NOT NULL DEFAULT 0'); } catch {}
 
+  // ── Sync data from .NET SQLite DB (protekh_db) ──
+  const { existsSync } = await import('fs');
+  const netDbPath = join(__dirname, '..', 'protekh_db');
+  if (existsSync(netDbPath)) {
+    try {
+      sqliteDb.exec(`ATTACH DATABASE '${netDbPath.replace(/'/g, "''")}' AS netdb`);
+      console.log('[DB] .NET SQLite bulundu, senkronize ediliyor...');
+
+      const trySql = (label, ...sqls) => {
+        for (const sql of sqls) {
+          try { sqliteDb.exec(sql); return; } catch { /* try next */ }
+        }
+        console.warn(`  [SKIP] ${label}`);
+      };
+
+      // Lookup tables (PascalCase → snake_case mapping)
+      trySql('entity_type',
+        'DELETE FROM entity_type; INSERT INTO entity_type (id, name) SELECT Id, Name FROM netdb.entity_type');
+      trySql('event_type',
+        'DELETE FROM event_type; INSERT INTO event_type (id, name) SELECT Id, Name FROM netdb.event_type');
+      trySql('yetki',
+        'DELETE FROM yetki; INSERT INTO yetki (id, name) SELECT Id, Name FROM netdb.yetki');
+      trySql('ticket_status',
+        'DELETE FROM ticket_status; INSERT INTO ticket_status (id, name, is_closed, order_no) SELECT Id, Name, IsClosed, OrderNo FROM netdb.ticket_status',
+        'DELETE FROM ticket_status; INSERT INTO ticket_status (id, name, is_closed, order_no) SELECT Id, Name, is_closed, order_no FROM netdb.ticket_status');
+      trySql('ticket_priority',
+        'DELETE FROM ticket_priority; INSERT INTO ticket_priority (id, name, level) SELECT Id, Name, Level FROM netdb.ticket_priority');
+
+      // Main tables (with order_no)
+      trySql('firm',
+        'DELETE FROM firm; INSERT INTO firm (id, name, order_no) SELECT Id, Name, COALESCE(order_no, 0) FROM netdb.firm',
+        'DELETE FROM firm; INSERT INTO firm (id, name) SELECT Id, Name FROM netdb.firm');
+      trySql('product',
+        'DELETE FROM product; INSERT INTO product (id, name, manager_id, order_no) SELECT Id, Name, manager_id, COALESCE(order_no, 0) FROM netdb.product',
+        'DELETE FROM product; INSERT INTO product (id, name, manager_id) SELECT Id, Name, manager_id FROM netdb.product');
+      trySql('[user]',
+        'DELETE FROM [user]; INSERT INTO [user] (id, name, mail, password, tel, yetki_id, order_no) SELECT Id, Name, Mail, Password, Tel, RoleId, COALESCE(order_no, 0) FROM netdb.[user]',
+        'DELETE FROM [user]; INSERT INTO [user] (id, name, mail, password, tel, yetki_id) SELECT Id, Name, Mail, Password, Tel, RoleId FROM netdb.[user]');
+      trySql('tag',
+        'DELETE FROM tag; INSERT INTO tag (id, name, description, color_hex) SELECT Id, Name, Description, ColorHex FROM netdb.tag');
+      trySql('firm_product',
+        'DELETE FROM firm_product; INSERT INTO firm_product (firm_id, product_id) SELECT firm_id, product_id FROM netdb.firm_product');
+
+      sqliteDb.exec('DETACH DATABASE netdb');
+      console.log('[DB] .NET SQLite senkronizasyonu tamamlandi');
+    } catch (e) {
+      console.warn('[DB] .NET sync hatasi:', e.message);
+      try { sqliteDb.exec('DETACH DATABASE netdb'); } catch {}
+    }
+  }
+
   db = createSqliteAdapter(sqliteDb);
   console.log('════════════════════════════════════════════════════');
   console.log(`[DB] SQLite → ${dbPath}`);
+  if (existsSync(netDbPath)) console.log(`[DB] .NET DB → ${netDbPath} (synced)`);
   console.log('════════════════════════════════════════════════════');
 }
 
@@ -278,7 +330,9 @@ app.get('/api/debug', asyncHandler(async (_req, res) => {
 // FIRMS
 // ══════════════════════════════════════
 app.get('/api/firms', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM firm ORDER BY order_no ASC, id ASC');
+  let rows;
+  try { rows = await db.all('SELECT * FROM firm ORDER BY order_no ASC, id ASC'); }
+  catch { rows = await db.all('SELECT * FROM firm ORDER BY id ASC'); }
   res.json(rows.map((r) => ({ id: r.id, name: r.name, orderNo: r.order_no ?? 0 })));
 }));
 
@@ -311,10 +365,18 @@ app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
 // ── Firm → Products (for matrix-based filtering) ──
 app.get('/api/firms/:firmId/products', asyncHandler(async (req, res) => {
   const firmId = Number(req.params.firmId);
-  const rows = await db.all(
-    `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.order_no ASC, p.id ASC`,
-    { firmId }
-  );
+  let rows;
+  try {
+    rows = await db.all(
+      `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.order_no ASC, p.id ASC`,
+      { firmId }
+    );
+  } catch {
+    rows = await db.all(
+      `SELECT p.* FROM product p JOIN firm_product fp ON p.id = fp.product_id WHERE fp.firm_id = @firmId ORDER BY p.id ASC`,
+      { firmId }
+    );
+  }
   res.json(rows.map((r) => ({ id: r.id, name: (r.name || '').trim() })));
 }));
 
@@ -362,7 +424,9 @@ app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
 // USERS
 // ══════════════════════════════════════
 app.get('/api/users', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM [user] ORDER BY order_no ASC, id ASC');
+  let rows;
+  try { rows = await db.all('SELECT * FROM [user] ORDER BY order_no ASC, id ASC'); }
+  catch { rows = await db.all('SELECT * FROM [user] ORDER BY id ASC'); }
   res.json(rows.map((r) => ({ id: r.id, name: r.name, mail: r.mail, tel: r.tel, roleId: r.yetki_id, password: r.password, orderNo: r.order_no ?? 0 })));
 }));
 
@@ -623,7 +687,9 @@ async function toProductJson(row) {
 }
 
 app.get('/api/products', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM product ORDER BY order_no ASC, id ASC');
+  let rows;
+  try { rows = await db.all('SELECT * FROM product ORDER BY order_no ASC, id ASC'); }
+  catch { rows = await db.all('SELECT * FROM product ORDER BY id ASC'); }
   const products = await Promise.all(rows.map(toProductJson));
   res.json(products);
 }));

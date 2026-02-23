@@ -35,7 +35,7 @@ export default function CreateTicket() {
     setLoadingProducts(true);
     firmsApi.getProducts(form.firmId)
       .then(setFirmProducts)
-      .catch(() => setFirmProducts([]))
+      .catch((err) => { console.error('Firma ürünleri yüklenemedi:', err); setFirmProducts([]); })
       .finally(() => setLoadingProducts(false));
   }, [form.firmId]);
 
