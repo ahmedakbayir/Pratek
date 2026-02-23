@@ -21,7 +21,7 @@ import {
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { ticketsApi, firmsApi, productsApi, tagsApi, statusesApi } from '../services/api';
+import { ticketsApi, firmsApi, productsApi, tagsApi, statusesApi, usersApi } from '../services/api';
 
 function getPriorityVariant(name) {
   if (!name) return { label: 'Normal', variant: 'info' };
@@ -71,7 +71,7 @@ function toggleFilter(setter, id) {
   setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 }
 
-function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, sortBy }) {
+function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy }) {
   let result = [...tickets];
 
   if (searchQuery) {
@@ -94,6 +94,7 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
   if (statusFilter && statusFilter.length) result = result.filter((t) => statusFilter.includes(t.ticketStatusId));
   if (tagFilter.length) result = result.filter((t) => t.ticketTags?.some((tt) => tagFilter.includes(tt.tagId)));
   if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.ticketPriorityId));
+  if (assignedUserFilter && assignedUserFilter.length) result = result.filter((t) => assignedUserFilter.includes(t.assignedUserId));
 
   result.sort((a, b) => {
     switch (sortBy) {
@@ -115,12 +116,23 @@ export default function TicketList() {
   const [products, setProducts] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [tags, setTags] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('date-desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [viewMode, setViewMode] = useState('list');
+
+  // viewMode persisted in localStorage
+  const [viewMode, setViewMode] = useState(() => {
+    return localStorage.getItem('ticket_view_mode') || 'list';
+  });
+
+  // hideTagsInList persisted in localStorage, NOT cleared by clearAllFilters
+  const [hideTagsInList, setHideTagsInList] = useState(() => {
+    return localStorage.getItem('ticket_hide_tags') === 'true';
+  });
+
   const [collapsedColumns, setCollapsedColumns] = useState(new Set());
 
   const [firmFilter, setFirmFilter] = useState([]);
@@ -128,6 +140,7 @@ export default function TicketList() {
   const [statusFilter, setStatusFilter] = useState([]);
   const [tagFilter, setTagFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
+  const [assignedUserFilter, setAssignedUserFilter] = useState([]);
 
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
@@ -140,13 +153,15 @@ export default function TicketList() {
       productsApi.getAll().catch(() => []),
       tagsApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
+      usersApi.getAll().catch(() => []),
     ])
-      .then(([t, f, p, tg, s]) => {
+      .then(([t, f, p, tg, s, u]) => {
         setTickets(t || []);
         setFirms(f || []);
         setProducts(p || []);
         setTags(tg || []);
         setStatuses(s || []);
+        setUsers(u || []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -157,6 +172,16 @@ export default function TicketList() {
     setStatusFilter([]);
     setTagFilter([]);
     setPriorityFilter([]);
+    setAssignedUserFilter([]);
+    // NOTE: hideTagsInList is intentionally NOT cleared here
+  };
+
+  const toggleHideTags = () => {
+    setHideTagsInList((prev) => {
+      const next = !prev;
+      localStorage.setItem('ticket_hide_tags', String(next));
+      return next;
+    });
   };
 
   const anyFilterActive =
@@ -164,14 +189,15 @@ export default function TicketList() {
     productFilter.length ||
     (viewMode === 'list' ? statusFilter.length : 0) ||
     tagFilter.length ||
-    priorityFilter.length;
+    priorityFilter.length ||
+    assignedUserFilter.length;
 
-  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, sortBy };
+  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy };
 
   const processed = useMemo(
     () => applyFilters(tickets, { ...sharedFilterParams, statusFilter }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, sortBy]
+    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy]
   );
 
   const kanbanTickets = useMemo(
@@ -180,11 +206,12 @@ export default function TicketList() {
         ? applyFilters(tickets, { ...sharedFilterParams, statusFilter: [] })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, sortBy]
+    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy]
   );
 
   const handleSetViewMode = (mode) => {
     setViewMode(mode);
+    localStorage.setItem('ticket_view_mode', mode);
     if (mode === 'kanban') setStatusFilter([]);
   };
 
@@ -305,6 +332,7 @@ export default function TicketList() {
               selected={tagFilter}
               onToggle={(id) => toggleFilter(setTagFilter, id)}
               onClear={() => setTagFilter([])}
+              hideTagsOption={{ value: hideTagsInList, onToggle: toggleHideTags }}
             />
             <FilterDropdown
               label="Öncelik"
@@ -312,6 +340,13 @@ export default function TicketList() {
               selected={priorityFilter}
               onToggle={(id) => toggleFilter(setPriorityFilter, id)}
               onClear={() => setPriorityFilter([])}
+            />
+            <FilterDropdown
+              label="Sorumlu"
+              options={users.map((u) => ({ id: u.id, name: u.name }))}
+              selected={assignedUserFilter}
+              onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
+              onClear={() => setAssignedUserFilter([])}
             />
             {anyFilterActive ? (
               <button
@@ -442,6 +477,7 @@ export default function TicketList() {
                       onFilterProduct={(pid) => toggleFilter(setProductFilter, pid)}
                       onFilterStatus={(sid) => toggleFilter(setStatusFilter, sid)}
                       onFilterTag={(tid) => toggleFilter(setTagFilter, tid)}
+                      hideTags={hideTagsInList}
                     />
                   ))}
                 </div>
@@ -456,6 +492,7 @@ export default function TicketList() {
               onToggleColumn={toggleColumn}
               onStatusChange={handleStatusChange}
               loading={loading}
+              hideTags={hideTagsInList}
             />
           )}
         </div>
@@ -465,7 +502,7 @@ export default function TicketList() {
 }
 
 // ── Multi-select filter dropdown ─────────────────────────────────────────────
-function FilterDropdown({ label, options, selected, onToggle, onClear }) {
+function FilterDropdown({ label, options, selected, onToggle, onClear, hideTagsOption }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -478,7 +515,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const count = selected.length;
+  const count = selected.length + (hideTagsOption?.value ? 1 : 0);
 
   return (
     <div className="relative" ref={ref}>
@@ -501,6 +538,26 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
 
       {open && (
         <div className="absolute left-0 top-full mt-1 w-52 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-30 py-1">
+          {/* "Etiketleri Gizle" option at the top (only for tag filter) */}
+          {hideTagsOption && (
+            <>
+              <button
+                onClick={hideTagsOption.onToggle}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+              >
+                <div
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    hideTagsOption.value ? 'bg-primary-600 border-primary-600' : 'border-surface-300'
+                  }`}
+                >
+                  {hideTagsOption.value && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                </div>
+                <span className="truncate font-medium">Etiketleri Gizle</span>
+              </button>
+              <div className="border-t border-surface-100 my-1" />
+            </>
+          )}
+
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-surface-400">Seçenek yok</div>
           ) : (
@@ -532,7 +589,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
               })}
             </div>
           )}
-          {count > 0 && (
+          {selected.length > 0 && (
             <div className="border-t border-surface-100 mt-1 pt-1">
               <button
                 onClick={() => {
@@ -552,7 +609,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear }) {
 }
 
 // ── Ticket row (list view) ────────────────────────────────────────────────────
-function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterTag }) {
+function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterTag, hideTags }) {
   const prio = getPriorityVariant(ticket.priority?.name);
   const ss = getStatusStyle(ticket.status);
 
@@ -599,7 +656,7 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
             </>
           )}
         </div>
-        {ticket.ticketTags && ticket.ticketTags.length > 0 && (
+        {!hideTags && ticket.ticketTags && ticket.ticketTags.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {ticket.ticketTags.map((tt) => (
               <span
@@ -659,62 +716,160 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
 }
 
 // ── Kanban Board ──────────────────────────────────────────────────────────────
-function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onStatusChange, loading }) {
+function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onStatusChange, loading, hideTags }) {
   const [draggingId, setDraggingId] = useState(null);
+  const [draggingFromStatusId, setDraggingFromStatusId] = useState(null);
   const [dragOverStatusId, setDragOverStatusId] = useState(null);
+  const [dragOverCardId, setDragOverCardId] = useState(null);
+  const [dragOverPosition, setDragOverPosition] = useState(null); // 'before' | 'after'
+  const [kanbanOrder, setKanbanOrder] = useState({}); // { [statusId]: [ticketId, ...] }
 
-  const handleDragStart = (e, ticketId) => {
+  // Sync kanbanOrder when tickets or statuses change (add new, remove stale)
+  useEffect(() => {
+    setKanbanOrder((prev) => {
+      const next = { ...prev };
+      statuses.forEach((status) => {
+        const colTicketIds = tickets
+          .filter((t) => t.ticketStatusId === status.id)
+          .map((t) => t.id);
+        const existing = next[status.id] || [];
+        // Keep existing order, append new tickets, drop removed ones
+        const filtered = existing.filter((id) => colTicketIds.includes(id));
+        const added = colTicketIds.filter((id) => !filtered.includes(id));
+        next[status.id] = [...filtered, ...added];
+      });
+      return next;
+    });
+  }, [tickets, statuses]);
+
+  const handleDragStart = (e, ticketId, statusId) => {
     e.dataTransfer.setData('ticketId', String(ticketId));
+    e.dataTransfer.setData('fromStatusId', String(statusId));
     e.dataTransfer.effectAllowed = 'move';
     setDraggingId(ticketId);
+    setDraggingFromStatusId(statusId);
   };
 
   const handleDragEnd = () => {
     setDraggingId(null);
+    setDraggingFromStatusId(null);
     setDragOverStatusId(null);
+    setDragOverCardId(null);
+    setDragOverPosition(null);
   };
 
-  const handleDragOver = (e, statusId) => {
+  const handleDragOverColumn = (e, statusId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (dragOverStatusId !== statusId) setDragOverStatusId(statusId);
+  };
+
+  const handleDragOverCard = (e, cardId, statusId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+    setDragOverCardId(cardId);
+    setDragOverPosition(position);
     if (dragOverStatusId !== statusId) setDragOverStatusId(statusId);
   };
 
   const handleDragLeave = (e) => {
     if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
       setDragOverStatusId(null);
+      setDragOverCardId(null);
+      setDragOverPosition(null);
     }
   };
 
   const handleDrop = (e, statusId) => {
     e.preventDefault();
     const ticketId = parseInt(e.dataTransfer.getData('ticketId'), 10);
-    if (!isNaN(ticketId)) {
+    const fromStatusId = parseInt(e.dataTransfer.getData('fromStatusId'), 10);
+
+    if (isNaN(ticketId)) {
+      setDragOverStatusId(null);
+      setDragOverCardId(null);
+      setDragOverPosition(null);
+      setDraggingId(null);
+      return;
+    }
+
+    const isSameColumn = fromStatusId === statusId;
+
+    if (!isSameColumn) {
       onStatusChange(ticketId, statusId);
     }
+
+    const snapDragOverCardId = dragOverCardId;
+    const snapDragOverPosition = dragOverPosition;
+
+    setKanbanOrder((prev) => {
+      const next = { ...prev };
+
+      // Remove ticket from source column order
+      if (!isSameColumn && next[fromStatusId]) {
+        next[fromStatusId] = next[fromStatusId].filter((id) => id !== ticketId);
+      }
+
+      // Build new target column order
+      const targetOrder = [...(next[statusId] || [])];
+      // Remove ticket from current position in target (for same-column reorder)
+      const existingIdx = targetOrder.indexOf(ticketId);
+      if (existingIdx !== -1) targetOrder.splice(existingIdx, 1);
+
+      if (snapDragOverCardId && snapDragOverCardId !== ticketId) {
+        const targetIdx = targetOrder.indexOf(snapDragOverCardId);
+        if (targetIdx !== -1) {
+          const insertIdx = snapDragOverPosition === 'after' ? targetIdx + 1 : targetIdx;
+          targetOrder.splice(insertIdx, 0, ticketId);
+        } else {
+          targetOrder.push(ticketId);
+        }
+      } else {
+        targetOrder.push(ticketId);
+      }
+
+      next[statusId] = targetOrder;
+      return next;
+    });
+
     setDragOverStatusId(null);
+    setDragOverCardId(null);
+    setDragOverPosition(null);
     setDraggingId(null);
+    setDraggingFromStatusId(null);
   };
 
   return (
     <div className="flex gap-3 p-4 overflow-x-auto pb-5 min-h-[420px]">
       {statuses.map((status) => {
         const columnTickets = tickets.filter((t) => t.ticketStatusId === status.id);
+        const columnOrder = kanbanOrder[status.id] || columnTickets.map((t) => t.id);
+        const orderedTickets = columnOrder
+          .map((id) => columnTickets.find((t) => t.id === id))
+          .filter(Boolean);
+
         return (
           <KanbanColumn
             key={status.id}
             status={status}
-            tickets={columnTickets}
+            tickets={orderedTickets}
             isCollapsed={collapsedColumns.has(status.id)}
             onToggle={() => onToggleColumn(status.id)}
             isDragOver={dragOverStatusId === status.id}
-            onDragOver={(e) => handleDragOver(e, status.id)}
+            onDragOver={(e) => handleDragOverColumn(e, status.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, status.id)}
-            onCardDragStart={handleDragStart}
+            onCardDragStart={(e, ticketId) => handleDragStart(e, ticketId, status.id)}
             onCardDragEnd={handleDragEnd}
+            onCardDragOver={(e, cardId) => handleDragOverCard(e, cardId, status.id)}
             draggingId={draggingId}
+            dragOverCardId={dragOverCardId}
+            dragOverPosition={dragOverPosition}
             loading={loading}
+            hideTags={hideTags}
           />
         );
       })}
@@ -739,8 +894,12 @@ function KanbanColumn({
   onDrop,
   onCardDragStart,
   onCardDragEnd,
+  onCardDragOver,
   draggingId,
+  dragOverCardId,
+  dragOverPosition,
   loading,
+  hideTags,
 }) {
   const ss = getStatusStyle(status);
 
@@ -832,7 +991,11 @@ function KanbanColumn({
               ticket={ticket}
               onDragStart={onCardDragStart}
               onDragEnd={onCardDragEnd}
+              onDragOver={onCardDragOver}
               isDragging={draggingId === ticket.id}
+              isDragOver={dragOverCardId === ticket.id}
+              dragOverPosition={dragOverCardId === ticket.id ? dragOverPosition : null}
+              hideTags={hideTags}
             />
           ))
         )}
@@ -842,7 +1005,7 @@ function KanbanColumn({
 }
 
 // ── Kanban Card ───────────────────────────────────────────────────────────────
-function KanbanCard({ ticket, onDragStart, onDragEnd, isDragging }) {
+function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, isDragOver, dragOverPosition, hideTags }) {
   const prio = getPriorityVariant(ticket.priority?.name);
   const wasDragged = useRef(false);
 
@@ -858,86 +1021,114 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, isDragging }) {
     }, 100);
   };
 
+  const handleDragOver = (e) => {
+    if (onDragOver) onDragOver(e, ticket.id);
+  };
+
   return (
-    <Link
-      to={`/tickets/${ticket.id}`}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onClick={(e) => {
-        if (wasDragged.current) e.preventDefault();
-      }}
-      className={`block bg-surface-0 border rounded-lg p-3 transition-all select-none ${
-        isDragging
-          ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
-          : 'border-surface-200 hover:border-primary-200 hover:shadow-sm cursor-grab active:cursor-grabbing'
-      }`}
-    >
-      {/* Title + Priority */}
-      <div className="flex items-start gap-2 mb-2">
-        <span className="text-sm font-medium text-surface-900 flex-1 leading-snug line-clamp-2 min-w-0">
-          {ticket.title}
-        </span>
-        <div className="flex-shrink-0">
-          <Badge variant={prio.variant}>{prio.label}</Badge>
-        </div>
-      </div>
-
-      {/* ID · Firma */}
-      <div className="flex items-center gap-1.5 text-xs text-surface-400 flex-wrap mb-1.5">
-        <span className="font-mono">#{ticket.id}</span>
-        {ticket.firm && (
-          <>
-            <span>·</span>
-            <span className="flex items-center gap-0.5 min-w-0">
-              <Building2 className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate max-w-[110px]">{ticket.firm.name}</span>
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Tags */}
-      {ticket.ticketTags?.length > 0 && (
-        <div className="flex items-center gap-1 mb-2 flex-wrap">
-          {ticket.ticketTags.slice(0, 3).map((tt) => (
-            <span
-              key={tt.tagId}
-              className="inline-flex px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
-              style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
-            >
-              {tt.tag?.name}
-            </span>
-          ))}
-          {ticket.ticketTags.length > 3 && (
-            <span className="text-[10px] text-surface-400">+{ticket.ticketTags.length - 3}</span>
-          )}
-        </div>
+    <div className="relative">
+      {/* Drop indicator — above card */}
+      {isDragOver && dragOverPosition === 'before' && (
+        <div className="absolute -top-1.5 left-2 right-2 h-0.5 bg-primary-500 rounded-full z-10" />
       )}
 
-      {/* Footer: Assignee + Date */}
-      <div className="flex items-center justify-between pt-2 border-t border-surface-100">
-        {ticket.assignedUser ? (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-semibold text-primary-700 flex-shrink-0">
-              {ticket.assignedUser.name?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-            <span className="text-xs text-surface-600 truncate max-w-[90px]">
-              {ticket.assignedUser.name}
-            </span>
-          </div>
-        ) : (
-          <span className="text-xs text-surface-400 flex items-center gap-1">
-            <User className="w-3 h-3" />
-            Atanmadı
+      <Link
+        to={`/tickets/${ticket.id}`}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onClick={(e) => {
+          if (wasDragged.current) e.preventDefault();
+        }}
+        className={`block bg-surface-0 border rounded-lg p-3 transition-all select-none ${
+          isDragging
+            ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
+            : isDragOver
+            ? 'border-primary-300 shadow-sm cursor-grab'
+            : 'border-surface-200 hover:border-primary-200 hover:shadow-sm cursor-grab active:cursor-grabbing'
+        }`}
+      >
+        {/* Title + Priority */}
+        <div className="flex items-start gap-2 mb-2">
+          <span className="text-sm font-medium text-surface-900 flex-1 leading-snug line-clamp-2 min-w-0">
+            {ticket.title}
           </span>
+          <div className="flex-shrink-0">
+            <Badge variant={prio.variant}>{prio.label}</Badge>
+          </div>
+        </div>
+
+        {/* ID · Firma · Ürün */}
+        <div className="flex items-center gap-1.5 text-xs text-surface-400 flex-wrap mb-1.5">
+          <span className="font-mono">#{ticket.id}</span>
+          {ticket.firm && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-0.5 min-w-0">
+                <Building2 className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-[80px]">{ticket.firm.name}</span>
+              </span>
+            </>
+          )}
+          {ticket.product && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-0.5 min-w-0">
+                <Package className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-[80px]">{ticket.product.name}</span>
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Tags (conditional) */}
+        {!hideTags && ticket.ticketTags?.length > 0 && (
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
+            {ticket.ticketTags.slice(0, 3).map((tt) => (
+              <span
+                key={tt.tagId}
+                className="inline-flex px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
+                style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+              >
+                {tt.tag?.name}
+              </span>
+            ))}
+            {ticket.ticketTags.length > 3 && (
+              <span className="text-[10px] text-surface-400">+{ticket.ticketTags.length - 3}</span>
+            )}
+          </div>
         )}
-        <span className="flex items-center gap-1 text-xs text-surface-400 flex-shrink-0">
-          <Clock className="w-3 h-3" />
-          {formatDate(ticket.createdAt)}
-        </span>
-      </div>
-    </Link>
+
+        {/* Footer: Assignee + Date */}
+        <div className="flex items-center justify-between pt-2 border-t border-surface-100">
+          {ticket.assignedUser ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-semibold text-primary-700 flex-shrink-0">
+                {ticket.assignedUser.name?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <span className="text-xs text-surface-600 truncate max-w-[90px]">
+                {ticket.assignedUser.name}
+              </span>
+            </div>
+          ) : (
+            <span className="text-xs text-surface-400 flex items-center gap-1">
+              <User className="w-3 h-3" />
+              Atanmadı
+            </span>
+          )}
+          <span className="flex items-center gap-1 text-xs text-surface-400 flex-shrink-0">
+            <Clock className="w-3 h-3" />
+            {formatDate(ticket.createdAt)}
+          </span>
+        </div>
+      </Link>
+
+      {/* Drop indicator — below card */}
+      {isDragOver && dragOverPosition === 'after' && (
+        <div className="absolute -bottom-1.5 left-2 right-2 h-0.5 bg-primary-500 rounded-full z-10" />
+      )}
+    </div>
   );
 }
 
