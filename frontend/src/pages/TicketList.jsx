@@ -54,17 +54,17 @@ const sortOptions = [
 ];
 
 function getStatusStyle(status) {
-  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' };
+  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/50' };
   const name = (status.name || '').toLowerCase();
   if (status.isClosed || name === 'closed' || name.includes('kapal'))
-    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' };
+    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', cardBg: 'bg-slate-100/60' };
   if (name === 'in_progress' || name.includes('devam') || name.includes('progress'))
-    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', cardBg: 'bg-amber-50/70' };
   if (name.includes('resolve') || name.includes('çözül') || name.includes('tamamlan'))
-    return { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+    return { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', cardBg: 'bg-emerald-50/70' };
   if (name.includes('bekle') || name.includes('wait'))
-    return { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' };
-  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' };
+    return { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500', cardBg: 'bg-purple-50/70' };
+  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/50' };
 }
 
 function toggleFilter(setter, id) {
@@ -1004,6 +1004,7 @@ function KanbanColumn({
 // ── Kanban Card ───────────────────────────────────────────────────────────────
 function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, isDragOver, dragOverPosition, hideTags }) {
   const prio = getPriorityVariant(ticket.priority?.name);
+  const ss = getStatusStyle(ticket.status);
   const wasDragged = useRef(false);
 
   const handleDragStart = (e) => {
@@ -1038,7 +1039,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
         onClick={(e) => {
           if (wasDragged.current) e.preventDefault();
         }}
-        className={`block bg-surface-100 border rounded-lg p-3 transition-all select-none ${
+        className={`block border rounded-lg p-3 transition-all select-none ${ss.cardBg} ${
           isDragging
             ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
             : isDragOver
