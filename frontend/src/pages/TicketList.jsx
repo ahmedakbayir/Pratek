@@ -54,17 +54,17 @@ const sortOptions = [
 ];
 
 function getStatusStyle(status) {
-  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/50' };
+  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
   const name = (status.name || '').toLowerCase();
   if (status.isClosed || name === 'closed' || name.includes('kapal'))
-    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', cardBg: 'bg-slate-100/60' };
+    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', cardBg: 'bg-slate-100/70' };
   if (name === 'in_progress' || name.includes('devam') || name.includes('progress'))
-    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', cardBg: 'bg-amber-50/70' };
+    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', cardBg: 'bg-amber-50/50' };
   if (name.includes('resolve') || name.includes('çözül') || name.includes('tamamlan'))
     return { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', cardBg: 'bg-emerald-50/70' };
   if (name.includes('bekle') || name.includes('wait'))
     return { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500', cardBg: 'bg-purple-50/70' };
-  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/50' };
+  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
 }
 
 function toggleFilter(setter, id) {
