@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -298,6 +299,11 @@ const asyncHandler = (fn) => (req, res, next) =>
     console.error(`[ERROR] ${req.method} ${req.url}:`, err);
     res.status(500).json({ error: err.message || 'Internal Server Error' });
   });
+
+// ── Health check ──
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, db: db.type, time: new Date().toISOString() });
+});
 
 // ──────────────────────────────────────
 // HELPERS
@@ -903,6 +909,27 @@ app.get('/api/tickets/:id/activity', asyncHandler(async (req, res) => {
 // ──────────────────────────────────────
 // START
 // ──────────────────────────────────────
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[SERVER] Port ${PORT} zaten kullanımda! Önceki server'ı kapatın.`);
+    process.exit(1);
+  }
+  console.error('[SERVER] Hata:', err);
+});
+
+server.listen(PORT, () => {
   console.log(`API server running → http://localhost:${PORT}`);
+});
+
+// Keep the process alive — msnodesqlv8 native module can unref the event loop
+server.ref();
+setInterval(() => {}, 30000);
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[FATAL] Unhandled rejection:', err);
 });
