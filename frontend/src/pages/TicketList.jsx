@@ -7,6 +7,7 @@ import {
   Clock,
   User,
   Building2,
+  Package,
   MoreHorizontal,
   Ticket as TicketIcon,
   Plus,
@@ -238,10 +239,9 @@ export default function TicketList() {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span>Ticket</span>
             <span>Durum</span>
-            <span>Öncelik</span>
             <span>Atanan</span>
             <span>Tarih</span>
             <span />
@@ -287,46 +287,58 @@ function TicketRow({ ticket }) {
   return (
     <Link
       to={`/tickets/${ticket.id}`}
-      className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors"
+      className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-start hover:bg-surface-50 transition-colors"
     >
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-surface-400">#{ticket.id}</span>
+        {/* Satır 1: Başlık + Öncelik */}
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-surface-900 truncate">
             {ticket.title}
           </span>
+          <Badge variant={prio.variant}>{prio.label}</Badge>
         </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+        {/* Satır 2: ID · Firma · Ürün */}
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-surface-400">
+          <span className="font-mono">#{ticket.id}</span>
           {ticket.firm && (
-            <span className="flex items-center gap-1 text-xs text-surface-500">
-              <Building2 className="w-3 h-3" />
-              {ticket.firm.name}
-            </span>
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 text-surface-500">
+                <Building2 className="w-3 h-3" />
+                {ticket.firm.name}
+              </span>
+            </>
           )}
-          {ticket.ticketTags && ticket.ticketTags.length > 0 && (
-            <span className="flex items-center gap-1 flex-wrap">
-              {ticket.ticketTags.map((tt) => (
-                <span
-                  key={tt.tagId}
-                  className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-4"
-                  style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
-                >
-                  {tt.tag?.name}
-                </span>
-              ))}
-            </span>
+          {ticket.product && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 text-surface-500">
+                <Package className="w-3 h-3" />
+                {ticket.product.name}
+              </span>
+            </>
           )}
         </div>
+        {/* Satır 3: Etiketler */}
+        {ticket.ticketTags && ticket.ticketTags.length > 0 && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {ticket.ticketTags.map((tt) => (
+              <span
+                key={tt.tagId}
+                className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
+                style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+              >
+                {tt.tag?.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
         <Badge variant={ticket.status?.isClosed ? 'closed' : 'open'} dot>
           {ticket.status?.name || 'Açık'}
         </Badge>
-      </div>
-
-      <div>
-        <Badge variant={prio.variant}>{prio.label}</Badge>
       </div>
 
       <div className="flex items-center gap-2 min-w-0">
@@ -370,14 +382,16 @@ function LoadingRows() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse"
+          className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse"
         >
-          <div className="space-y-2">
-            <div className="h-4 bg-surface-200 rounded w-56" />
-            <div className="h-3 bg-surface-100 rounded w-24" />
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-4 bg-surface-200 rounded w-48" />
+              <div className="h-4 bg-surface-100 rounded-full w-12" />
+            </div>
+            <div className="h-3 bg-surface-100 rounded w-32" />
           </div>
           <div className="h-5 bg-surface-100 rounded-full w-16" />
-          <div className="h-5 bg-surface-100 rounded-full w-14" />
           <div className="h-5 bg-surface-100 rounded w-24" />
           <div className="h-4 bg-surface-100 rounded w-16" />
           <div />
