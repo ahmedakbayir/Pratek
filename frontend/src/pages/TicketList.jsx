@@ -1,21 +1,23 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Filter,
   SortAsc,
   SortDesc,
   Clock,
   User,
   Building2,
+  Package,
   MoreHorizontal,
   Ticket as TicketIcon,
   Plus,
   X,
+  Check,
+  ChevronDown,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { ticketsApi } from '../services/api';
+import { ticketsApi, firmsApi, productsApi, tagsApi, statusesApi } from '../services/api';
 
 const priorityConfig = {
   1: { label: 'Kritik', variant: 'danger' },
@@ -23,6 +25,13 @@ const priorityConfig = {
   3: { label: 'Normal', variant: 'info' },
   4: { label: 'Düşük', variant: 'default' },
 };
+
+const STATIC_PRIORITIES = [
+  { id: 1, name: 'Kritik' },
+  { id: 2, name: 'Yüksek' },
+  { id: 3, name: 'Normal' },
+  { id: 4, name: 'Düşük' },
+];
 
 const statusTabs = [
   { key: 'all', label: 'Tümü' },
@@ -38,37 +47,65 @@ const sortOptions = [
   { key: 'title-asc', label: 'Başlık (A-Z)' },
 ];
 
-const priorityOptions = [
-  { key: 0, label: 'Tüm Öncelikler' },
-  { key: 1, label: 'Kritik' },
-  { key: 2, label: 'Yüksek' },
-  { key: 3, label: 'Normal' },
-  { key: 4, label: 'Düşük' },
-];
+function toggleFilter(setter, id) {
+  setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+}
 
 export default function TicketList() {
   const [tickets, setTickets] = useState([]);
+  const [firms, setFirms] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('date-desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState(0);
+
+  const [firmFilter, setFirmFilter] = useState([]);
+  const [productFilter, setProductFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [tagFilter, setTagFilter] = useState([]);
+  const [priorityFilter, setPriorityFilter] = useState([]);
+
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
 
   useEffect(() => {
-    ticketsApi
-      .getAll()
-      .then(setTickets)
-      .catch(() => setTickets([]))
+    setLoading(true);
+    Promise.all([
+      ticketsApi.getAll().catch(() => []),
+      firmsApi.getAll().catch(() => []),
+      productsApi.getAll().catch(() => []),
+      tagsApi.getAll().catch(() => []),
+      statusesApi.getAll().catch(() => []),
+    ])
+      .then(([t, f, p, tg, s]) => {
+        setTickets(t || []);
+        setFirms(f || []);
+        setProducts(p || []);
+        setTags(tg || []);
+        setStatuses(s || []);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const clearAllFilters = () => {
+    setFirmFilter([]);
+    setProductFilter([]);
+    setStatusFilter([]);
+    setTagFilter([]);
+    setPriorityFilter([]);
+  };
+
+  const anyFilterActive =
+    firmFilter.length || productFilter.length || statusFilter.length ||
+    tagFilter.length || priorityFilter.length;
 
   const processed = useMemo(() => {
     let result = [...tickets];
 
-    // Search filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -81,49 +118,38 @@ export default function TicketList() {
       );
     }
 
-    // Status tab filter
     if (activeTab === 'open') result = result.filter((t) => !t.status?.isClosed);
     if (activeTab === 'closed') result = result.filter((t) => t.status?.isClosed);
 
-    // Priority filter
-    if (priorityFilter > 0) result = result.filter((t) => t.ticketPriorityId === priorityFilter);
+    if (firmFilter.length) result = result.filter((t) => firmFilter.includes(t.firmId));
+    if (productFilter.length) result = result.filter((t) => productFilter.includes(t.productId));
+    if (statusFilter.length) result = result.filter((t) => statusFilter.includes(t.ticketStatusId));
+    if (tagFilter.length) result = result.filter((t) => t.ticketTags?.some((tt) => tagFilter.includes(tt.tagId)));
+    if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.ticketPriorityId));
 
-    // Sort
     result.sort((a, b) => {
       switch (sortBy) {
-        case 'date-asc':
-          return new Date(a.createdAt) - new Date(b.createdAt);
-        case 'date-desc':
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        case 'priority-asc':
-          return (a.ticketPriorityId || 3) - (b.ticketPriorityId || 3);
-        case 'priority-desc':
-          return (b.ticketPriorityId || 3) - (a.ticketPriorityId || 3);
-        case 'title-asc':
-          return (a.title || '').localeCompare(b.title || '', 'tr');
-        default:
-          return 0;
+        case 'date-asc': return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'date-desc': return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'priority-asc': return (a.ticketPriorityId || 3) - (b.ticketPriorityId || 3);
+        case 'priority-desc': return (b.ticketPriorityId || 3) - (a.ticketPriorityId || 3);
+        case 'title-asc': return (a.title || '').localeCompare(b.title || '', 'tr');
+        default: return 0;
       }
     });
 
     return result;
-  }, [tickets, activeTab, sortBy, priorityFilter, searchQuery]);
-
-  const activeFilterCount = (priorityFilter > 0 ? 1 : 0) + (searchQuery ? 1 : 0);
+  }, [tickets, activeTab, sortBy, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, searchQuery]);
 
   return (
     <div>
-      <Header title="Ticket'lar" subtitle={`${tickets.length} ticket`} />
+      <Header title="Ticket'lar" subtitle={`${processed.length} / ${tickets.length} ticket`} />
 
       <div className="p-6">
-        {/* Search indicator */}
         {searchQuery && (
           <div className="mb-4 flex items-center gap-2 text-sm text-surface-600">
             <span>&quot;{searchQuery}&quot; için {processed.length} sonuç bulundu</span>
-            <Link
-              to="/tickets"
-              className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium"
-            >
+            <Link to="/tickets" className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium">
               <X className="w-3.5 h-3.5" />
               Temizle
             </Link>
@@ -131,9 +157,8 @@ export default function TicketList() {
         )}
 
         <div className="bg-surface-0 rounded-xl border border-surface-200">
-          {/* Toolbar */}
+          {/* Row 1: Tabs + Sort */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
-            {/* Tabs */}
             <div className="flex gap-1 bg-surface-100 p-0.5 rounded-lg">
               {statusTabs.map((tab) => (
                 <button
@@ -158,74 +183,30 @@ export default function TicketList() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Filter */}
-              <div className="relative">
-                <button
-                  onClick={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors cursor-pointer ${
-                    priorityFilter > 0
-                      ? 'text-primary-700 border-primary-300 bg-primary-50'
-                      : 'text-surface-600 border-surface-200 hover:bg-surface-50'
-                  }`}
-                >
-                  <Filter className="w-3.5 h-3.5" />
-                  Filtrele
-                  {activeFilterCount > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-                {showFilterMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-10 py-1">
-                    <div className="px-3 py-2 text-xs font-semibold text-surface-500 uppercase">Öncelik</div>
-                    {priorityOptions.map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => { setPriorityFilter(opt.key); setShowFilterMenu(false); }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer ${
-                          priorityFilter === opt.key
-                            ? 'bg-primary-50 text-primary-700 font-medium'
-                            : 'text-surface-700 hover:bg-surface-50'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    {priorityFilter > 0 && (
-                      <>
-                        <div className="border-t border-surface-100 my-1" />
-                        <button
-                          onClick={() => { setPriorityFilter(0); setShowFilterMenu(false); }}
-                          className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-surface-50 cursor-pointer"
-                        >
-                          Filtreyi temizle
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+              <Link
+                to="/tickets/new"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Yeni Ticket
+              </Link>
 
-              {/* Sort */}
               <div className="relative">
                 <button
-                  onClick={() => { setShowSortMenu(!showSortMenu); setShowFilterMenu(false); }}
+                  onClick={() => setShowSortMenu(!showSortMenu)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-600 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors cursor-pointer"
                 >
                   {sortBy.includes('desc') ? <SortDesc className="w-3.5 h-3.5" /> : <SortAsc className="w-3.5 h-3.5" />}
                   Sırala
                 </button>
                 {showSortMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-10 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-20 py-1">
                     {sortOptions.map((opt) => (
                       <button
                         key={opt.key}
                         onClick={() => { setSortBy(opt.key); setShowSortMenu(false); }}
                         className={`w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer ${
-                          sortBy === opt.key
-                            ? 'bg-primary-50 text-primary-700 font-medium'
-                            : 'text-surface-700 hover:bg-surface-50'
+                          sortBy === opt.key ? 'bg-primary-50 text-primary-700 font-medium' : 'text-surface-700 hover:bg-surface-50'
                         }`}
                       >
                         {opt.label}
@@ -237,11 +218,60 @@ export default function TicketList() {
             </div>
           </div>
 
+          {/* Row 2: Filter chips */}
+          <div className="flex items-center gap-2 px-5 py-2.5 border-b border-surface-100 bg-surface-50/40 flex-wrap">
+            <FilterDropdown
+              label="Firma"
+              options={firms.map((f) => ({ id: f.id, name: f.name }))}
+              selected={firmFilter}
+              onToggle={(id) => toggleFilter(setFirmFilter, id)}
+              onClear={() => setFirmFilter([])}
+            />
+            <FilterDropdown
+              label="Ürün"
+              options={products.map((p) => ({ id: p.id, name: p.name }))}
+              selected={productFilter}
+              onToggle={(id) => toggleFilter(setProductFilter, id)}
+              onClear={() => setProductFilter([])}
+            />
+            <FilterDropdown
+              label="Durum"
+              options={statuses.map((s) => ({ id: s.id, name: s.name }))}
+              selected={statusFilter}
+              onToggle={(id) => toggleFilter(setStatusFilter, id)}
+              onClear={() => setStatusFilter([])}
+            />
+            <FilterDropdown
+              label="Etiket"
+              options={tags.map((t) => ({ id: t.id, name: t.name, colorHex: t.colorHex }))}
+              selected={tagFilter}
+              onToggle={(id) => toggleFilter(setTagFilter, id)}
+              onClear={() => setTagFilter([])}
+            />
+            <FilterDropdown
+              label="Öncelik"
+              options={STATIC_PRIORITIES}
+              selected={priorityFilter}
+              onToggle={(id) => toggleFilter(setPriorityFilter, id)}
+              onClear={() => setPriorityFilter([])}
+            />
+            {anyFilterActive ? (
+              <button
+                onClick={clearAllFilters}
+                className="ml-auto flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                Tümünü temizle
+              </button>
+            ) : (
+              <span className="ml-auto text-xs text-surface-400">Filtre seçilmedi</span>
+            )}
+          </div>
+
           {/* Table Header */}
-          <div className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+          <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span>Ticket</span>
             <span>Durum</span>
-            <span>Öncelik</span>
             <span>Atanan</span>
             <span>Tarih</span>
             <span />
@@ -254,18 +284,25 @@ export default function TicketList() {
             <EmptyState
               icon={TicketIcon}
               title="Ticket bulunamadı"
-              description={searchQuery
-                ? `"${searchQuery}" aramasıyla eşleşen ticket yok.`
-                : 'Henüz bir ticket oluşturulmamış veya filtre sonuçlarında eşleşme yok.'
+              description={
+                searchQuery
+                  ? `"${searchQuery}" aramasıyla eşleşen ticket yok.`
+                  : anyFilterActive
+                    ? 'Seçili filtrelere uyan ticket bulunamadı.'
+                    : 'Henüz bir ticket oluşturulmamış.'
               }
               action={
-                <Link
-                  to="/tickets/new"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Yeni Ticket Oluştur
-                </Link>
+                anyFilterActive ? (
+                  <button onClick={clearAllFilters} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/5 transition-colors cursor-pointer">
+                    <X className="w-4 h-4" />
+                    Filtreleri temizle
+                  </button>
+                ) : (
+                  <Link to="/tickets/new" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+                    <Plus className="w-4 h-4" />
+                    Yeni Ticket Oluştur
+                  </Link>
+                )
               }
             />
           ) : (
@@ -281,52 +318,151 @@ export default function TicketList() {
   );
 }
 
+// ── Multi-select filter dropdown ─────────────────────────────────────────────
+function FilterDropdown({ label, options, selected, onToggle, onClear }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const count = selected.length;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border rounded-lg transition-colors cursor-pointer select-none ${
+          count > 0
+            ? 'text-primary-700 border-primary-300 bg-primary-50'
+            : 'text-surface-600 border-surface-200 bg-surface-0 hover:bg-surface-50'
+        }`}
+      >
+        {label}
+        {count > 0 && (
+          <span className="min-w-[16px] h-4 px-1 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-medium">
+            {count}
+          </span>
+        )}
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-52 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-30 py-1">
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-surface-400">Seçenek yok</div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto">
+              {options.map((opt) => {
+                const isSelected = selected.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => onToggle(opt.id)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+                  >
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected ? 'bg-primary-600 border-primary-600' : 'border-surface-300'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                    </div>
+                    <span className="truncate">{opt.name}</span>
+                    {opt.colorHex && (
+                      <div
+                        className="w-2.5 h-2.5 rounded-full ml-auto shrink-0"
+                        style={{ backgroundColor: opt.colorHex }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {count > 0 && (
+            <>
+              <div className="border-t border-surface-100 mt-1 pt-1">
+                <button
+                  onClick={() => { onClear(); setOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-surface-50 cursor-pointer"
+                >
+                  Temizle
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Ticket row ───────────────────────────────────────────────────────────────
 function TicketRow({ ticket }) {
   const prio = priorityConfig[ticket.ticketPriorityId] || priorityConfig[3];
 
   return (
     <Link
       to={`/tickets/${ticket.id}`}
-      className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors"
+      className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-start hover:bg-surface-50 transition-colors"
     >
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-surface-400">#{ticket.id}</span>
+        {/* Satır 1: Başlık + Öncelik */}
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-surface-900 truncate">
             {ticket.title}
           </span>
+          <Badge variant={prio.variant}>{prio.label}</Badge>
         </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+        {/* Satır 2: ID · Firma · Ürün */}
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-surface-400">
+          <span className="font-mono">#{ticket.id}</span>
           {ticket.firm && (
-            <span className="flex items-center gap-1 text-xs text-surface-500">
-              <Building2 className="w-3 h-3" />
-              {ticket.firm.name}
-            </span>
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 text-surface-500">
+                <Building2 className="w-3 h-3" />
+                {ticket.firm.name}
+              </span>
+            </>
           )}
-          {ticket.ticketTags && ticket.ticketTags.length > 0 && (
-            <span className="flex items-center gap-1 flex-wrap">
-              {ticket.ticketTags.map((tt) => (
-                <span
-                  key={tt.tagId}
-                  className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-4"
-                  style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
-                >
-                  {tt.tag?.name}
-                </span>
-              ))}
-            </span>
+          {ticket.product && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 text-surface-500">
+                <Package className="w-3 h-3" />
+                {ticket.product.name}
+              </span>
+            </>
           )}
         </div>
+        {/* Satır 3: Etiketler */}
+        {ticket.ticketTags && ticket.ticketTags.length > 0 && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {ticket.ticketTags.map((tt) => (
+              <span
+                key={tt.tagId}
+                className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
+                style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+              >
+                {tt.tag?.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
         <Badge variant={ticket.status?.isClosed ? 'closed' : 'open'} dot>
           {ticket.status?.name || 'Açık'}
         </Badge>
-      </div>
-
-      <div>
-        <Badge variant={prio.variant}>{prio.label}</Badge>
       </div>
 
       <div className="flex items-center gap-2 min-w-0">
@@ -368,16 +504,15 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-surface-100">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="grid grid-cols-[2.5fr_1fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse"
-        >
-          <div className="space-y-2">
-            <div className="h-4 bg-surface-200 rounded w-56" />
-            <div className="h-3 bg-surface-100 rounded w-24" />
+        <div key={i} className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-4 bg-surface-200 rounded w-48" />
+              <div className="h-4 bg-surface-100 rounded-full w-12" />
+            </div>
+            <div className="h-3 bg-surface-100 rounded w-32" />
           </div>
           <div className="h-5 bg-surface-100 rounded-full w-16" />
-          <div className="h-5 bg-surface-100 rounded-full w-14" />
           <div className="h-5 bg-surface-100 rounded w-24" />
           <div className="h-4 bg-surface-100 rounded w-16" />
           <div />
@@ -389,6 +524,5 @@ function LoadingRows() {
 
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+  return new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 }
