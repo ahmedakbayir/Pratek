@@ -22,19 +22,30 @@ import Header from '../components/Header';
 import Badge from '../components/Badge';
 import { ticketsApi, tagsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
 
-const priorityConfig = {
-  1: { label: 'Kritik', variant: 'danger', icon: AlertCircle },
-  2: { label: 'Yüksek', variant: 'warning', icon: AlertCircle },
-  3: { label: 'Normal', variant: 'info', icon: CheckCircle2 },
-  4: { label: 'Düşük', variant: 'default', icon: CheckCircle2 },
-};
+function getPriorityVariant(name) {
+  if (!name) return { label: 'Normal', variant: 'info' };
+  const n = name.toLowerCase();
+  if (n.includes('kritik') || n.includes('critical')) return { label: name, variant: 'danger' };
+  if (n.includes('yüksek') || n.includes('high')) return { label: name, variant: 'warning' };
+  if (n.includes('düşük') || n.includes('low')) return { label: name, variant: 'default' };
+  return { label: name, variant: 'info' };
+}
 
 const priorityDotColors = {
-  1: '#EF4444',
-  2: '#F59E0B',
-  3: '#3B82F6',
-  4: '#9CA3AF',
+  kritik: '#EF4444',
+  yüksek: '#F59E0B',
+  normal: '#3B82F6',
+  düşük: '#9CA3AF',
 };
+
+function getPriorityDotColor(name) {
+  if (!name) return '#3B82F6';
+  const n = name.toLowerCase();
+  if (n.includes('kritik') || n.includes('critical')) return '#EF4444';
+  if (n.includes('yüksek') || n.includes('high')) return '#F59E0B';
+  if (n.includes('düşük') || n.includes('low')) return '#9CA3AF';
+  return '#3B82F6';
+}
 
 function getStatusDotColor(name) {
   if (!name) return '#3B82F6';
@@ -57,14 +68,14 @@ function getStatusSelectStyle(name) {
   return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
 }
 
-function getPrioritySelectStyle(priorityId) {
-  switch (priorityId) {
-    case 1: return { bg: '#FEF2F2', color: '#B91C1C', border: '#FCA5A5' };
-    case 2: return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
-    case 3: return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
-    case 4: return { bg: '#F9FAFB', color: '#6B7280', border: '#D1D5DB' };
-    default: return {};
-  }
+function getPrioritySelectStyle(name) {
+  if (!name) return {};
+  const n = name.toLowerCase();
+  if (n.includes('kritik') || n.includes('critical')) return { bg: '#FEF2F2', color: '#B91C1C', border: '#FCA5A5' };
+  if (n.includes('yüksek') || n.includes('high')) return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
+  if (n.includes('normal') || n.includes('medium')) return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
+  if (n.includes('düşük') || n.includes('low')) return { bg: '#F9FAFB', color: '#6B7280', border: '#D1D5DB' };
+  return {};
 }
 
 const fieldLabels = {
@@ -228,7 +239,7 @@ export default function TicketDetail() {
     );
   }
 
-  const prio = priorityConfig[ticket.ticketPriorityId] || priorityConfig[3];
+  const prio = getPriorityVariant(ticket.priority?.name);
 
   return (
     <div>
@@ -415,8 +426,8 @@ export default function TicketDetail() {
                 value={ticket.ticketPriorityId}
                 options={allPriorities.map((p) => ({ value: p.id, label: p.name }))}
                 onChange={(val) => updateTicket({ ticketPriorityId: Number(val) })}
-                colorDot={priorityDotColors[ticket.ticketPriorityId]}
-                selectStyle={getPrioritySelectStyle(ticket.ticketPriorityId)}
+                colorDot={getPriorityDotColor(ticket.priority?.name)}
+                selectStyle={getPrioritySelectStyle(ticket.priority?.name)}
               />
               {/* Assigned User */}
               <SidebarSelect

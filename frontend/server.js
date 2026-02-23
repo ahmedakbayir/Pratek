@@ -123,6 +123,10 @@ try {
   db = createSqlServerAdapter(conn);
   // Ensure product_id column exists on ticket table
   try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ticket') AND name = 'product_id') ALTER TABLE ticket ADD product_id INT NULL"); } catch { /* ignore */ }
+  // Ensure order_no columns exist on firm, user, product tables
+  try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('firm') AND name = 'order_no') ALTER TABLE firm ADD order_no INT NOT NULL DEFAULT 0"); } catch { /* ignore */ }
+  try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('[user]') AND name = 'order_no') ALTER TABLE [user] ADD order_no INT NOT NULL DEFAULT 0"); } catch { /* ignore */ }
+  try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('product') AND name = 'order_no') ALTER TABLE product ADD order_no INT NOT NULL DEFAULT 0"); } catch { /* ignore */ }
 
   const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
   console.log('════════════════════════════════════════════════════');
