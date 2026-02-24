@@ -11,724 +11,188 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// ──────────────────────────────────────
-// 1. SIFIRDAN VERİTABANI BAĞLANTISI (Ortak pratek.db)
-// ──────────────────────────────────────
-// Veritabanını frontend klasörü yerine ANA DİZİNDE (root) oluşturuyoruz.
-// Böylece .NET ve Node.js aynı dosyayı okur/yazar, senkronizasyon derdi biter!
+// 1. VERİTABANI BAĞLANTISI (Ortak Ana Dizinde)
 const dbPath = join(__dirname, '..', 'pratek.db');
-const sqliteDb = new Database(dbPath, { verbose: console.log });
-
-sqliteDb.pragma('journal_mode = WAL');
-sqliteDb.pragma('foreign_keys = ON');
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 console.log('════════════════════════════════════════════════════');
-console.log(`[DB] PRATEK Veritabanına Bağlanıldı → ${dbPath}`);
+console.log(`[PRATEK] Veritabanı Aktif → ${dbPath}`);
 console.log('════════════════════════════════════════════════════');
 
-// ──────────────────────────────────────
-// 2. TABLO OLUŞTURMA & İLK VERİLER (SEED)
-// ──────────────────────────────────────
-sqliteDb.exec(`
-  CREATE TABLE IF NOT EXISTS entityType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS eventType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS ticketStatus (id INTEGER PRIMARY KEY, name TEXT NOT NULL, isClosed INTEGER NOT NULL DEFAULT 0, orderNo INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE IF NOT EXISTS ticketPriority (id INTEGER PRIMARY KEY, name TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE IF NOT EXISTS yetki (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS [user] (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', mail TEXT NOT NULL DEFAULT '', password TEXT NOT NULL DEFAULT '', tel TEXT NOT NULL DEFAULT '', firmId INTEGER REFERENCES firm(id), yetkiId INTEGER NOT NULL DEFAULT 2);
-  CREATE TABLE IF NOT EXISTS firm (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, inactive INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, colorHex TEXT);
-  CREATE TABLE IF NOT EXISTS product (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', managerId INTEGER NOT NULL REFERENCES [user](id));
-  CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, firmId INTEGER REFERENCES firm(id) ON DELETE SET NULL, createdBy INTEGER REFERENCES [user](id), assignedUserId INTEGER REFERENCES [user](id) ON DELETE SET NULL, statusId INTEGER NOT NULL REFERENCES ticketStatus(id), priorityId INTEGER NOT NULL REFERENCES ticketPriority(id), dueDate TEXT, productId INTEGER REFERENCES product(id));
-  CREATE TABLE IF NOT EXISTS ticketTag (ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, tagId INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE, createdBy INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL, removedAt TEXT, removedBy INTEGER, PRIMARY KEY(ticketId, tagId));
-  CREATE TABLE IF NOT EXISTS ticketComment (id INTEGER PRIMARY KEY AUTOINCREMENT, ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, userId INTEGER NOT NULL REFERENCES [user](id), content TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS eventLog (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt TEXT NOT NULL, entityTypeId INTEGER NOT NULL REFERENCES entityType(id), entityId INTEGER NOT NULL, eventTypeId INTEGER NOT NULL REFERENCES eventType(id), description TEXT, createdBy INTEGER, oldValue TEXT, newValue TEXT);
-  CREATE TABLE IF NOT EXISTS firmProduct (firmId INTEGER NOT NULL REFERENCES firm(id) ON DELETE CASCADE, productId INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE, PRIMARY KEY(firmId, productId));
+// 2. TABLOLARIN OLUŞTURULMASI (EF Core ile Birebir Uyumlu)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS "entity_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "event_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "ticket_status" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "IsClosed" INTEGER NOT NULL DEFAULT 0, "OrderNo" INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS "ticket_priority" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "Level" INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS "yetki" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "user" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL DEFAULT '', "Mail" TEXT NOT NULL DEFAULT '', "Password" TEXT NOT NULL DEFAULT '', "Tel" TEXT NOT NULL DEFAULT '', "RoleId" INTEGER NOT NULL DEFAULT 2);
+  CREATE TABLE IF NOT EXISTS "firm" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "tag" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "Description" TEXT, "ColorHex" TEXT);
+  CREATE TABLE IF NOT EXISTS "product" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL DEFAULT '', "ManagerId" INTEGER NOT NULL REFERENCES "user"("Id"));
+  CREATE TABLE IF NOT EXISTS "ticket" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Title" TEXT NOT NULL, "Description" TEXT, "FirmId" INTEGER REFERENCES "firm"("Id") ON DELETE SET NULL, "CreatedBy" INTEGER REFERENCES "user"("Id"), "AssignedUserId" INTEGER REFERENCES "user"("Id") ON DELETE SET NULL, "TicketStatusId" INTEGER NOT NULL REFERENCES "ticket_status"("Id"), "TicketPriorityId" INTEGER NOT NULL REFERENCES "ticket_priority"("Id"), "ProductId" INTEGER REFERENCES "product"("Id"), "CreatedAt" TEXT NOT NULL, "UpdatedAt" TEXT, "UpdatedBy" INTEGER);
+  CREATE TABLE IF NOT EXISTS "ticket_tag" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id") ON DELETE CASCADE, "TagId" INTEGER NOT NULL REFERENCES "tag"("Id") ON DELETE CASCADE, "CreatedBy" INTEGER NOT NULL DEFAULT 0, "CreatedAt" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "ticket_comment" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id") ON DELETE CASCADE, "UserId" INTEGER NOT NULL REFERENCES "user"("Id"), "Content" TEXT NOT NULL DEFAULT '', "CreatedAt" TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS "event_log" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "CreatedAt" TEXT NOT NULL, "EntityTypeId" INTEGER NOT NULL REFERENCES "entity_type"("Id"), "EntityId" INTEGER NOT NULL, "EventTypeId" INTEGER NOT NULL REFERENCES "event_type"("Id"), "Description" TEXT, "UserId" INTEGER REFERENCES "user"("Id"));
+  CREATE TABLE IF NOT EXISTS "firm_product" ("FirmId" INTEGER NOT NULL REFERENCES "firm"("Id") ON DELETE CASCADE, "ProductId" INTEGER NOT NULL REFERENCES "product"("Id") ON DELETE CASCADE, PRIMARY KEY("FirmId", "ProductId"));
 `);
 
-// Tablolar boşsa (ilk kurulum) sistemin çalışması için gereken temel verileri ekliyoruz
-function seedIfEmpty(table, rows) {
-  const count = sqliteDb.prepare(`SELECT COUNT(*) as c FROM ${table}`).get().c;
+// 3. İLK VERİLER (SEED)
+function seed(table, rows) {
+  const count = db.prepare(`SELECT COUNT(*) as c FROM "${table}"`).get().c;
   if (count === 0) {
     const cols = Object.keys(rows[0]);
-    const ph = cols.map(() => '?').join(', ');
-    const stmt = sqliteDb.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${ph})`);
-    for (const row of rows) stmt.run(...cols.map(c => row[c]));
+    const placeholders = cols.map(() => '?').join(', ');
+    const stmt = db.prepare(`INSERT INTO "${table}" ("${cols.join('", "')}") VALUES (${placeholders})`);
+    for (const r of rows) stmt.run(...cols.map(c => r[c]));
   }
 }
+seed('ticket_status', [{Id:1,Name:'Açık',IsClosed:0,OrderNo:1},{Id:2,Name:'Devam Ediyor',IsClosed:0,OrderNo:2},{Id:3,Name:'Çözümlendi',IsClosed:1,OrderNo:3},{Id:4,Name:'Kapalı',IsClosed:1,OrderNo:4}]);
+seed('ticket_priority', [{Id:1,Name:'Kritik',Level:1},{Id:2,Name:'Yüksek',Level:2},{Id:3,Name:'Normal',Level:3},{Id:4,Name:'Düşük',Level:4}]);
+seed('entity_type', [{Id:1,Name:'User'},{Id:2,Name:'Ticket'},{Id:3,Name:'Firm'},{Id:4,Name:'Tag'}]);
+seed('event_type', [{Id:1,Name:'Created'},{Id:2,Name:'Updated'},{Id:3,Name:'Assigned'},{Id:4,Name:'Deleted'}]);
+seed('yetki', [{Id:1,Name:'Admin'},{Id:2,Name:'Agent'},{Id:3,Name:'Müşteri'}]);
 
-seedIfEmpty('ticketStatus', [
-  { id: 1, name: 'Yeni', isClosed: 0, orderNo: 1 },
-  { id: 2, name: 'Devam Ediyor', isClosed: 0, orderNo: 2 },
-  { id: 3, name: 'Bekliyor', isClosed: 0, orderNo: 3 },
-  { id: 4, name: 'Kapanma Bekliyor', isClosed: 0, orderNo: 4 },
-  { id: 5, name: 'Kapalı', isClosed: 1, orderNo: 5 },
-]);
-seedIfEmpty('ticketPriority', [
-  { id: 1, name: 'Kritik', level: 1 },
-  { id: 2, name: 'Yüksek', level: 2 },
-  { id: 3, name: 'Normal', level: 3 },
-  { id: 4, name: 'Düşük', level: 4 },
-]);
-seedIfEmpty('entityType', [
-  { id: 1, name: 'User' }, { id: 2, name: 'Ticket' }, { id: 3, name: 'Firm' }, { id: 4, name: 'Tag' },
-]);
-seedIfEmpty('eventType', [
-  { id: 1, name: 'Created' }, { id: 2, name: 'Updated' }, { id: 3, name: 'Assigned' }, { id: 4, name: 'Deleted' },
-]);
-seedIfEmpty('yetki', [
-  { id: 1, name: 'Admin' }, { id: 2, name: 'Agent' }, { id: 3, name: 'Müşteri' },
-]);
-
-// ──────────────────────────────────────
-// 3. YENİ DB ADAPTER (Express Route'ları için)
-// ──────────────────────────────────────
-function toPositional(query, params = {}) {
-  const values = [];
-  const sql = query.replace(/@(\w+)/g, (_, name) => {
-    values.push(params[name] ?? null);
-    return '?';
-  });
-  return { sql, values };
-}
-
-function toSqliteVals(values) {
-  return values.map((v) => (v instanceof Date ? v.toISOString() : v));
-}
-
-const db = {
-  type: 'sqlite',
-  all: async (sql, params = {}) => {
-    const { sql: q, values } = toPositional(sql, params);
-    return sqliteDb.prepare(q).all(...toSqliteVals(values));
-  },
-  get: async (sql, params = {}) => {
-    const { sql: q, values } = toPositional(sql, params);
-    return sqliteDb.prepare(q).get(...toSqliteVals(values)) || null;
-  },
-  insert: async (sql, params = {}) => {
-    // SQLite "OUTPUT INSERTED.id" sözdizimini anlamaz, bunu otomatik temizliyoruz
-    const cleanSql = sql.replace(/\s*OUTPUT\s+INSERTED\.id\s*/i, ' ');
-    const { sql: q, values } = toPositional(cleanSql, params);
-    const result = sqliteDb.prepare(q).run(...toSqliteVals(values));
-    return Number(result.lastInsertRowid);
-  },
-  run: async (sql, params = {}) => {
-    const { sql: q, values } = toPositional(sql, params);
-    sqliteDb.prepare(q).run(...toSqliteVals(values));
-  },
+// 4. VERİ FORMATLAYICI (PascalCase'i React için camelCase yapar)
+const toCamel = (obj) => {
+  if (!obj) return obj;
+  const newObj = {};
+  for (const key of Object.keys(obj)) {
+    newObj[key.charAt(0).toLowerCase() + key.slice(1)] = obj[key];
+  }
+  return newObj;
 };
 
-// ──────────────────────────────────────
-// 4. ERROR WRAPPER & YARDIMCI FONKSİYONLAR
-// ──────────────────────────────────────
-const asyncHandler = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch((err) => {
-    console.error(`[ERROR] ${req.method} ${req.url}:`, err);
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
-  });
-
-function now() { return new Date(); }
-
-async function logEvent(entityTypeId, eventTypeId, entityId, description, userId) {
-  await db.run(
-    `INSERT INTO eventLog (entityTypeId, eventTypeId, entityId, description, createdBy, createdAt)
-     VALUES (@entityTypeId, @eventTypeId, @entityId, @description, @userId, @createdAt)`,
-    { entityTypeId, eventTypeId, entityId, description, userId: userId ?? null, createdAt: now() }
-  );
-}
-
-async function toTicketJson(row) {
-  if (!row) return null;
-  const firm = row.firmId ? await db.get('SELECT * FROM firm WHERE id = @id', { id: row.firmId }) : null;
-  const user = row.assignedUserId ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.assignedUserId }) : null;
-  const status = await db.get('SELECT * FROM ticketStatus WHERE id = @id', { id: row.statusId });
-  const priority = await db.get('SELECT * FROM ticketPriority WHERE id = @id', { id: row.priorityId });
-  const product = row.productId ? await db.get('SELECT * FROM product WHERE id = @id', { id: row.productId }) : null;
-  const createdByUser = row.createdBy ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.createdBy }) : null;
-  const tags = await db.all(
-    `SELECT tt.*, t.name, t.description AS tagDescription, t.colorHex
-     FROM ticketTag tt JOIN tag t ON tt.tagId = t.id WHERE tt.ticketId = @ticketId AND tt.removedAt IS NULL`,
-    { ticketId: row.id }
-  );
-
-  const createEvent = await db.get('SELECT createdAt FROM eventLog WHERE entityTypeId = 2 AND entityId = @id AND eventTypeId = 1', { id: row.id });
-
-  return {
-    id: row.id, title: row.title, description: row.description,
-    firmId: row.firmId, assignedUserId: row.assignedUserId,
-    ticketStatusId: row.statusId, ticketPriorityId: row.priorityId,
-    productId: row.productId ?? null,
-    createdAt: createEvent ? createEvent.createdAt : null,
-    createdBy: row.createdBy,
-    firm: firm ? { id: firm.id, name: firm.name } : null,
-    assignedUser: user ? { id: user.id, name: user.name, mail: user.mail, tel: user.tel, roleId: user.yetkiId } : null,
-    status: status ? { id: status.id, name: status.name, isClosed: !!status.isClosed, orderNo: status.orderNo } : null,
-    priority: priority ? { id: priority.id, name: priority.name, level: priority.level } : null,
-    product: product ? { id: product.id, name: (product.name || '').trim() } : null,
-    createdByUser: createdByUser ? { id: createdByUser.id, name: createdByUser.name } : null,
-    ticketTags: tags.map((tt) => ({
-      ticketId: tt.ticketId, tagId: tt.tagId, createdBy: tt.createdBy, createdAt: tt.createdAt,
-      tag: { id: tt.tagId, name: tt.name, description: tt.tagDescription, colorHex: tt.colorHex },
-    })),
-  };
-}
-
-// ══════════════════════════════════════
-// DIAGNOSTIC
-// ══════════════════════════════════════
-app.get('/api/debug', asyncHandler(async (_req, res) => {
-  const firms = await db.all('SELECT * FROM firm');
-  res.json({
-    engine: db.type,
-    firmCount: firms.length,
-    firms,
-  });
-}));
-
-// ══════════════════════════════════════
-// FIRMS
-// ══════════════════════════════════════
-app.get('/api/firms', asyncHandler(async (_req, res) => {
-  let rows;
-  try { rows = await db.all('SELECT * FROM firm ORDER BY orderNo ASC, id ASC'); }
-  catch { rows = await db.all('SELECT * FROM firm ORDER BY id ASC'); }
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, orderNo: r.orderNo ?? 0 })));
-}));
-
-app.get('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.id, name: row.name });
-}));
-
-app.post('/api/firms', asyncHandler(async (req, res) => {
-  const { name } = req.body;
-  const newId = await db.insert('INSERT INTO firm (name) OUTPUT INSERTED.id VALUES (@name)', { name });
-  res.json({ id: newId, name });
-}));
-
-app.put('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE firm SET name = @name WHERE id = @id', { name: req.body.name, id: Number(req.params.id) });
+// 5. API ROUTE'LARI
+// --- FIRMALAR ---
+app.get('/api/firms', (req, res) => res.json(db.prepare('SELECT * FROM "firm"').all().map(toCamel)));
+app.get('/api/firms/:id', (req, res) => res.json(toCamel(db.prepare('SELECT * FROM "firm" WHERE "Id" = ?').get(req.params.id))));
+app.post('/api/firms', (req, res) => {
+  const info = db.prepare('INSERT INTO "firm" ("Name") VALUES (?)').run(req.body.name);
+  res.json({ id: info.lastInsertRowid, name: req.body.name });
+});
+app.put('/api/firms/:id', (req, res) => {
+  db.prepare('UPDATE "firm" SET "Name" = ? WHERE "Id" = ?').run(req.body.name, req.params.id);
   res.json({ id: Number(req.params.id), name: req.body.name });
-}));
-
-app.delete('/api/firms/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM firm WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM firm WHERE id = @id', { id: Number(req.params.id) });
+});
+app.delete('/api/firms/:id', (req, res) => {
+  db.prepare('DELETE FROM "firm" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
-}));
-
-// ── Firm → Products (for matrix-based filtering) ──
-app.get('/api/firms/:firmId/products', asyncHandler(async (req, res) => {
-  const firmId = Number(req.params.firmId);
-  console.log(`[DEBUG] GET /api/firms/${firmId}/products → db.type=${db.type}`);
-  let rows;
-  try {
-    rows = await db.all(
-      `SELECT p.* FROM product p JOIN firmProduct fp ON p.id = fp.productId WHERE fp.firmId = @firmId ORDER BY p.orderNo ASC, p.id ASC`,
-      { firmId }
-    );
-  } catch (e) {
-    console.warn(`[DEBUG] firm-products orderNo query failed: ${e.message}`);
-    rows = await db.all(
-      `SELECT p.* FROM product p JOIN firmProduct fp ON p.id = fp.productId WHERE fp.firmId = @firmId ORDER BY p.id ASC`,
-      { firmId }
-    );
-  }
-  console.log(`[DEBUG] firm-products result: ${rows.length} rows`);
-  res.json(rows.map((r) => ({ id: r.id, name: (r.name || '').trim() })));
-}));
-
-// ══════════════════════════════════════
-// TAGS
-// ══════════════════════════════════════
-app.get('/api/tags', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM tag');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, description: r.description, colorHex: r.colorHex })));
-}));
-
-app.get('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.id, name: row.name, description: row.description, colorHex: row.colorHex });
-}));
-
-app.post('/api/tags', asyncHandler(async (req, res) => {
-  const { name, description, colorHex } = req.body;
-  const newId = await db.insert(
-    'INSERT INTO tag (name, description, colorHex) OUTPUT INSERTED.id VALUES (@name, @description, @colorHex)',
-    { name, description: description ?? null, colorHex: colorHex ?? null }
-  );
-  res.json({ id: newId, name, description: description ?? null, colorHex: colorHex ?? null });
-}));
-
-app.put('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run(
-    'UPDATE tag SET name = @name, description = @description, colorHex = @colorHex WHERE id = @id',
-    { name: req.body.name, description: req.body.description ?? null, colorHex: req.body.colorHex ?? null, id: Number(req.params.id) }
-  );
-  res.json({ id: Number(req.params.id), name: req.body.name, description: req.body.description ?? null, colorHex: req.body.colorHex ?? null });
-}));
-
-app.delete('/api/tags/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM tag WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM tag WHERE id = @id', { id: Number(req.params.id) });
-  res.json({ success: true });
-}));
-
-// ══════════════════════════════════════
-// USERS
-// ══════════════════════════════════════
-app.get('/api/users', asyncHandler(async (_req, res) => {
-  let rows;
-  try { rows = await db.all('SELECT * FROM [user] ORDER BY orderNo ASC, id ASC'); }
-  catch { rows = await db.all('SELECT * FROM [user] ORDER BY id ASC'); }
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, mail: r.mail, tel: r.tel, roleId: r.yetkiId, password: r.password, orderNo: r.orderNo ?? 0 })));
-}));
-
-app.get('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: row.id, name: row.name, mail: row.mail, tel: row.tel, roleId: row.yetkiId });
-}));
-
-app.post('/api/users', asyncHandler(async (req, res) => {
-  const { name, mail, password, tel, roleId } = req.body;
-  const newId = await db.insert(
-    'INSERT INTO [user] (name, mail, password, tel, yetkiId) OUTPUT INSERTED.id VALUES (@name, @mail, @password, @tel, @roleId)',
-    { name: name ?? '', mail: mail ?? '', password: password ?? '', tel: tel ?? '', roleId: roleId ?? 2 }
-  );
-  res.json({ id: newId, name, mail, tel, roleId: roleId ?? 2 });
-}));
-
-app.put('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run(
-    'UPDATE [user] SET name = @name, mail = @mail, tel = @tel, yetkiId = @roleId WHERE id = @id',
-    { name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.yetkiId, id: Number(req.params.id) }
-  );
-  res.json({ id: Number(req.params.id), name: req.body.name, mail: req.body.mail, tel: req.body.tel ?? '', roleId: req.body.roleId ?? row.yetkiId });
-}));
-
-app.delete('/api/users/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM [user] WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM [user] WHERE id = @id', { id: Number(req.params.id) });
-  res.json({ success: true });
-}));
-
-// ══════════════════════════════════════
-// TICKETS
-// ══════════════════════════════════════
-app.get('/api/tickets', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticket ORDER BY id DESC');
-  const tickets = await Promise.all(rows.map(toTicketJson));
-  res.json(tickets);
-}));
-
-app.get('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(await toTicketJson(row));
-}));
-
-app.post('/api/tickets', asyncHandler(async (req, res) => {
-  const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy, productId } = req.body;
-  const newId = await db.insert(
-    `INSERT INTO ticket (title, description, firmId, assignedUserId, statusId, priorityId, createdBy, productId)
-     OUTPUT INSERTED.id
-     VALUES (@title, @description, @firmId, @assignedUserId, @ticketStatusId, @ticketPriorityId, @createdBy, @productId)`,
-    {
-      title, description: description ?? null,
-      firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
-      ticketStatusId: ticketStatusId ?? 1, ticketPriorityId: ticketPriorityId ?? 3,
-      createdBy: createdBy ?? null, productId: productId ?? null,
-    }
-  );
-  await logEvent(2, 1, newId, `Ticket created: ${title}`, createdBy);
-  const created = await db.get('SELECT * FROM ticket WHERE id = @id', { id: newId });
-  res.json(await toTicketJson(created));
-}));
-
-app.put('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-
-  const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, updatedBy, productId } = req.body;
-
-  // Detect specific field changes for activity log
-  const changes = [];
-  if (row.statusId !== ticketStatusId) {
-    const oldS = await db.get('SELECT name FROM ticketStatus WHERE id = @id', { id: row.statusId });
-    const newS = await db.get('SELECT name FROM ticketStatus WHERE id = @id', { id: ticketStatusId });
-    changes.push({ field: 'status', oldVal: oldS?.name || null, newVal: newS?.name || null });
-  }
-  if (row.priorityId !== ticketPriorityId) {
-    const oldP = await db.get('SELECT name FROM ticketPriority WHERE id = @id', { id: row.priorityId });
-    const newP = await db.get('SELECT name FROM ticketPriority WHERE id = @id', { id: ticketPriorityId });
-    changes.push({ field: 'priority', oldVal: oldP?.name || null, newVal: newP?.name || null });
-  }
-  if ((row.assignedUserId || null) !== (assignedUserId || null)) {
-    const oldU = row.assignedUserId ? await db.get('SELECT name FROM [user] WHERE id = @id', { id: row.assignedUserId }) : null;
-    const newU = assignedUserId ? await db.get('SELECT name FROM [user] WHERE id = @id', { id: assignedUserId }) : null;
-    changes.push({ field: 'assignedUser', oldVal: oldU?.name || null, newVal: newU?.name || null });
-  }
-  if ((row.firmId || null) !== (firmId || null)) {
-    const oldF = row.firmId ? await db.get('SELECT name FROM firm WHERE id = @id', { id: row.firmId }) : null;
-    const newF = firmId ? await db.get('SELECT name FROM firm WHERE id = @id', { id: firmId }) : null;
-    changes.push({ field: 'firm', oldVal: oldF?.name || null, newVal: newF?.name || null });
-  }
-  if ((row.productId || null) !== (productId || null)) {
-    const oldPr = row.productId ? await db.get('SELECT name FROM product WHERE id = @id', { id: row.productId }) : null;
-    const newPr = productId ? await db.get('SELECT name FROM product WHERE id = @id', { id: productId }) : null;
-    changes.push({ field: 'product', oldVal: (oldPr?.name || '').trim() || null, newVal: (newPr?.name || '').trim() || null });
-  }
-
-  await db.run(
-    `UPDATE ticket SET title=@title, description=@description, priorityId=@ticketPriorityId,
-     statusId=@ticketStatusId, firmId=@firmId, assignedUserId=@assignedUserId, productId=@productId WHERE id=@id`,
-    {
-      title, description: description ?? null,
-      ticketPriorityId, ticketStatusId,
-      firmId: firmId ?? null, assignedUserId: assignedUserId ?? null,
-      productId: productId ?? null,
-      id: Number(req.params.id),
-    }
-  );
-
-  // Log each field change individually
-  for (const ch of changes) {
-    await db.run(
-      `INSERT INTO eventLog (entityTypeId, eventTypeId, entityId, description, createdBy, createdAt, oldValue, newValue)
-       VALUES (@entityTypeId, @eventTypeId, @entityId, @description, @userId, @createdAt, @oldValue, @newValue)`,
-      { entityTypeId: 2, eventTypeId: 2, entityId: row.id, description: `Field:${ch.field}`, userId: updatedBy ?? null, createdAt: now(), oldValue: ch.oldVal, newValue: ch.newVal }
-    );
-  }
-  if (changes.length === 0) {
-    await logEvent(2, 2, row.id, `Ticket updated: ${title}`, updatedBy);
-  }
-
-  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  res.json(await toTicketJson(updated));
-}));
-
-app.delete('/api/tickets/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  await logEvent(2, 4, row.id, 'Ticket deleted', null);
-  res.json({ success: true });
-}));
-
-// ── Ticket Comments ──
-app.get('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
-  const rows = await db.all(
-    `SELECT c.*, u.name AS userName, u.mail AS userMail, u.tel AS userTel, u.yetkiId AS userYetkiId
-     FROM ticketComment c LEFT JOIN [user] u ON c.userId = u.id
-     WHERE c.ticketId = @ticketId ORDER BY c.createdAt DESC`,
-    { ticketId: Number(req.params.id) }
-  );
-  res.json(rows.map((r) => ({
-    id: r.id, ticketId: r.ticketId, userId: r.userId, content: r.content, createdAt: r.createdAt,
-    user: r.userName ? { id: r.userId, name: r.userName, mail: r.userMail, tel: r.userTel, roleId: r.userYetkiId } : null,
-  })));
-}));
-
-app.post('/api/tickets/:id/comments', asyncHandler(async (req, res) => {
-  const { content, userId } = req.body;
-  const createdAt = now();
-  const newId = await db.insert(
-    'INSERT INTO ticketComment (ticketId, userId, content, createdAt) OUTPUT INSERTED.id VALUES (@ticketId, @userId, @content, @createdAt)',
-    { ticketId: Number(req.params.id), userId, content, createdAt }
-  );
-  await logEvent(2, 2, Number(req.params.id), 'Comment added', userId);
-  const user = await db.get('SELECT * FROM [user] WHERE id = @id', { id: userId });
-  res.json({
-    id: newId, ticketId: Number(req.params.id), userId, content, createdAt,
-    user: user ? { id: user.id, name: user.name, mail: user.mail, tel: user.tel, roleId: user.yetkiId } : null,
-  });
-}));
-
-// ── Assign ──
-app.post('/api/tickets/:id/assign/:userId', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE ticket SET assignedUserId = @userId WHERE id = @id', { userId: Number(req.params.userId), id: Number(req.params.id) });
-  await logEvent(2, 3, row.id, `Assigned to user ${req.params.userId}`, Number(req.params.userId));
-  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  res.json(await toTicketJson(updated));
-}));
-
-// ── Status Change ──
-app.post('/api/tickets/:id/status/:statusId', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('UPDATE ticket SET statusId = @statusId WHERE id = @id', { statusId: Number(req.params.statusId), id: Number(req.params.id) });
-  await logEvent(2, 2, row.id, `Status changed to ${req.params.statusId}`, row.assignedUserId);
-  const updated = await db.get('SELECT * FROM ticket WHERE id = @id', { id: Number(req.params.id) });
-  res.json(await toTicketJson(updated));
-}));
-
-// ── Tags on Ticket ──
-app.post('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
-  const userId = Number(req.query.userId ?? 0);
-  const ticketId = Number(req.params.id);
-  const tagId = Number(req.params.tagId);
-
-  const active = await db.get(
-    'SELECT 1 AS x FROM ticketTag WHERE ticketId = @ticketId AND tagId = @tagId AND removedAt IS NULL',
-    { ticketId, tagId }
-  );
-  if (active) return res.status(400).json({ error: 'Tag already exists' });
-
-  // Check if soft-deleted row exists (re-add scenario)
-  const softDeleted = await db.get(
-    'SELECT 1 AS x FROM ticketTag WHERE ticketId = @ticketId AND tagId = @tagId AND removedAt IS NOT NULL',
-    { ticketId, tagId }
-  );
-
-  if (softDeleted) {
-    await db.run(
-      'UPDATE ticketTag SET removedAt = NULL, removedBy = NULL, createdBy = @createdBy, createdAt = @createdAt WHERE ticketId = @ticketId AND tagId = @tagId',
-      { ticketId, tagId, createdBy: userId, createdAt: now() }
-    );
-  } else {
-    await db.run(
-      'INSERT INTO ticketTag (ticketId, tagId, createdBy, createdAt) VALUES (@ticketId, @tagId, @createdBy, @createdAt)',
-      { ticketId, tagId, createdBy: userId, createdAt: now() }
-    );
-  }
-
-  await logEvent(2, 2, ticketId, `Tag ${tagId} added`, userId);
-  res.json({ success: true });
-}));
-
-app.delete('/api/tickets/:id/tag/:tagId', asyncHandler(async (req, res) => {
-  const userId = Number(req.query.userId ?? 0);
-  const tag = await db.get(
-    'SELECT * FROM ticketTag WHERE ticketId = @ticketId AND tagId = @tagId AND removedAt IS NULL',
-    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId) }
-  );
-  if (!tag) return res.status(404).json({ error: 'Not found' });
-  await db.run(
-    'UPDATE ticketTag SET removedAt = @removedAt, removedBy = @removedBy WHERE ticketId = @ticketId AND tagId = @tagId',
-    { ticketId: Number(req.params.id), tagId: Number(req.params.tagId), removedAt: now(), removedBy: userId }
-  );
-  await logEvent(2, 2, Number(req.params.id), `Tag ${req.params.tagId} removed`, userId);
-  res.json({ success: true });
-}));
-
-// ══════════════════════════════════════
-// PRODUCTS
-// ══════════════════════════════════════
-async function toProductJson(row) {
-  if (!row) return null;
-  const manager = row.managerId ? await db.get('SELECT * FROM [user] WHERE id = @id', { id: row.managerId }) : null;
-  const fps = await db.all(
-    'SELECT fp.*, f.name AS firmName FROM firmProduct fp JOIN firm f ON fp.firmId = f.id WHERE fp.productId = @productId',
-    { productId: row.id }
-  );
-  return {
-    id: row.id,
-    name: (row.name || '').trim(),
-    managerId: row.managerId,
-    manager: manager ? { id: manager.id, name: manager.name, mail: manager.mail, tel: manager.tel, roleId: manager.yetkiId } : null,
-    firmProducts: fps.map((fp) => ({
-      firmId: fp.firmId,
-      productId: fp.productId,
-      firm: { id: fp.firmId, name: fp.firmName },
-    })),
-  };
-}
-
-app.get('/api/products', asyncHandler(async (_req, res) => {
-  let rows;
-  try { rows = await db.all('SELECT * FROM product ORDER BY orderNo ASC, id ASC'); }
-  catch { rows = await db.all('SELECT * FROM product ORDER BY id ASC'); }
-  const products = await Promise.all(rows.map(toProductJson));
+});
+app.get('/api/firms/:firmId/products', (req, res) => {
+  const products = db.prepare(`SELECT p.* FROM "product" p JOIN "firm_product" fp ON p."Id" = fp."ProductId" WHERE fp."FirmId" = ?`).all(req.params.firmId).map(toCamel);
   res.json(products);
-}));
+});
 
-app.get('/api/products/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(await toProductJson(row));
-}));
-
-app.post('/api/products', asyncHandler(async (req, res) => {
-  const { name, managerId } = req.body;
-  let newId;
-  if (db.type === 'sqlserver') {
-    // product.id is NOT IDENTITY in SQL Server – calculate next id manually
-    const maxRow = await db.get('SELECT ISNULL(MAX(id), 0) AS maxId FROM product');
-    newId = (maxRow?.maxId ?? 0) + 1;
-    await db.run(
-      'INSERT INTO product (id, name, managerId) VALUES (@id, @name, @managerId)',
-      { id: newId, name: name ?? '', managerId }
-    );
-  } else {
-    newId = await db.insert(
-      'INSERT INTO product (name, managerId) VALUES (@name, @managerId)',
-      { name: name ?? '', managerId }
-    );
-  }
-  const created = await db.get('SELECT * FROM product WHERE id = @id', { id: newId });
-  res.json(await toProductJson(created));
-}));
-
-app.put('/api/products/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run(
-    'UPDATE product SET name = @name, managerId = @managerId WHERE id = @id',
-    { name: req.body.name, managerId: req.body.managerId, id: Number(req.params.id) }
-  );
-  const updated = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
-  res.json(await toProductJson(updated));
-}));
-
-app.delete('/api/products/:id', asyncHandler(async (req, res) => {
-  const row = await db.get('SELECT * FROM product WHERE id = @id', { id: Number(req.params.id) });
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  await db.run('DELETE FROM product WHERE id = @id', { id: Number(req.params.id) });
+// --- KULLANICILAR ---
+app.get('/api/users', (req, res) => res.json(db.prepare('SELECT * FROM "user"').all().map(toCamel)));
+app.post('/api/users', (req, res) => {
+  const { name, mail, password, tel, roleId } = req.body;
+  const info = db.prepare('INSERT INTO "user" ("Name", "Mail", "Password", "Tel", "RoleId") VALUES (?, ?, ?, ?, ?)').run(name||'', mail||'', password||'', tel||'', roleId||2);
+  res.json({ id: info.lastInsertRowid, ...req.body });
+});
+app.put('/api/users/:id', (req, res) => {
+  const { name, mail, tel, roleId } = req.body;
+  db.prepare('UPDATE "user" SET "Name"=?, "Mail"=?, "Tel"=?, "RoleId"=? WHERE "Id"=?').run(name, mail, tel||'', roleId, req.params.id);
+  res.json({ id: Number(req.params.id), ...req.body });
+});
+app.delete('/api/users/:id', (req, res) => {
+  db.prepare('DELETE FROM "user" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
-}));
+});
 
-// ── Product-Firm many-to-many ──
-app.post('/api/products/:id/firms/:firmId', asyncHandler(async (req, res) => {
-  const exists = await db.get(
-    'SELECT 1 AS x FROM firmProduct WHERE productId = @productId AND firmId = @firmId',
-    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
-  );
-  if (exists) return res.status(400).json({ error: 'Bu firma zaten bu ürüne eklenmiş.' });
-  await db.run(
-    'INSERT INTO firmProduct (productId, firmId) VALUES (@productId, @firmId)',
-    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
-  );
+// --- TAGLER ---
+app.get('/api/tags', (req, res) => res.json(db.prepare('SELECT * FROM "tag"').all().map(toCamel)));
+app.post('/api/tags', (req, res) => {
+  const { name, description, colorHex } = req.body;
+  const info = db.prepare('INSERT INTO "tag" ("Name", "Description", "ColorHex") VALUES (?, ?, ?)').run(name, description, colorHex);
+  res.json({ id: info.lastInsertRowid, ...req.body });
+});
+app.put('/api/tags/:id', (req, res) => {
+  const { name, description, colorHex } = req.body;
+  db.prepare('UPDATE "tag" SET "Name"=?, "Description"=?, "ColorHex"=? WHERE "Id"=?').run(name, description, colorHex, req.params.id);
+  res.json({ id: Number(req.params.id), ...req.body });
+});
+app.delete('/api/tags/:id', (req, res) => {
+  db.prepare('DELETE FROM "tag" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
-}));
+});
 
-app.delete('/api/products/:id/firms/:firmId', asyncHandler(async (req, res) => {
-  const fp = await db.get(
-    'SELECT 1 AS x FROM firmProduct WHERE productId = @productId AND firmId = @firmId',
-    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
-  );
-  if (!fp) return res.status(404).json({ error: 'Not found' });
-  await db.run(
-    'DELETE FROM firmProduct WHERE productId = @productId AND firmId = @firmId',
-    { productId: Number(req.params.id), firmId: Number(req.params.firmId) }
-  );
+// --- ÜRÜNLER ---
+app.get('/api/products', (req, res) => {
+  const products = db.prepare('SELECT * FROM "product"').all().map(toCamel);
+  products.forEach(p => {
+    p.manager = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(p.managerId));
+    p.firmProducts = db.prepare('SELECT fp.*, f."Name" AS firmName FROM "firm_product" fp JOIN "firm" f ON fp."FirmId" = f."Id" WHERE fp."ProductId" = ?').all(p.id).map(toCamel);
+    if(p.firmProducts) {
+      p.firmProducts = p.firmProducts.map(fp => ({ firmId: fp.firmId, productId: fp.productId, firm: { id: fp.firmId, name: fp.firmName } }));
+    }
+  });
+  res.json(products);
+});
+app.post('/api/products', (req, res) => {
+  const info = db.prepare('INSERT INTO "product" ("Name", "ManagerId") VALUES (?, ?)').run(req.body.name, req.body.managerId);
+  res.json({ id: info.lastInsertRowid, ...req.body });
+});
+app.put('/api/products/:id', (req, res) => {
+  db.prepare('UPDATE "product" SET "Name"=?, "ManagerId"=? WHERE "Id"=?').run(req.body.name, req.body.managerId, req.params.id);
+  res.json({ id: Number(req.params.id), ...req.body });
+});
+app.delete('/api/products/:id', (req, res) => {
+  db.prepare('DELETE FROM "product" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
-}));
+});
+app.post('/api/products/:id/firms/:firmId', (req, res) => {
+  db.prepare('INSERT OR IGNORE INTO "firm_product" ("ProductId", "FirmId") VALUES (?, ?)').run(req.params.id, req.params.firmId);
+  res.json({ success: true });
+});
+app.delete('/api/products/:id/firms/:firmId', (req, res) => {
+  db.prepare('DELETE FROM "firm_product" WHERE "ProductId" = ? AND "FirmId" = ?').run(req.params.id, req.params.firmId);
+  res.json({ success: true });
+});
 
-// ── Lookup endpoints ──
-app.get('/api/ticket-statuses', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticketStatus ORDER BY orderNo');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, isClosed: !!r.isClosed, orderNo: r.orderNo })));
-}));
+// --- TICKETLAR ---
+const getFullTicket = (id) => {
+  const t = toCamel(db.prepare('SELECT * FROM "ticket" WHERE "Id" = ?').get(id));
+  if (!t) return null;
+  t.firm = toCamel(db.prepare('SELECT * FROM "firm" WHERE "Id" = ?').get(t.firmId));
+  t.assignedUser = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(t.assignedUserId));
+  t.status = toCamel(db.prepare('SELECT * FROM "ticket_status" WHERE "Id" = ?').get(t.ticketStatusId));
+  t.priority = toCamel(db.prepare('SELECT * FROM "ticket_priority" WHERE "Id" = ?').get(t.ticketPriorityId));
+  t.product = toCamel(db.prepare('SELECT * FROM "product" WHERE "Id" = ?').get(t.productId));
+  t.ticketTags = db.prepare(`SELECT tt.*, t."Name", t."ColorHex" FROM "ticket_tag" tt JOIN "tag" t ON tt."TagId" = t."Id" WHERE tt."TicketId" = ?`).all(t.id).map(tt => ({ tag: { id: tt.TagId, name: tt.Name, colorHex: tt.ColorHex } }));
+  if (t.status) t.status.isClosed = !!t.status.isClosed;
+  return t;
+};
 
-app.get('/api/ticket-priorities', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM ticketPriority ORDER BY level');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, level: r.level })));
-}));
+app.get('/api/tickets', (req, res) => {
+  const ids = db.prepare('SELECT "Id" FROM "ticket" ORDER BY "Id" DESC').all();
+  res.json(ids.map(row => getFullTicket(row.Id)));
+});
+app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
+app.post('/api/tickets', (req, res) => {
+  const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy, productId } = req.body;
+  const info = db.prepare(`INSERT INTO "ticket" ("Title", "Description", "FirmId", "AssignedUserId", "TicketStatusId", "TicketPriorityId", "CreatedBy", "ProductId", "CreatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(title, description, firmId, assignedUserId, ticketStatusId||1, ticketPriorityId||3, createdBy, productId, new Date().toISOString());
+  db.prepare(`INSERT INTO "event_log" ("EntityTypeId", "EventTypeId", "EntityId", "Description", "UserId", "CreatedAt") VALUES (2, 1, ?, 'Ticket created', ?, ?)`).run(info.lastInsertRowid, createdBy, new Date().toISOString());
+  res.json(getFullTicket(info.lastInsertRowid));
+});
+app.put('/api/tickets/:id', (req, res) => {
+  const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, productId } = req.body;
+  db.prepare(`UPDATE "ticket" SET "Title"=?, "Description"=?, "TicketPriorityId"=?, "TicketStatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "UpdatedAt"=? WHERE "Id"=?`).run(title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, productId, new Date().toISOString(), req.params.id);
+  res.json(getFullTicket(req.params.id));
+});
+app.delete('/api/tickets/:id', (req, res) => {
+  db.prepare('DELETE FROM "ticket" WHERE "Id" = ?').run(req.params.id);
+  res.json({ success: true });
+});
 
-// ══════════════════════════════════════
-// ROLES (yetki)
-// ══════════════════════════════════════
-app.get('/api/roles', asyncHandler(async (_req, res) => {
-  const rows = await db.all('SELECT * FROM yetki ORDER BY id');
-  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
-}));
+// --- LOOKUPS ---
+app.get('/api/ticket-statuses', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_status" ORDER BY "OrderNo"').all().map(toCamel).map(s => ({...s, isClosed: !!s.isClosed}))));
+app.get('/api/ticket-priorities', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_priority" ORDER BY "Level"').all().map(toCamel)));
+app.get('/api/roles', (req, res) => res.json(db.prepare('SELECT * FROM "yetki" ORDER BY "Id"').all().map(toCamel)));
 
-// ══════════════════════════════════════
-// TICKET ACTIVITY (comments + tag events merged)
-// ══════════════════════════════════════
-app.get('/api/tickets/:id/activity', asyncHandler(async (req, res) => {
-  const ticketId = Number(req.params.id);
-
-  const comments = await db.all(
-    `SELECT c.*, u.name AS userName FROM ticketComment c
-     LEFT JOIN [user] u ON c.userId = u.id
-     WHERE c.ticketId = @ticketId`,
-    { ticketId }
-  );
-
-  const tagEvents = await db.all(
-    `SELECT el.*, u.name AS userName FROM eventLog el
-     LEFT JOIN [user] u ON el.createdBy = u.id
-     WHERE el.entityTypeId = 2 AND el.entityId = @ticketId
-       AND (el.description LIKE 'Tag % added' OR el.description LIKE 'Tag % removed')`,
-    { ticketId }
-  );
-
-  const fieldEvents = await db.all(
-    `SELECT el.*, u.name AS userName FROM eventLog el
-     LEFT JOIN [user] u ON el.createdBy = u.id
-     WHERE el.entityTypeId = 2 AND el.entityId = @ticketId
-       AND el.description LIKE 'Field:%'`,
-    { ticketId }
-  );
-
-  const activity = [];
-
-  for (const c of comments) {
-    activity.push({
-      type: 'comment',
-      id: `comment-${c.id}`,
-      content: c.content,
-      userId: c.userId,
-      userName: c.userName,
-      createdAt: c.createdAt,
-    });
-  }
-
-  for (const ev of tagEvents) {
-    const match = ev.description.match(/^Tag (\d+) (added|removed)$/);
-    if (!match) continue;
-    const tagId = Number(match[1]);
-    const action = match[2];
-    const tag = await db.get('SELECT * FROM tag WHERE id = @id', { id: tagId });
-    activity.push({
-      type: action === 'added' ? 'tagAdded' : 'tagRemoved',
-      id: `tag-${ev.id}`,
-      tagId,
-      tagName: tag?.name || `Tag #${tagId}`,
-      colorHex: tag?.colorHex,
-      userId: ev.createdBy,
-      userName: ev.userName,
-      createdAt: ev.createdAt,
-    });
-  }
-
-  for (const ev of fieldEvents) {
-    const field = ev.description.replace('Field:', '');
-    activity.push({
-      type: 'fieldChanged',
-      id: `field-${ev.id}`,
-      field,
-      oldValue: ev.oldValue,
-      newValue: ev.newValue,
-      userId: ev.createdBy,
-      userName: ev.userName,
-      createdAt: ev.createdAt,
-    });
-  }
-
-  activity.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  res.json(activity);
-}));
-
-// ──────────────────────────────────────
-// START
-// ──────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`API server running → http://localhost:${PORT}`);
+  console.log(`[API] Server çalışıyor → http://localhost:${PORT}`);
 });
