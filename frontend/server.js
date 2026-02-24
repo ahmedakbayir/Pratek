@@ -200,11 +200,10 @@ try {
     }
   }
   seedIfEmpty('ticketStatus', [
-    { id: 1, name: 'new', is_closed: 0, order_no: 1 },
-    { id: 2, name: 'in_progress', is_closed: 0, order_no: 2 },
-    { id: 3, name: 'waiting', is_closed: 0, order_no: 3 },
-    { id: 4, name: 'pending_close', is_closed: 0, order_no: 4 },
-    { id: 5, name: 'closed', is_closed: 1, order_no: 5 },
+    { id: 1, name: 'Açık', isClosed: 0, orderNo: 1 },
+    { id: 2, name: 'Devam Ediyor', isClosed: 0, orderNo: 2 },
+    { id: 3, name: 'Çözümlendi', isClosed: 1, orderNo: 3 },
+    { id: 4, name: 'Kapalı', isClosed: 1, orderNo: 4 },
   ]);
   seedIfEmpty('ticketPriority', [
     { id: 1, name: 'Kritik', level: 1 },
@@ -242,16 +241,15 @@ try {
 
       // Lookup tables (PascalCase → snake_case mapping)
       trySql('entityType',
-        'DELETE FROM entityType; INSERT INTO entityType (id, name) SELECT Id, Name FROM netdb.entityType');
+        'DELETE FROM entityType; INSERT INTO entityType (id, name) SELECT Id, Name FROM netdb.entity_type');
       trySql('eventType',
-        'DELETE FROM eventType; INSERT INTO eventType (id, name) SELECT Id, Name FROM netdb.eventType');
+        'DELETE FROM eventType; INSERT INTO eventType (id, name) SELECT Id, Name FROM netdb.event_type');
       trySql('yetki',
         'DELETE FROM yetki; INSERT INTO yetki (id, name) SELECT Id, Name FROM netdb.yetki');
       trySql('ticketStatus',
-        'DELETE FROM ticketStatus; INSERT INTO ticketStatus (id, name, isClosed, orderNo) SELECT Id, Name, IsClosed, OrderNo FROM netdb.ticketStatus',
-        'DELETE FROM ticketStatus; INSERT INTO ticketStatus (id, name, isClosed, orderNo) SELECT Id, Name, isClosed, orderNo FROM netdb.ticketStatus');
+        'DELETE FROM ticketStatus; INSERT INTO ticketStatus (id, name, isClosed, orderNo) SELECT Id, Name, IsClosed, OrderNo FROM netdb.ticket_status');
       trySql('ticketPriority',
-        'DELETE FROM ticketPriority; INSERT INTO ticketPriority (id, name, level) SELECT Id, Name, Level FROM netdb.ticketPriority');
+        'DELETE FROM ticketPriority; INSERT INTO ticketPriority (id, name, level) SELECT Id, Name, Level FROM netdb.ticket_priority');
 
       // Main tables (with orderNo)
       trySql('firm',
@@ -266,7 +264,7 @@ try {
       trySql('tag',
         'DELETE FROM tag; INSERT INTO tag (id, name, description, colorHex) SELECT Id, Name, Description, ColorHex FROM netdb.tag');
       trySql('firmProduct',
-        'DELETE FROM firmProduct; INSERT INTO firmProduct (firmId, productId) SELECT firmId, productId FROM netdb.firmProduct');
+        'DELETE FROM firmProduct; INSERT INTO firmProduct (firmId, productId) SELECT FirmId, ProductId FROM netdb.firm_product');
 
       sqliteDb.exec('DETACH DATABASE netdb');
       console.log('[DB] .NET SQLite senkronizasyonu tamamlandi');
