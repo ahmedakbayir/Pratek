@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -11,7 +12,76 @@ app.use(cors());
 app.use(express.json());
 
 // ──────────────────────────────────────
-// SHARED: convert @param → ? positional
+// 1. SIFIRDAN VERİTABANI BAĞLANTISI (Ortak pratek.db)
+// ──────────────────────────────────────
+// Veritabanını frontend klasörü yerine ANA DİZİNDE (root) oluşturuyoruz.
+// Böylece .NET ve Node.js aynı dosyayı okur/yazar, senkronizasyon derdi biter!
+const dbPath = join(__dirname, '..', 'pratek.db');
+const sqliteDb = new Database(dbPath, { verbose: console.log });
+
+sqliteDb.pragma('journal_mode = WAL');
+sqliteDb.pragma('foreign_keys = ON');
+
+console.log('════════════════════════════════════════════════════');
+console.log(`[DB] PRATEK Veritabanına Bağlanıldı → ${dbPath}`);
+console.log('════════════════════════════════════════════════════');
+
+// ──────────────────────────────────────
+// 2. TABLO OLUŞTURMA & İLK VERİLER (SEED)
+// ──────────────────────────────────────
+sqliteDb.exec(`
+  CREATE TABLE IF NOT EXISTS entityType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS eventType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS ticketStatus (id INTEGER PRIMARY KEY, name TEXT NOT NULL, isClosed INTEGER NOT NULL DEFAULT 0, orderNo INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS ticketPriority (id INTEGER PRIMARY KEY, name TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS yetki (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS [user] (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', mail TEXT NOT NULL DEFAULT '', password TEXT NOT NULL DEFAULT '', tel TEXT NOT NULL DEFAULT '', firmId INTEGER REFERENCES firm(id), yetkiId INTEGER NOT NULL DEFAULT 2);
+  CREATE TABLE IF NOT EXISTS firm (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, inactive INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, colorHex TEXT);
+  CREATE TABLE IF NOT EXISTS product (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', managerId INTEGER NOT NULL REFERENCES [user](id));
+  CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, firmId INTEGER REFERENCES firm(id) ON DELETE SET NULL, createdBy INTEGER REFERENCES [user](id), assignedUserId INTEGER REFERENCES [user](id) ON DELETE SET NULL, statusId INTEGER NOT NULL REFERENCES ticketStatus(id), priorityId INTEGER NOT NULL REFERENCES ticketPriority(id), dueDate TEXT, productId INTEGER REFERENCES product(id));
+  CREATE TABLE IF NOT EXISTS ticketTag (ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, tagId INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE, createdBy INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL, removedAt TEXT, removedBy INTEGER, PRIMARY KEY(ticketId, tagId));
+  CREATE TABLE IF NOT EXISTS ticketComment (id INTEGER PRIMARY KEY AUTOINCREMENT, ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, userId INTEGER NOT NULL REFERENCES [user](id), content TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS eventLog (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt TEXT NOT NULL, entityTypeId INTEGER NOT NULL REFERENCES entityType(id), entityId INTEGER NOT NULL, eventTypeId INTEGER NOT NULL REFERENCES eventType(id), description TEXT, createdBy INTEGER, oldValue TEXT, newValue TEXT);
+  CREATE TABLE IF NOT EXISTS firmProduct (firmId INTEGER NOT NULL REFERENCES firm(id) ON DELETE CASCADE, productId INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE, PRIMARY KEY(firmId, productId));
+`);
+
+// Tablolar boşsa (ilk kurulum) sistemin çalışması için gereken temel verileri ekliyoruz
+function seedIfEmpty(table, rows) {
+  const count = sqliteDb.prepare(`SELECT COUNT(*) as c FROM ${table}`).get().c;
+  if (count === 0) {
+    const cols = Object.keys(rows[0]);
+    const ph = cols.map(() => '?').join(', ');
+    const stmt = sqliteDb.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${ph})`);
+    for (const row of rows) stmt.run(...cols.map(c => row[c]));
+  }
+}
+
+seedIfEmpty('ticketStatus', [
+  { id: 1, name: 'Yeni', isClosed: 0, orderNo: 1 },
+  { id: 2, name: 'Devam Ediyor', isClosed: 0, orderNo: 2 },
+  { id: 3, name: 'Bekliyor', isClosed: 0, orderNo: 3 },
+  { id: 4, name: 'Kapanma Bekliyor', isClosed: 0, orderNo: 4 },
+  { id: 5, name: 'Kapalı', isClosed: 1, orderNo: 5 },
+]);
+seedIfEmpty('ticketPriority', [
+  { id: 1, name: 'Kritik', level: 1 },
+  { id: 2, name: 'Yüksek', level: 2 },
+  { id: 3, name: 'Normal', level: 3 },
+  { id: 4, name: 'Düşük', level: 4 },
+]);
+seedIfEmpty('entityType', [
+  { id: 1, name: 'User' }, { id: 2, name: 'Ticket' }, { id: 3, name: 'Firm' }, { id: 4, name: 'Tag' },
+]);
+seedIfEmpty('eventType', [
+  { id: 1, name: 'Created' }, { id: 2, name: 'Updated' }, { id: 3, name: 'Assigned' }, { id: 4, name: 'Deleted' },
+]);
+seedIfEmpty('yetki', [
+  { id: 1, name: 'Admin' }, { id: 2, name: 'Agent' }, { id: 3, name: 'Müşteri' },
+]);
+
+// ──────────────────────────────────────
+// 3. YENİ DB ADAPTER (Express Route'ları için)
 // ──────────────────────────────────────
 function toPositional(query, params = {}) {
   const values = [];
@@ -22,269 +92,35 @@ function toPositional(query, params = {}) {
   return { sql, values };
 }
 
-function stripOutput(query) {
-  return query.replace(/\s*OUTPUT\s+INSERTED\.id\s*/i, ' ');
+function toSqliteVals(values) {
+  return values.map((v) => (v instanceof Date ? v.toISOString() : v));
 }
 
-// ──────────────────────────────────────
-// ADAPTERS
-// ──────────────────────────────────────
-function normalizeRow(row) {
-  if (!row || typeof row !== 'object') return row;
-  return row;
-}
-
-// SQL Server via msnodesqlv8
-function createSqlServerAdapter(conn) {
-  function query(sql, params = {}) {
+const db = {
+  type: 'sqlite',
+  all: async (sql, params = {}) => {
     const { sql: q, values } = toPositional(sql, params);
-    return new Promise((resolve, reject) => {
-      conn.query(q, values, (err, rows) => {
-        if (err) reject(err);
-        else resolve((rows || []).map(normalizeRow));
-      });
-    });
-  }
-  return {
-    type: 'sqlserver',
-    all: async (sql, params) => await query(sql, params),
-    get: async (sql, params) => (await query(sql, params))[0] || null,
-    insert: async (sql, params) => {
-      const rows = await query(sql, params);
-      const row = rows[0];
-      if (!row) return undefined;
-      return row.id ?? Object.values(row)[0];
-    },
-    run: async (sql, params) => { await query(sql, params); },
-  };
-}
-
-// SQLite via better-sqlite3
-function createSqliteAdapter(sqliteDb) {
-  function toSqliteVals(values) {
-    return values.map((v) => (v instanceof Date ? v.toISOString() : v));
-  }
-  return {
-    type: 'sqlite',
-    all: async (sql, params = {}) => {
-      const { sql: q, values } = toPositional(sql, params);
-      return sqliteDb.prepare(q).all(...toSqliteVals(values));
-    },
-    get: async (sql, params = {}) => {
-      const { sql: q, values } = toPositional(sql, params);
-      return sqliteDb.prepare(q).get(...toSqliteVals(values)) || null;
-    },
-    insert: async (sql, params = {}) => {
-      const { sql: q, values } = toPositional(stripOutput(sql), params);
-      const result = sqliteDb.prepare(q).run(...toSqliteVals(values));
-      return Number(result.lastInsertRowid);
-    },
-    run: async (sql, params = {}) => {
-      const { sql: q, values } = toPositional(sql, params);
-      sqliteDb.prepare(q).run(...toSqliteVals(values));
-    },
-  };
-}
+    return sqliteDb.prepare(q).all(...toSqliteVals(values));
+  },
+  get: async (sql, params = {}) => {
+    const { sql: q, values } = toPositional(sql, params);
+    return sqliteDb.prepare(q).get(...toSqliteVals(values)) || null;
+  },
+  insert: async (sql, params = {}) => {
+    // SQLite "OUTPUT INSERTED.id" sözdizimini anlamaz, bunu otomatik temizliyoruz
+    const cleanSql = sql.replace(/\s*OUTPUT\s+INSERTED\.id\s*/i, ' ');
+    const { sql: q, values } = toPositional(cleanSql, params);
+    const result = sqliteDb.prepare(q).run(...toSqliteVals(values));
+    return Number(result.lastInsertRowid);
+  },
+  run: async (sql, params = {}) => {
+    const { sql: q, values } = toPositional(sql, params);
+    sqliteDb.prepare(q).run(...toSqliteVals(values));
+  },
+};
 
 // ──────────────────────────────────────
-// CONNECT: msnodesqlv8 → SQLite fallback
-// ──────────────────────────────────────
-let db;
-
-async function tryOpenSqlServer() {
-  const msnodesqlv8 = (await import('msnodesqlv8')).default;
-
-  const drivers = [
-    'ODBC Driver 18 for SQL Server',
-    'ODBC Driver 17 for SQL Server',
-    'SQL Server Native Client 11.0',
-    'SQL Server',
-  ];
-
-  const servers = [
-    '(localdb)\\MSSQLLocalDB',
-    'localhost',
-    '.\\SQLEXPRESS',
-    'localhost\\SQLEXPRESS',
-    '.',
-  ];
-
-  // Allow override via environment variable
-  if (process.env.DB_CONN) {
-    try {
-      const conn = await new Promise((resolve, reject) => {
-        msnodesqlv8.open(process.env.DB_CONN, (err, c) => (err ? reject(err) : resolve(c)));
-      });
-      await new Promise((resolve, reject) => {
-        conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
-      });
-      console.log(`[DB] Custom connection: DB_CONN`);
-      return conn;
-    } catch (e) {
-      console.warn(`[DB] DB_CONN failed: ${e.message}`);
-    }
-  }
-
-  for (const driver of drivers) {
-    for (const server of servers) {
-      // Driver 18 requires TrustServerCertificate=Yes by default
-      const extra = driver.includes('18') ? 'TrustServerCertificate=Yes;' : '';
-      const connStr = `Driver={${driver}};Server=${server};Database=Pratek;Trusted_Connection=Yes;${extra}`;
-      try {
-        const conn = await new Promise((resolve, reject) => {
-          msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
-        });
-        await new Promise((resolve, reject) => {
-          conn.query('SELECT 1 AS test', (err, rows) => (err ? reject(err) : resolve(rows)));
-        });
-        console.log(`[DB] Driver: ${driver}, Server: ${server}`);
-        return conn;
-      } catch {
-        // Try next combination
-      }
-    }
-  }
-  throw new Error('Hiçbir ODBC driver/server ile bağlanılamadı');
-}
-
-try {
-  const conn = await tryOpenSqlServer();
-  db = createSqlServerAdapter(conn);
-  // Ensure productId column exists on ticket table
-  try { await db.run("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ticket') AND name = 'productId') ALTER TABLE ticket ADD productId INT NULL"); } catch { /* ignore */ }
-
-  const firms = await db.all('SELECT COUNT(*) AS c FROM firm');
-  const products = await db.all('SELECT COUNT(*) AS c FROM product');
-  const fpCount = await db.all('SELECT COUNT(*) AS c FROM firmProduct');
-  console.log('════════════════════════════════════════════════════');
-  console.log(`[DB] SQL Server → Pratek`);
-  console.log(`[DB] Firma: ${firms[0]?.c ?? 0}, Ürün: ${products[0]?.c ?? 0}, Firma-Ürün: ${fpCount[0]?.c ?? 0}`);
-  console.log('════════════════════════════════════════════════════');
-} catch (err) {
-  console.warn('╔════════════════════════════════════════════════════╗');
-  console.warn('║  ⚠ SQL Server bağlantısı başarısız!               ║');
-  console.warn(`║  Hata: ${err.message.substring(0, 44).padEnd(44)} ║`);
-  console.warn('║  SQLite fallback kullanılıyor (boş veri!)         ║');
-  console.warn('╚════════════════════════════════════════════════════╝');
-
-  const Database = (await import('better-sqlite3')).default;
-  const dbPath = join(__dirname, 'Pratek.db');
-  const sqliteDb = new Database(dbPath);
-  sqliteDb.pragma('journal_mode = WAL');
-  sqliteDb.pragma('foreign_keys = ON');
-
-  sqliteDb.exec(`
-    CREATE TABLE IF NOT EXISTS entityType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS eventType (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS ticketStatus (id INTEGER PRIMARY KEY, name TEXT NOT NULL, isClosed INTEGER NOT NULL DEFAULT 0, orderNo INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS ticketPriority (id INTEGER PRIMARY KEY, name TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS yetki (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS [user] (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', mail TEXT NOT NULL DEFAULT '', password TEXT NOT NULL DEFAULT '', tel TEXT NOT NULL DEFAULT '', firmId INTEGER REFERENCES firm(id), yetkiId INTEGER NOT NULL DEFAULT 2);
-    CREATE TABLE IF NOT EXISTS firm (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, inactive INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, colorHex TEXT);
-    CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, firmId INTEGER REFERENCES firm(id) ON DELETE SET NULL, createdBy INTEGER REFERENCES [user](id), assignedUserId INTEGER REFERENCES [user](id) ON DELETE SET NULL, statusId INTEGER NOT NULL REFERENCES ticketStatus(id), priorityId INTEGER NOT NULL REFERENCES ticketPriority(id), dueDate TEXT);
-    CREATE TABLE IF NOT EXISTS ticketTag (ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, tagId INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE, createdBy INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL, removedAt TEXT, removedBy INTEGER, PRIMARY KEY(ticketId, tagId));
-    CREATE TABLE IF NOT EXISTS ticketComment (id INTEGER PRIMARY KEY AUTOINCREMENT, ticketId INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE, userId INTEGER NOT NULL REFERENCES [user](id), content TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS eventLog (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt TEXT NOT NULL, entityTypeId INTEGER NOT NULL REFERENCES entityType(id), entityId INTEGER NOT NULL, eventTypeId INTEGER NOT NULL REFERENCES eventType(id), description TEXT, createdBy INTEGER, oldValue TEXT, newValue TEXT);
-    CREATE TABLE IF NOT EXISTS product (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', managerId INTEGER NOT NULL REFERENCES [user](id));
-    CREATE TABLE IF NOT EXISTS firmProduct (firmId INTEGER NOT NULL REFERENCES firm(id) ON DELETE CASCADE, productId INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE, PRIMARY KEY(firmId, productId));
-  `);
-
-  function seedIfEmpty(table, rows) {
-    const count = sqliteDb.prepare(`SELECT COUNT(*) as c FROM ${table}`).get().c;
-    if (count === 0) {
-      const cols = Object.keys(rows[0]);
-      const ph = cols.map(() => '?').join(', ');
-      const stmt = sqliteDb.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${ph})`);
-      for (const row of rows) stmt.run(...cols.map((c) => row[c]));
-    }
-  }
-  seedIfEmpty('ticketStatus', [
-    { id: 1, name: 'new', is_closed: 0, order_no: 1 },
-    { id: 2, name: 'in_progress', is_closed: 0, order_no: 2 },
-    { id: 3, name: 'waiting', is_closed: 0, order_no: 3 },
-    { id: 4, name: 'pending_close', is_closed: 0, order_no: 4 },
-    { id: 5, name: 'closed', is_closed: 1, order_no: 5 },
-  ]);
-  seedIfEmpty('ticketPriority', [
-    { id: 1, name: 'Kritik', level: 1 },
-    { id: 2, name: 'Yüksek', level: 2 },
-    { id: 3, name: 'Normal', level: 3 },
-    { id: 4, name: 'Düşük', level: 4 },
-  ]);
-  seedIfEmpty('entityType', [
-    { id: 1, name: 'User' }, { id: 2, name: 'Ticket' }, { id: 3, name: 'Firm' }, { id: 4, name: 'Tag' },
-  ]);
-  seedIfEmpty('eventType', [
-    { id: 1, name: 'Created' }, { id: 2, name: 'Updated' }, { id: 3, name: 'Assigned' }, { id: 4, name: 'Deleted' },
-  ]);
-  seedIfEmpty('yetki', [
-    { id: 1, name: 'Admin' }, { id: 2, name: 'Agent' }, { id: 3, name: 'Müşteri' },
-  ]);
-
-  // Add productId column to ticket if not exists
-  try { sqliteDb.exec('ALTER TABLE ticket ADD COLUMN productId INTEGER REFERENCES product(id)'); } catch { /* already exists */ }
-
-  // ── Sync data from .NET SQLite DB (Pratek) ──
-  const { existsSync } = await import('fs');
-  const netDbPath = join(__dirname, '..', 'Pratek');
-  if (existsSync(netDbPath)) {
-    try {
-      sqliteDb.exec(`ATTACH DATABASE '${netDbPath.replace(/'/g, "''")}' AS netdb`);
-      console.log('[DB] .NET SQLite bulundu, senkronize ediliyor...');
-
-      const trySql = (label, ...sqls) => {
-        for (const sql of sqls) {
-          try { sqliteDb.exec(sql); return; } catch { /* try next */ }
-        }
-        console.warn(`  [SKIP] ${label}`);
-      };
-
-      // Lookup tables (PascalCase → snake_case mapping)
-      trySql('entityType',
-        'DELETE FROM entityType; INSERT INTO entityType (id, name) SELECT Id, Name FROM netdb.entityType');
-      trySql('eventType',
-        'DELETE FROM eventType; INSERT INTO eventType (id, name) SELECT Id, Name FROM netdb.eventType');
-      trySql('yetki',
-        'DELETE FROM yetki; INSERT INTO yetki (id, name) SELECT Id, Name FROM netdb.yetki');
-      trySql('ticketStatus',
-        'DELETE FROM ticketStatus; INSERT INTO ticketStatus (id, name, isClosed, orderNo) SELECT Id, Name, IsClosed, OrderNo FROM netdb.ticketStatus',
-        'DELETE FROM ticketStatus; INSERT INTO ticketStatus (id, name, isClosed, orderNo) SELECT Id, Name, isClosed, orderNo FROM netdb.ticketStatus');
-      trySql('ticketPriority',
-        'DELETE FROM ticketPriority; INSERT INTO ticketPriority (id, name, level) SELECT Id, Name, Level FROM netdb.ticketPriority');
-
-      // Main tables (with orderNo)
-      trySql('firm',
-        'DELETE FROM firm; INSERT INTO firm (id, name, orderNo) SELECT Id, Name, COALESCE(orderNo, 0) FROM netdb.firm',
-        'DELETE FROM firm; INSERT INTO firm (id, name) SELECT Id, Name FROM netdb.firm');
-      trySql('product',
-        'DELETE FROM product; INSERT INTO product (id, name, managerId, orderNo) SELECT Id, Name, managerId, COALESCE(orderNo, 0) FROM netdb.product',
-        'DELETE FROM product; INSERT INTO product (id, name, managerId) SELECT Id, Name, managerId FROM netdb.product');
-      trySql('[user]',
-        'DELETE FROM [user]; INSERT INTO [user] (id, name, mail, password, tel, yetkiId, orderNo) SELECT Id, Name, Mail, Password, Tel, RoleId, COALESCE(orderNo, 0) FROM netdb.[user]',
-        'DELETE FROM [user]; INSERT INTO [user] (id, name, mail, password, tel, yetkiId) SELECT Id, Name, Mail, Password, Tel, RoleId FROM netdb.[user]');
-      trySql('tag',
-        'DELETE FROM tag; INSERT INTO tag (id, name, description, colorHex) SELECT Id, Name, Description, ColorHex FROM netdb.tag');
-      trySql('firmProduct',
-        'DELETE FROM firmProduct; INSERT INTO firmProduct (firmId, productId) SELECT firmId, productId FROM netdb.firmProduct');
-
-      sqliteDb.exec('DETACH DATABASE netdb');
-      console.log('[DB] .NET SQLite senkronizasyonu tamamlandi');
-    } catch (e) {
-      console.warn('[DB] .NET sync hatasi:', e.message);
-      try { sqliteDb.exec('DETACH DATABASE netdb'); } catch {1}
-    }
-  }
-
-  db = createSqliteAdapter(sqliteDb);
-  console.log('════════════════════════════════════════════════════');
-  console.log(`[DB] SQLite → ${dbPath}`);
-  if (existsSync(netDbPath)) console.log(`[DB] .NET DB → ${netDbPath} (synced)`);
-  console.log('════════════════════════════════════════════════════');
-}
-
-// ──────────────────────────────────────
-// ERROR WRAPPER
+// 4. ERROR WRAPPER & YARDIMCI FONKSİYONLAR
 // ──────────────────────────────────────
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch((err) => {
@@ -292,9 +128,6 @@ const asyncHandler = (fn) => (req, res, next) =>
     res.status(500).json({ error: err.message || 'Internal Server Error' });
   });
 
-// ──────────────────────────────────────
-// HELPERS
-// ──────────────────────────────────────
 function now() { return new Date(); }
 
 async function logEvent(entityTypeId, eventTypeId, entityId, description, userId) {
