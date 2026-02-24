@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Protekh.Api.Data;
+using Pratek.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 

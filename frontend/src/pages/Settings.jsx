@@ -5,7 +5,7 @@ import Header from '../components/Header';
 export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [settings, setSettings] = useState({
-    siteName: 'Protekh',
+    siteName: 'Pratek',
     language: 'tr',
     emailNotifications: true,
     ticketNotifications: true,
@@ -99,7 +99,7 @@ export default function Settings() {
           <Section icon={Shield} title="Hakkında">
             <div className="space-y-2 text-sm text-surface-600">
               <p><span className="font-medium text-surface-900">Versiyon:</span> 1.0.0</p>
-              <p><span className="font-medium text-surface-900">Platform:</span> Protekh Ticket Management</p>
+              <p><span className="font-medium text-surface-900">Platform:</span> Pratek Ticket Management</p>
               <p><span className="font-medium text-surface-900">Framework:</span> ASP.NET Core + React</p>
             </div>
           </Section>

@@ -1,4 +1,4 @@
-﻿using Protekh.Api.Models;
+﻿using Pratek.Models;
 
 public class EventLog
 {

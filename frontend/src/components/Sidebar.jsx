@@ -31,7 +31,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/10">
         <Shield className="w-7 h-7 text-primary-400" />
-        <span className="text-lg font-semibold tracking-tight">Protekh</span>
+        <span className="text-lg font-semibold tracking-tight">Pratek</span>
       </div>
 
       {/* Nav */}

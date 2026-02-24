@@ -1,6 +1,6 @@
-@Protekh.Api_HostAddress = http://localhost:5295
+@Pratek_HostAddress = http://localhost:5295
 
-GET {{Protekh.Api_HostAddress}}/weatherforecast/
+GET {{Pratek_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###

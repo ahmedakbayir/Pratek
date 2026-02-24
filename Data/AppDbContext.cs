@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using Protekh.Api.Models;
+using Pratek.Models;
 
-namespace Protekh.Api.Data
+namespace Pratek.Data
 {
     public class AppDbContext : DbContext
     {

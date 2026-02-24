@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Protekh.Api.Data;
-using Protekh.Api.Models;
+using Pratek.Data;
+using Pratek.Models;
 
-namespace Protekh.Api.Controllers
+namespace Pratek.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]

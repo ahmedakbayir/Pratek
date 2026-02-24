@@ -1,6 +1,6 @@
-using Protekh.Api.Models;
+using Pratek.Models;
 
-namespace Protekh.Api.Data
+namespace Pratek.Data
 {
     public static class DbSeeder
     {

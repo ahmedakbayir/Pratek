@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Protekh.Api.Models
+namespace Pratek.Models
 {
     public class Ticket
     {

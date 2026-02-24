@@ -129,7 +129,7 @@ async function tryOpenSqlServer() {
     for (const server of servers) {
       // Driver 18 requires TrustServerCertificate=Yes by default
       const extra = driver.includes('18') ? 'TrustServerCertificate=Yes;' : '';
-      const connStr = `Driver={${driver}};Server=${server};Database=Protekh;Trusted_Connection=Yes;${extra}`;
+      const connStr = `Driver={${driver}};Server=${server};Database=Pratek;Trusted_Connection=Yes;${extra}`;
       try {
         const conn = await new Promise((resolve, reject) => {
           msnodesqlv8.open(connStr, (err, c) => (err ? reject(err) : resolve(c)));
@@ -157,7 +157,7 @@ try {
   const products = await db.all('SELECT COUNT(*) AS c FROM product');
   const fpCount = await db.all('SELECT COUNT(*) AS c FROM firmProduct');
   console.log('════════════════════════════════════════════════════');
-  console.log(`[DB] SQL Server → Protekh`);
+  console.log(`[DB] SQL Server → Pratek`);
   console.log(`[DB] Firma: ${firms[0]?.c ?? 0}, Ürün: ${products[0]?.c ?? 0}, Firma-Ürün: ${fpCount[0]?.c ?? 0}`);
   console.log('════════════════════════════════════════════════════');
 } catch (err) {
@@ -168,7 +168,7 @@ try {
   console.warn('╚════════════════════════════════════════════════════╝');
 
   const Database = (await import('better-sqlite3')).default;
-  const dbPath = join(__dirname, 'protekh.db');
+  const dbPath = join(__dirname, 'Pratek.db');
   const sqliteDb = new Database(dbPath);
   sqliteDb.pragma('journal_mode = WAL');
   sqliteDb.pragma('foreign_keys = ON');
@@ -225,9 +225,9 @@ try {
   // Add productId column to ticket if not exists
   try { sqliteDb.exec('ALTER TABLE ticket ADD COLUMN productId INTEGER REFERENCES product(id)'); } catch { /* already exists */ }
 
-  // ── Sync data from .NET SQLite DB (Protekh) ──
+  // ── Sync data from .NET SQLite DB (Pratek) ──
   const { existsSync } = await import('fs');
-  const netDbPath = join(__dirname, '..', 'Protekh');
+  const netDbPath = join(__dirname, '..', 'Pratek');
   if (existsSync(netDbPath)) {
     try {
       sqliteDb.exec(`ATTACH DATABASE '${netDbPath.replace(/'/g, "''")}' AS netdb`);

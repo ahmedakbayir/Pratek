@@ -1,4 +1,4 @@
-﻿namespace Protekh.Api.Models
+﻿namespace Pratek.Models
 {
     public class Yetki
     {
