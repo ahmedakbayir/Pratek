@@ -19,12 +19,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 var app = builder.Build();
 
-// Auto-migrate and seed on startup
+// Auto-create database on startup
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
-    DbSeeder.Seed(db);
 }
 
 // Global exception handler – returns JSON so the frontend can display the real error
