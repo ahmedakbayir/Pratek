@@ -224,10 +224,58 @@ app.get('/api/tickets/:id/activity', (req, res) => {
   res.json(events);
 });
 
-// --- LOOKUPS ---
+// --- LOOKUPS: TICKET STATUS (CRUD) ---
 app.get('/api/lookups/ticket-statuses', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_status" ORDER BY "OrderNo"').all().map(toCamel).map(s => ({...s, isClosed: !!s.isClosed}))));
+app.post('/api/lookups/ticket-statuses', (req, res) => {
+  const { name, isClosed, orderNo } = req.body;
+  const info = db.prepare('INSERT INTO "ticket_status" ("Name", "IsClosed", "OrderNo") VALUES (?, ?, ?)').run(name, isClosed ? 1 : 0, orderNo || null);
+  res.json({ id: info.lastInsertRowid, name, isClosed: !!isClosed, orderNo });
+});
+app.put('/api/lookups/ticket-statuses/:id', (req, res) => {
+  const { name, isClosed, orderNo } = req.body;
+  db.prepare('UPDATE "ticket_status" SET "Name"=?, "IsClosed"=?, "OrderNo"=? WHERE "Id"=?').run(name, isClosed ? 1 : 0, orderNo || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, isClosed: !!isClosed, orderNo });
+});
+app.delete('/api/lookups/ticket-statuses/:id', (req, res) => {
+  db.prepare('DELETE FROM "ticket_status" WHERE "Id" = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// --- LOOKUPS: TICKET PRIORITY (CRUD) ---
 app.get('/api/lookups/ticket-priorities', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_priority" ORDER BY "OrderNo"').all().map(toCamel)));
+app.post('/api/lookups/ticket-priorities', (req, res) => {
+  const { name, orderNo } = req.body;
+  const info = db.prepare('INSERT INTO "ticket_priority" ("Name", "OrderNo") VALUES (?, ?)').run(name, orderNo || null);
+  res.json({ id: info.lastInsertRowid, name, orderNo });
+});
+app.put('/api/lookups/ticket-priorities/:id', (req, res) => {
+  const { name, orderNo } = req.body;
+  db.prepare('UPDATE "ticket_priority" SET "Name"=?, "OrderNo"=? WHERE "Id"=?').run(name, orderNo || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, orderNo });
+});
+app.delete('/api/lookups/ticket-priorities/:id', (req, res) => {
+  db.prepare('DELETE FROM "ticket_priority" WHERE "Id" = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// --- LOOKUPS: PRIVILEGE (CRUD) ---
 app.get('/api/lookups/privileges', (req, res) => res.json(db.prepare('SELECT * FROM "privilege" ORDER BY "OrderNo"').all().map(toCamel)));
+app.post('/api/lookups/privileges', (req, res) => {
+  const { name, orderNo } = req.body;
+  const info = db.prepare('INSERT INTO "privilege" ("Name", "OrderNo") VALUES (?, ?)').run(name, orderNo || null);
+  res.json({ id: info.lastInsertRowid, name, orderNo });
+});
+app.put('/api/lookups/privileges/:id', (req, res) => {
+  const { name, orderNo } = req.body;
+  db.prepare('UPDATE "privilege" SET "Name"=?, "OrderNo"=? WHERE "Id"=?').run(name, orderNo || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, orderNo });
+});
+app.delete('/api/lookups/privileges/:id', (req, res) => {
+  db.prepare('DELETE FROM "privilege" WHERE "Id" = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// --- LOOKUPS: READ-ONLY ---
 app.get('/api/lookups/entities', (req, res) => res.json(db.prepare('SELECT * FROM "entity" ORDER BY "Id"').all().map(toCamel)));
 app.get('/api/lookups/entity-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "entity_event_type" ORDER BY "Id"').all().map(toCamel)));
 app.get('/api/lookups/ticket-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_event_type" ORDER BY "Id"').all().map(toCamel)));
