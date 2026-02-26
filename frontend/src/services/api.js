@@ -44,8 +44,8 @@ export const ticketsApi = {
   delete: (id) => request(`/tickets/${id}`, { method: 'DELETE' }),
   assign: (id, userId) => request(`/tickets/${id}/assign/${userId}`, { method: 'POST' }),
   changeStatus: (id, statusId) => request(`/tickets/${id}/status/${statusId}`, { method: 'POST' }),
-  addTag: (id, tagId, userId) => request(`/tickets/${id}/tag/${tagId}?userId=${userId}`, { method: 'POST' }),
-  removeTag: (id, tagId, userId) => request(`/tickets/${id}/tag/${tagId}?userId=${userId}`, { method: 'DELETE' }),
+  addLabel: (id, labelId, userId) => request(`/tickets/${id}/label/${labelId}?userId=${userId}`, { method: 'POST' }),
+  removeLabel: (id, labelId, userId) => request(`/tickets/${id}/label/${labelId}?userId=${userId}`, { method: 'DELETE' }),
   getComments: (id) => request(`/tickets/${id}/comments`),
   addComment: (id, data) => request(`/tickets/${id}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   getActivity: (id) => request(`/tickets/${id}/activity`),
@@ -68,24 +68,24 @@ export const firmsApi = {
   getProducts: (firmId) => request(`/firms/${firmId}/products`),
 };
 
-export const tagsApi = {
-  getAll: () => request('/tags'),
-  get: (id) => request(`/tags/${id}`),
-  create: (data) => request('/tags', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id, data) => request(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id) => request(`/tags/${id}`, { method: 'DELETE' }),
+export const labelsApi = {
+  getAll: () => request('/labels'),
+  get: (id) => request(`/labels/${id}`),
+  create: (data) => request('/labels', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/labels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/labels/${id}`, { method: 'DELETE' }),
 };
 
-export const rolesApi = {
-  getAll: () => request('/roles'),
+export const privilegesApi = {
+  getAll: () => request('/lookups/privileges'),
 };
 
 export const statusesApi = {
-  getAll: () => request('/ticket-statuses'),
+  getAll: () => request('/lookups/ticket-statuses'),
 };
 
 export const prioritiesApi = {
-  getAll: () => request('/ticket-priorities'),
+  getAll: () => request('/lookups/ticket-priorities'),
 };
 
 export const productsApi = {

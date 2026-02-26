@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
-import { ticketsApi, tagsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
+import { ticketsApi, labelsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
 
 function getPriorityVariant(name) {
   if (!name) return { label: 'Normal', variant: 'info' };
@@ -30,13 +30,6 @@ function getPriorityVariant(name) {
   if (n.includes('düşük') || n.includes('low')) return { label: name, variant: 'default' };
   return { label: name, variant: 'info' };
 }
-
-const priorityDotColors = {
-  kritik: '#EF4444',
-  yüksek: '#F59E0B',
-  normal: '#3B82F6',
-  düşük: '#9CA3AF',
-};
 
 function getPriorityDotColor(name) {
   if (!name) return '#3B82F6';
@@ -95,14 +88,14 @@ export default function TicketDetail() {
   const [activity, setActivity] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
-  const [allTags, setAllTags] = useState([]);
+  const [allLabels, setAllLabels] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [allFirms, setAllFirms] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [allStatuses, setAllStatuses] = useState([]);
   const [allPriorities, setAllPriorities] = useState([]);
-  const [showTagPicker, setShowTagPicker] = useState(false);
-  const tagPickerRef = useRef(null);
+  const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const labelPickerRef = useRef(null);
 
   const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
   const loadActivity = () => ticketsApi.getActivity(id).then(setActivity).catch(() => setActivity([]));
@@ -111,17 +104,17 @@ export default function TicketDetail() {
     Promise.all([
       ticketsApi.get(id),
       ticketsApi.getActivity(id).catch(() => []),
-      tagsApi.getAll().catch(() => []),
+      labelsApi.getAll().catch(() => []),
       usersApi.getAll().catch(() => []),
       firmsApi.getAll().catch(() => []),
       productsApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
       prioritiesApi.getAll().catch(() => []),
     ])
-      .then(([t, act, tags, users, firms, products, statuses, priorities]) => {
+      .then(([t, act, labels, users, firms, products, statuses, priorities]) => {
         setTicket(t);
         setActivity(act || []);
-        setAllTags(tags || []);
+        setAllLabels(labels || []);
         setAllUsers(users || []);
         setAllFirms(firms || []);
         setAllProducts(products || []);
@@ -134,13 +127,13 @@ export default function TicketDetail() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (tagPickerRef.current && !tagPickerRef.current.contains(e.target)) {
-        setShowTagPicker(false);
+      if (labelPickerRef.current && !labelPickerRef.current.contains(e.target)) {
+        setShowLabelPicker(false);
       }
     };
-    if (showTagPicker) document.addEventListener('mousedown', handleClickOutside);
+    if (showLabelPicker) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showTagPicker]);
+  }, [showLabelPicker]);
 
   const handleDelete = async () => {
     if (!confirm('Bu ticket\'i silmek istediginize emin misiniz?')) return;
@@ -166,19 +159,19 @@ export default function TicketDetail() {
     }
   };
 
-  const handleAddTag = async (tagId) => {
+  const handleAddLabel = async (labelId) => {
     try {
-      await ticketsApi.addTag(id, tagId, 1);
+      await ticketsApi.addLabel(id, labelId, 1);
       await Promise.all([loadTicket(), loadActivity()]);
-      setShowTagPicker(false);
+      setShowLabelPicker(false);
     } catch (err) {
       alert('Etiket eklenemedi:\n' + err.message);
     }
   };
 
-  const handleRemoveTag = async (tagId) => {
+  const handleRemoveLabel = async (labelId) => {
     try {
-      await ticketsApi.removeTag(id, tagId, 1);
+      await ticketsApi.removeLabel(id, labelId, 1);
       await Promise.all([loadTicket(), loadActivity()]);
     } catch (err) {
       alert('Etiket kaldirilamadi:\n' + err.message);
@@ -190,9 +183,9 @@ export default function TicketDetail() {
     try {
       const payload = {
         title: ticket.title,
-        description: ticket.description,
-        ticketPriorityId: ticket.ticketPriorityId,
-        ticketStatusId: ticket.ticketStatusId,
+        content: ticket.content,
+        priorityId: ticket.priorityId,
+        statusId: ticket.statusId,
         firmId: ticket.firmId,
         assignedUserId: ticket.assignedUserId,
         productId: ticket.productId,
@@ -206,8 +199,8 @@ export default function TicketDetail() {
     }
   };
 
-  const availableTags = allTags.filter(
-    (tag) => !ticket?.ticketTags?.some((tt) => tt.tagId === tag.id)
+  const availableLabels = allLabels.filter(
+    (label) => !ticket?.ticketLabels?.some((tl) => tl.labelId === label.id)
   );
 
   if (loading) {
@@ -257,7 +250,7 @@ export default function TicketDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Title & Description */}
+            {/* Title & Content */}
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-5 border-b border-surface-200">
                 <div className="flex items-start justify-between">
@@ -286,7 +279,7 @@ export default function TicketDetail() {
               </div>
               <div className="px-6 py-5">
                 <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">
-                  {ticket.description || 'Aciklama eklenmemis.'}
+                  {ticket.content || 'Aciklama eklenmemis.'}
                 </p>
               </div>
             </div>
@@ -305,66 +298,25 @@ export default function TicketDetail() {
 
               {activity.length > 0 ? (
                 <div className="divide-y divide-surface-100">
-                  {activity.map((item) =>
-                    item.type === 'comment' ? (
-                      <div key={item.id} className="px-6 py-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 mt-0.5 shrink-0">
-                            {item.userName?.charAt(0) || '?'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-surface-900">
-                                {item.userName || 'Kullanici'}
-                              </span>
-                              <span className="text-xs text-surface-400">
-                                {formatDateTime(item.createdAt)}
-                              </span>
-                            </div>
-                            <div className="mt-1.5 p-3 bg-surface-50 rounded-lg text-sm text-surface-700 border border-surface-100">
-                              {item.content}
-                            </div>
-                          </div>
-                        </div>
+                  {activity.map((item) => (
+                    <div key={item.id} className="px-6 py-3">
+                      <div className="flex items-center gap-2 text-xs text-surface-500">
+                        <Edit3 className="w-3.5 h-3.5 text-primary-500" />
+                        <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
+                        <span>{item.description}</span>
+                        {item.oldValue && (
+                          <span className="line-through text-surface-400">{item.oldValue}</span>
+                        )}
+                        {item.newValue && (
+                          <>
+                            <span className="text-surface-400">→</span>
+                            <span className="font-medium text-surface-800">{item.newValue}</span>
+                          </>
+                        )}
+                        <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
                       </div>
-                    ) : item.type === 'field_changed' ? (
-                      <div key={item.id} className="px-6 py-3">
-                        <div className="flex items-center gap-2 text-xs text-surface-500">
-                          <Edit3 className="w-3.5 h-3.5 text-primary-500" />
-                          <span className="font-medium text-surface-700">{item.userName || 'Sistem'}</span>
-                          <span className="font-medium text-surface-600">{fieldLabels[item.field] || item.field}</span>
-                          <span>alanini degistirdi:</span>
-                          {item.oldValue && (
-                            <span className="line-through text-surface-400">{item.oldValue}</span>
-                          )}
-                          <span className="text-surface-400">→</span>
-                          <span className="font-medium text-surface-800">{item.newValue || 'Bos'}</span>
-                          <span className="text-surface-400 ml-auto">{formatDateTime(item.createdAt)}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={item.id} className="px-6 py-3">
-                        <div className="flex items-center gap-2 text-xs text-surface-500">
-                          {item.type === 'tag_added' ? (
-                            <Plus className="w-3.5 h-3.5 text-success" />
-                          ) : (
-                            <Minus className="w-3.5 h-3.5 text-danger" />
-                          )}
-                          <span className="font-medium text-surface-700">{item.userName || 'Sistem'}</span>
-                          <span>
-                            {item.type === 'tag_added' ? 'etiket ekledi:' : 'etiketi kaldirdi:'}
-                          </span>
-                          <span
-                            className="inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium rounded-full text-white"
-                            style={{ backgroundColor: item.colorHex || '#6B7280' }}
-                          >
-                            {item.tagName}
-                          </span>
-                          <span className="text-surface-400 ml-auto">{formatDateTime(item.createdAt)}</span>
-                        </div>
-                      </div>
-                    )
-                  )}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="px-6 py-8 text-center">
@@ -413,9 +365,12 @@ export default function TicketDetail() {
               <SidebarSelect
                 icon={CheckCircle2}
                 label="Durum"
-                value={ticket.ticketStatusId}
-                options={allStatuses.map((s) => ({ value: s.id, label: s.name }))}
-                onChange={(val) => updateTicket({ ticketStatusId: Number(val) })}
+                value={ticket.statusId || ''}
+                options={[
+                  { value: '', label: 'Seçiniz...' },
+                  ...allStatuses.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+                onChange={(val) => updateTicket({ statusId: val ? Number(val) : null })}
                 colorDot={getStatusDotColor(ticket.status?.name)}
                 selectStyle={getStatusSelectStyle(ticket.status?.name)}
               />
@@ -423,9 +378,12 @@ export default function TicketDetail() {
               <SidebarSelect
                 icon={AlertCircle}
                 label="Öncelik"
-                value={ticket.ticketPriorityId}
-                options={allPriorities.map((p) => ({ value: p.id, label: p.name }))}
-                onChange={(val) => updateTicket({ ticketPriorityId: Number(val) })}
+                value={ticket.priorityId || ''}
+                options={[
+                  { value: '', label: 'Seçiniz...' },
+                  ...allPriorities.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                onChange={(val) => updateTicket({ priorityId: val ? Number(val) : null })}
                 colorDot={getPriorityDotColor(ticket.priority?.name)}
                 selectStyle={getPrioritySelectStyle(ticket.priority?.name)}
               />
@@ -467,74 +425,50 @@ export default function TicketDetail() {
                 icon={User}
                 label="Olusturan"
                 value={
-                  ticket.createdByUser ? (
+                  ticket.createdUser ? (
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded-full bg-surface-200 flex items-center justify-center text-[10px] font-medium text-surface-600">
-                        {ticket.createdByUser.name?.charAt(0)}
+                        {ticket.createdUser.name?.charAt(0)}
                       </div>
-                      {ticket.createdByUser.name}
+                      {ticket.createdUser.name}
                     </div>
                   ) : (
                     <span className="text-surface-400">Bilinmiyor</span>
                   )
                 }
               />
-              {/* Created date (read-only) */}
-              <SidebarItem
-                icon={Clock}
-                label="Olusturulma"
-                value={formatDateTime(ticket.createdAt)}
-              />
             </div>
 
-            {/* Tags */}
+            {/* Labels */}
             <div className="bg-surface-0 rounded-xl border border-surface-200 p-4">
               <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5" />
                 Etiketler
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {ticket.ticketTags && ticket.ticketTags.length > 0 ? (
-                  ticket.ticketTags.map((tt) => (
-                    <span
-                      key={tt.tagId}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                      style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
-                    >
-                      {tt.tag?.name || 'Tag'}
-                      <button
-                        onClick={() => handleRemoveTag(tt.tagId)}
-                        className="ml-0.5 hover:opacity-70 cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-surface-400">Etiket yok</span>
-                )}
-                <div className="relative" ref={tagPickerRef}>
+                <span className="text-xs text-surface-400">Etiket yok</span>
+                <div className="relative" ref={labelPickerRef}>
                   <button
-                    onClick={() => setShowTagPicker(!showTagPicker)}
+                    onClick={() => setShowLabelPicker(!showLabelPicker)}
                     className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer"
                   >
                     + Ekle
                   </button>
-                  {showTagPicker && (
+                  {showLabelPicker && (
                     <div className="absolute top-full left-0 mt-1 w-48 bg-surface-0 rounded-lg border border-surface-200 shadow-lg z-10">
-                      {availableTags.length > 0 ? (
+                      {availableLabels.length > 0 ? (
                         <div className="py-1 max-h-48 overflow-y-auto">
-                          {availableTags.map((tag) => (
+                          {availableLabels.map((label) => (
                             <button
-                              key={tag.id}
-                              onClick={() => handleAddTag(tag.id)}
+                              key={label.id}
+                              onClick={() => handleAddLabel(label.id)}
                               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
                             >
                               <div
                                 className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: tag.colorHex || '#6B7280' }}
+                                style={{ backgroundColor: label.colorHex || '#6B7280' }}
                               />
-                              {tag.name}
+                              {label.name}
                             </button>
                           ))}
                         </div>

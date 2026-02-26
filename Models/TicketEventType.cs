@@ -1,11 +1,9 @@
 namespace Pratek.Models
 {
-    public class TicketPriority
+    public class TicketEventType
     {
         public int Id { get; set; }
 
         public string? Name { get; set; }
-
-        public int? OrderNo { get; set; }
     }
 }

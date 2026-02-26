@@ -1,6 +1,6 @@
 namespace Pratek.Models
 {
-    public class TicketPriority
+    public class Privilege
     {
         public int Id { get; set; }
 

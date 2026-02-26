@@ -28,30 +28,39 @@ namespace Pratek.Controllers
         public async Task<IActionResult> GetTicketPriorities()
         {
             var priorities = await _context.TicketPriorities
-                .OrderBy(p => p.Level)
+                .OrderBy(p => p.OrderNo)
                 .ToListAsync();
             return Ok(priorities);
         }
 
-        [HttpGet("event-types")]
-        public async Task<IActionResult> GetEventTypes()
+        [HttpGet("entity-event-types")]
+        public async Task<IActionResult> GetEntityEventTypes()
         {
-            var types = await _context.EventTypes.ToListAsync();
+            var types = await _context.EntityEventTypes.ToListAsync();
             return Ok(types);
         }
 
-        [HttpGet("entity-types")]
-        public async Task<IActionResult> GetEntityTypes()
+        [HttpGet("ticket-event-types")]
+        public async Task<IActionResult> GetTicketEventTypes()
         {
-            var types = await _context.EntityTypes.ToListAsync();
+            var types = await _context.TicketEventTypes.ToListAsync();
             return Ok(types);
         }
 
-        [HttpGet("yetkiler")]
-        public async Task<IActionResult> GetYetkiler()
+        [HttpGet("entities")]
+        public async Task<IActionResult> GetEntities()
         {
-            var yetkiler = await _context.Yetkiler.ToListAsync();
-            return Ok(yetkiler);
+            var entities = await _context.Entities.ToListAsync();
+            return Ok(entities);
+        }
+
+        [HttpGet("privileges")]
+        public async Task<IActionResult> GetPrivileges()
+        {
+            var privileges = await _context.Privileges
+                .OrderBy(p => p.OrderNo)
+                .ToListAsync();
+            return Ok(privileges);
         }
     }
 }

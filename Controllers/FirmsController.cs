@@ -19,14 +19,19 @@ namespace Pratek.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var firms = await _context.Firms.ToListAsync();
+            var firms = await _context.Firms
+                .Include(f => f.Parent)
+                .OrderBy(f => f.OrderNo)
+                .ToListAsync();
             return Ok(firms);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
-            var firm = await _context.Firms.FindAsync(id);
+            var firm = await _context.Firms
+                .Include(f => f.Parent)
+                .FirstOrDefaultAsync(f => f.Id == id);
             if (firm == null)
                 return NotFound();
             return Ok(firm);
@@ -48,6 +53,8 @@ namespace Pratek.Controllers
                 return NotFound();
 
             firm.Name = model.Name;
+            firm.OrderNo = model.OrderNo;
+            firm.ParentId = model.ParentId;
 
             await _context.SaveChangesAsync();
             return Ok(firm);
@@ -65,9 +72,27 @@ namespace Pratek.Controllers
             foreach (var ticket in tickets)
                 ticket.FirmId = null;
 
+            // Nullify firm references on users
+            var users = await _context.Users.Where(u => u.FirmId == id).ToListAsync();
+            foreach (var user in users)
+                user.FirmId = null;
+
             _context.Firms.Remove(firm);
             await _context.SaveChangesAsync();
             return Ok();
+        }
+
+        // ---- Firm Products ----
+
+        [HttpGet("{id}/products")]
+        public async Task<IActionResult> GetProducts(int id)
+        {
+            var products = await _context.FirmProducts
+                .Where(fp => fp.FirmId == id)
+                .Include(fp => fp.Product)
+                .Select(fp => fp.Product)
+                .ToListAsync();
+            return Ok(products);
         }
     }
 }

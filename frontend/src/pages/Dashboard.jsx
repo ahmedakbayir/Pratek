@@ -94,12 +94,12 @@ export default function Dashboard() {
                       <span className="text-sm font-medium text-surface-900 truncate">
                         {ticket.title}
                       </span>
-                      <Badge variant={priorityVariant[ticket.ticketPriorityId] || 'default'}>
-                        {priorityLabel[ticket.ticketPriorityId] || 'Normal'}
+                      <Badge variant={priorityVariant[ticket.priorityId] || 'default'}>
+                        {priorityLabel[ticket.priorityId] || '-'}
                       </Badge>
                     </div>
                     <p className="text-xs text-surface-500 mt-0.5 truncate">
-                      {ticket.description || 'Açıklama yok'}
+                      {ticket.content || 'Açıklama yok'}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -107,11 +107,10 @@ export default function Dashboard() {
                       variant={ticket.status?.isClosed ? 'closed' : 'open'}
                       dot
                     >
-                      {ticket.status?.name || 'Açık'}
+                      {ticket.status?.name || '-'}
                     </Badge>
                     <div className="flex items-center gap-1.5 text-xs text-surface-500">
-                      <Clock className="w-3.5 h-3.5" />
-                      {formatDate(ticket.createdAt)}
+                      <span className="font-mono text-surface-400">#{ticket.id}</span>
                     </div>
                   </div>
                 </Link>

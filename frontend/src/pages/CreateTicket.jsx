@@ -2,20 +2,22 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, usersApi, firmsApi } from '../services/api';
+import { ticketsApi, usersApi, firmsApi, statusesApi, prioritiesApi } from '../services/api';
 
 export default function CreateTicket() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
   const [firms, setFirms] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [priorities, setPriorities] = useState([]);
   const [firmProducts, setFirmProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [form, setForm] = useState({
     title: '',
-    description: '',
-    ticketPriorityId: 3,
-    ticketStatusId: 1,
+    content: '',
+    priorityId: '',
+    statusId: '',
     firmId: '',
     assignedUserId: '',
     productId: '',
@@ -24,6 +26,8 @@ export default function CreateTicket() {
   useEffect(() => {
     usersApi.getAll().then(setUsers).catch(() => {});
     firmsApi.getAll().then(setFirms).catch(() => {});
+    statusesApi.getAll().then(setStatuses).catch(() => {});
+    prioritiesApi.getAll().then(setPriorities).catch(() => {});
   }, []);
 
   // When firm changes, fetch products for that firm
@@ -53,8 +57,8 @@ export default function CreateTicket() {
     try {
       const payload = {
         ...form,
-        ticketPriorityId: Number(form.ticketPriorityId),
-        ticketStatusId: Number(form.ticketStatusId),
+        priorityId: form.priorityId ? Number(form.priorityId) : null,
+        statusId: form.statusId ? Number(form.statusId) : null,
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
         productId: form.productId ? Number(form.productId) : null,
@@ -101,54 +105,67 @@ export default function CreateTicket() {
               />
             </div>
 
-            {/* Description */}
+            {/* Content */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                Açıklama
+                İçerik
               </label>
               <textarea
                 rows={5}
-                value={form.description}
-                onChange={update('description')}
+                value={form.content}
+                onChange={update('content')}
                 placeholder="Detaylı açıklama..."
                 className="input-field resize-none"
               />
             </div>
 
-            {/* Priority & Firm */}
+            {/* Priority & Status */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
                   Öncelik
                 </label>
-                <select value={form.ticketPriorityId} onChange={update('ticketPriorityId')} className="input-field">
-                  <option value={1}>Kritik</option>
-                  <option value={2}>Yüksek</option>
-                  <option value={3}>Normal</option>
-                  <option value={4}>Düşük</option>
+                <select value={form.priorityId} onChange={update('priorityId')} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {priorities.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                  Firma (Bölge)
+                  Durum
                 </label>
-                {firms.length > 0 ? (
-                  <select value={form.firmId} onChange={handleFirmChange} className="input-field">
-                    <option value="">Seçiniz...</option>
-                    {firms.map((f) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="number"
-                    value={form.firmId}
-                    onChange={handleFirmChange}
-                    placeholder="Firma ID (opsiyonel)"
-                    className="input-field"
-                  />
-                )}
+                <select value={form.statusId} onChange={update('statusId')} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {statuses.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
+            </div>
+
+            {/* Firm */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                Firma (Bölge)
+              </label>
+              {firms.length > 0 ? (
+                <select value={form.firmId} onChange={handleFirmChange} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {firms.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  value={form.firmId}
+                  onChange={handleFirmChange}
+                  placeholder="Firma ID (opsiyonel)"
+                  className="input-field"
+                />
+              )}
             </div>
 
             {/* Product - depends on firm selection */}

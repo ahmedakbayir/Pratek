@@ -1,48 +1,33 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace Pratek.Models
 {
     public class Ticket
     {
-        [Key]
         public int Id { get; set; }
 
-        // -------------------------
-        // BASIC
-        // -------------------------
-        [Required]
-        public string Title { get; set; }
+        public string? Title { get; set; }
 
-        public string? Description { get; set; }
+        public string? Content { get; set; }
 
-        // -------------------------
-        // FK FIELDS
-        // -------------------------
-        public int? FirmId { get; set; }
+        public DateTime? DueDate { get; set; }
+
         public int? AssignedUserId { get; set; }
 
-        public int TicketStatusId { get; set; }
-        public int TicketPriorityId { get; set; }
+        public int? CreatedUserId { get; set; }
 
-        // -------------------------
-        // AUDIT
-        // -------------------------
-        public DateTime CreatedAt { get; set; }
-        public int? CreatedBy { get; set; }
+        public int? FirmId { get; set; }
 
-        public DateTime? UpdatedAt { get; set; }
-        public int? UpdatedBy { get; set; }
+        public int? PriorityId { get; set; }
 
-        // -------------------------
-        // NAVIGATION PROPERTIES
-        // -------------------------
-        public Firm? Firm { get; set; }
+        public int? ProductId { get; set; }
+
+        public int? StatusId { get; set; }
+
+        // Navigation
         public User? AssignedUser { get; set; }
-
-        public TicketStatus? Status { get; set; }
+        public User? CreatedUser { get; set; }
+        public Firm? Firm { get; set; }
         public TicketPriority? Priority { get; set; }
-
-        public ICollection<TicketTag>? TicketTags { get; set; }
+        public TicketStatus? Status { get; set; }
+        public Product? Product { get; set; }
     }
 }
