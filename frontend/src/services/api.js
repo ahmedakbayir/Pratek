@@ -78,14 +78,23 @@ export const labelsApi = {
 
 export const privilegesApi = {
   getAll: () => request('/lookups/privileges'),
+  create: (data) => request('/lookups/privileges', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/lookups/privileges/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/lookups/privileges/${id}`, { method: 'DELETE' }),
 };
 
 export const statusesApi = {
   getAll: () => request('/lookups/ticket-statuses'),
+  create: (data) => request('/lookups/ticket-statuses', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/lookups/ticket-statuses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/lookups/ticket-statuses/${id}`, { method: 'DELETE' }),
 };
 
 export const prioritiesApi = {
   getAll: () => request('/lookups/ticket-priorities'),
+  create: (data) => request('/lookups/ticket-priorities', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/lookups/ticket-priorities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/lookups/ticket-priorities/${id}`, { method: 'DELETE' }),
 };
 
 export const productsApi = {

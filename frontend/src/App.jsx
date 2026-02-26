@@ -10,6 +10,9 @@ import FirmList from './pages/FirmList';
 import TagList from './pages/TagList';
 import ProductList from './pages/ProductList';
 import ProductFirmMatrix from './pages/ProductFirmMatrix';
+import TicketPriorityList from './pages/TicketPriorityList';
+import TicketStatusList from './pages/TicketStatusList';
+import PrivilegeList from './pages/PrivilegeList';
 import Settings from './pages/Settings';
 
 export default function App() {
@@ -26,7 +29,10 @@ export default function App() {
           <Route path="firms" element={<FirmList />} />
           <Route path="products" element={<ProductList />} />
           <Route path="product-firm-matrix" element={<ProductFirmMatrix />} />
-          <Route path="tags" element={<TagList />} />
+          <Route path="labels" element={<TagList />} />
+          <Route path="ticket-priorities" element={<TicketPriorityList />} />
+          <Route path="ticket-statuses" element={<TicketStatusList />} />
+          <Route path="privileges" element={<PrivilegeList />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

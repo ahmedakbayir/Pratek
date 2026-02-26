@@ -9,6 +9,9 @@ import {
   Tags,
   Settings,
   Shield,
+  AlertTriangle,
+  CircleDot,
+  ShieldCheck,
 } from 'lucide-react';
 
 const navItems = [
@@ -18,7 +21,10 @@ const navItems = [
   { to: '/firms', icon: Building2, label: 'Firmalar' },
   { to: '/products', icon: Package, label: 'Ürünler' },
   { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi' },
-  { to: '/tags', icon: Tags, label: 'Etiketler' },
+  { to: '/labels', icon: Tags, label: 'Etiketler' },
+  { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler' },
+  { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar' },
+  { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler' },
 ];
 
 const bottomItems = [
