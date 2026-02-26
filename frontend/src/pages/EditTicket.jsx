@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, usersApi, firmsApi } from '../services/api';
+import { ticketsApi, usersApi, firmsApi, statusesApi, prioritiesApi } from '../services/api';
 
 export default function EditTicket() {
   const { id } = useParams();
@@ -11,13 +11,16 @@ export default function EditTicket() {
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
   const [firms, setFirms] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [priorities, setPriorities] = useState([]);
   const [form, setForm] = useState({
     title: '',
-    description: '',
-    ticketPriorityId: 3,
-    ticketStatusId: 1,
+    content: '',
+    priorityId: '',
+    statusId: '',
     firmId: '',
     assignedUserId: '',
+    productId: '',
   });
 
   useEffect(() => {
@@ -25,18 +28,23 @@ export default function EditTicket() {
       ticketsApi.get(id),
       usersApi.getAll().catch(() => []),
       firmsApi.getAll().catch(() => []),
+      statusesApi.getAll().catch(() => []),
+      prioritiesApi.getAll().catch(() => []),
     ])
-      .then(([ticket, u, f]) => {
+      .then(([ticket, u, f, s, p]) => {
         setForm({
           title: ticket.title || '',
-          description: ticket.description || '',
-          ticketPriorityId: ticket.ticketPriorityId || 3,
-          ticketStatusId: ticket.ticketStatusId || 1,
+          content: ticket.content || '',
+          priorityId: ticket.priorityId || '',
+          statusId: ticket.statusId || '',
           firmId: ticket.firmId || '',
           assignedUserId: ticket.assignedUserId || '',
+          productId: ticket.productId || '',
         });
         setUsers(u);
         setFirms(f);
+        setStatuses(s);
+        setPriorities(p);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -51,10 +59,11 @@ export default function EditTicket() {
     try {
       const payload = {
         ...form,
-        ticketPriorityId: Number(form.ticketPriorityId),
-        ticketStatusId: Number(form.ticketStatusId),
+        priorityId: form.priorityId ? Number(form.priorityId) : null,
+        statusId: form.statusId ? Number(form.statusId) : null,
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
+        productId: form.productId ? Number(form.productId) : null,
       };
       await ticketsApi.update(id, payload);
       navigate(`/tickets/${id}`);
@@ -110,15 +119,15 @@ export default function EditTicket() {
               />
             </div>
 
-            {/* Description */}
+            {/* Content */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                Açıklama
+                İçerik
               </label>
               <textarea
                 rows={5}
-                value={form.description}
-                onChange={update('description')}
+                value={form.content}
+                onChange={update('content')}
                 className="input-field resize-none"
               />
             </div>
@@ -129,22 +138,22 @@ export default function EditTicket() {
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
                   Öncelik
                 </label>
-                <select value={form.ticketPriorityId} onChange={update('ticketPriorityId')} className="input-field">
-                  <option value={1}>Kritik</option>
-                  <option value={2}>Yüksek</option>
-                  <option value={3}>Normal</option>
-                  <option value={4}>Düşük</option>
+                <select value={form.priorityId} onChange={update('priorityId')} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {priorities.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
                   Durum
                 </label>
-                <select value={form.ticketStatusId} onChange={update('ticketStatusId')} className="input-field">
-                  <option value={1}>Açık</option>
-                  <option value={2}>Devam Ediyor</option>
-                  <option value={3}>Çözümlendi</option>
-                  <option value={4}>Kapalı</option>
+                <select value={form.statusId} onChange={update('statusId')} className="input-field">
+                  <option value="">Seçiniz...</option>
+                  {statuses.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

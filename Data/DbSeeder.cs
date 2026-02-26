@@ -24,45 +24,58 @@ namespace Pratek.Data
             if (!db.TicketPriorities.Any())
             {
                 db.TicketPriorities.AddRange(
-                    new TicketPriority { Id = 1, Name = "Kritik", Level = 1 },
-                    new TicketPriority { Id = 2, Name = "Yüksek", Level = 2 },
-                    new TicketPriority { Id = 3, Name = "Normal", Level = 3 },
-                    new TicketPriority { Id = 4, Name = "Düşük", Level = 4 }
+                    new TicketPriority { Id = 1, Name = "Kritik", OrderNo = 1 },
+                    new TicketPriority { Id = 2, Name = "Yüksek", OrderNo = 2 },
+                    new TicketPriority { Id = 3, Name = "Normal", OrderNo = 3 },
+                    new TicketPriority { Id = 4, Name = "Düşük", OrderNo = 4 }
                 );
                 changed = true;
             }
 
-            // ---- ENTITY TYPES ----
-            if (!db.EntityTypes.Any())
+            // ---- ENTITY ----
+            if (!db.Entities.Any())
             {
-                db.EntityTypes.AddRange(
-                    new EntityTypeLookup { Id = 1, Name = "User" },
-                    new EntityTypeLookup { Id = 2, Name = "Ticket" },
-                    new EntityTypeLookup { Id = 3, Name = "Firm" },
-                    new EntityTypeLookup { Id = 4, Name = "Tag" }
+                db.Entities.AddRange(
+                    new Entity { Id = 1, Name = "User" },
+                    new Entity { Id = 2, Name = "Ticket" },
+                    new Entity { Id = 3, Name = "Firm" },
+                    new Entity { Id = 4, Name = "Label" }
                 );
                 changed = true;
             }
 
-            // ---- EVENT TYPES ----
-            if (!db.EventTypes.Any())
+            // ---- ENTITY EVENT TYPE ----
+            if (!db.EntityEventTypes.Any())
             {
-                db.EventTypes.AddRange(
-                    new EventType { Id = 1, Name = "Created" },
-                    new EventType { Id = 2, Name = "Updated" },
-                    new EventType { Id = 3, Name = "Assigned" },
-                    new EventType { Id = 4, Name = "Deleted" }
+                db.EntityEventTypes.AddRange(
+                    new EntityEventType { Id = 1, Name = "Created" },
+                    new EntityEventType { Id = 2, Name = "Updated" },
+                    new EntityEventType { Id = 3, Name = "Assigned" },
+                    new EntityEventType { Id = 4, Name = "Deleted" }
                 );
                 changed = true;
             }
 
-            // ---- YETKI (ROLES) ----
-            if (!db.Yetkiler.Any())
+            // ---- TICKET EVENT TYPE ----
+            if (!db.TicketEventTypes.Any())
             {
-                db.Yetkiler.AddRange(
-                    new Yetki { Id = 1, Name = "Admin" },
-                    new Yetki { Id = 2, Name = "Agent" },
-                    new Yetki { Id = 3, Name = "Müşteri" }
+                db.TicketEventTypes.AddRange(
+                    new TicketEventType { Id = 1, Name = "Created" },
+                    new TicketEventType { Id = 2, Name = "Updated" },
+                    new TicketEventType { Id = 3, Name = "StatusChanged" },
+                    new TicketEventType { Id = 4, Name = "Assigned" },
+                    new TicketEventType { Id = 5, Name = "Deleted" }
+                );
+                changed = true;
+            }
+
+            // ---- PRIVILEGE ----
+            if (!db.Privileges.Any())
+            {
+                db.Privileges.AddRange(
+                    new Privilege { Id = 1, Name = "Admin", OrderNo = 1 },
+                    new Privilege { Id = 2, Name = "Agent", OrderNo = 2 },
+                    new Privilege { Id = 3, Name = "Müşteri", OrderNo = 3 }
                 );
                 changed = true;
             }

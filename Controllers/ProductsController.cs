@@ -23,6 +23,7 @@ namespace Pratek.Controllers
                 .Include(p => p.Manager)
                 .Include(p => p.FirmProducts!)
                     .ThenInclude(fp => fp.Firm)
+                .OrderBy(p => p.OrderNo)
                 .ToListAsync();
             return Ok(products);
         }
@@ -61,6 +62,7 @@ namespace Pratek.Controllers
 
             product.Name = model.Name;
             product.ManagerId = model.ManagerId;
+            product.OrderNo = model.OrderNo;
 
             await _context.SaveChangesAsync();
 

@@ -12,11 +12,11 @@ import {
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { usersApi, rolesApi } from '../services/api';
+import { usersApi, privilegesApi } from '../services/api';
 
 const roleVariants = ['default', 'danger', 'info', 'default', 'warning', 'success', 'primary'];
 
-const emptyForm = { name: '', mail: '', password: '', tel: '', roleId: 2 };
+const emptyForm = { name: '', mail: '', password: '', gsm: '', privilegeId: '' };
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
@@ -31,7 +31,7 @@ export default function UserList() {
     setLoading(true);
     Promise.all([
       usersApi.getAll().catch(() => []),
-      rolesApi.getAll().catch(() => []),
+      privilegesApi.getAll().catch(() => []),
     ])
       .then(([u, r]) => { setUsers(u || []); setRoles(r || []); })
       .finally(() => setLoading(false));
@@ -47,7 +47,7 @@ export default function UserList() {
 
   const openEdit = (user) => {
     setEditing(user);
-    setForm({ name: user.name, mail: user.mail, password: '', tel: user.tel, roleId: user.roleId });
+    setForm({ name: user.name, mail: user.mail, password: '', gsm: user.gsm, privilegeId: user.privilegeId });
     setShowModal(true);
   };
 
@@ -55,7 +55,7 @@ export default function UserList() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, roleId: Number(form.roleId) };
+      const payload = { ...form, privilegeId: form.privilegeId ? Number(form.privilegeId) : null };
       if (editing) {
         await usersApi.update(editing.id, payload);
       } else {
@@ -130,8 +130,8 @@ export default function UserList() {
           ) : (
             <div className="divide-y divide-surface-100">
               {users.map((user) => {
-                const roleName = roles.find((r) => r.id === user.roleId)?.name || `Rol #${user.roleId}`;
-                const variant = roleVariants[user.roleId] || 'default';
+                const roleName = roles.find((r) => r.id === user.privilegeId)?.name || '-';
+                const variant = roleVariants[user.privilegeId] || 'default';
                 return (
                   <div key={user.id} className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
@@ -146,7 +146,7 @@ export default function UserList() {
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-surface-600">
                       <Phone className="w-3.5 h-3.5 shrink-0 text-surface-400" />
-                      {user.tel || '-'}
+                      {user.gsm || '-'}
                     </div>
                     <div>
                       <Badge variant={variant}>{roleName}</Badge>
@@ -212,15 +212,15 @@ export default function UserList() {
             <Field label="Telefon">
               <input
                 type="text"
-                value={form.tel}
-                onChange={(e) => setForm((f) => ({ ...f, tel: e.target.value }))}
+                value={form.gsm}
+                onChange={(e) => setForm((f) => ({ ...f, gsm: e.target.value }))}
                 className="input-field"
               />
             </Field>
             <Field label="Rol">
               <select
-                value={form.roleId}
-                onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))}
+                value={form.privilegeId}
+                onChange={(e) => setForm((f) => ({ ...f, privilegeId: e.target.value }))}
                 className="input-field"
               >
                 {roles.map((r) => (

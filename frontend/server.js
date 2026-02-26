@@ -21,21 +21,23 @@ console.log('══════════════════════�
 console.log(`[PRATEK] Veritabanı Aktif → ${dbPath}`);
 console.log('════════════════════════════════════════════════════');
 
-// 2. TABLOLARIN OLUŞTURULMASI (EF Core ile Birebir Uyumlu)
+// 2. TABLOLARIN OLUŞTURULMASI (Yeni Şema)
 db.exec(`
-  CREATE TABLE IF NOT EXISTS "entity_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "event_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "ticket_status" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "IsClosed" INTEGER NOT NULL DEFAULT 0, "OrderNo" INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE IF NOT EXISTS "ticket_priority" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "Level" INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE IF NOT EXISTS "yetki" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "user" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL DEFAULT '', "Mail" TEXT NOT NULL DEFAULT '', "Password" TEXT NOT NULL DEFAULT '', "Tel" TEXT NOT NULL DEFAULT '', "RoleId" INTEGER NOT NULL DEFAULT 2);
-  CREATE TABLE IF NOT EXISTS "firm" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "tag" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL, "Description" TEXT, "ColorHex" TEXT);
-  CREATE TABLE IF NOT EXISTS "product" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT NOT NULL DEFAULT '', "ManagerId" INTEGER NOT NULL REFERENCES "user"("Id"));
-  CREATE TABLE IF NOT EXISTS "ticket" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Title" TEXT NOT NULL, "Description" TEXT, "FirmId" INTEGER REFERENCES "firm"("Id") ON DELETE SET NULL, "CreatedBy" INTEGER REFERENCES "user"("Id"), "AssignedUserId" INTEGER REFERENCES "user"("Id") ON DELETE SET NULL, "TicketStatusId" INTEGER NOT NULL REFERENCES "ticket_status"("Id"), "TicketPriorityId" INTEGER NOT NULL REFERENCES "ticket_priority"("Id"), "ProductId" INTEGER REFERENCES "product"("Id"), "CreatedAt" TEXT NOT NULL, "UpdatedAt" TEXT, "UpdatedBy" INTEGER);
-  CREATE TABLE IF NOT EXISTS "ticket_tag" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id") ON DELETE CASCADE, "TagId" INTEGER NOT NULL REFERENCES "tag"("Id") ON DELETE CASCADE, "CreatedBy" INTEGER NOT NULL DEFAULT 0, "CreatedAt" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "ticket_comment" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id") ON DELETE CASCADE, "UserId" INTEGER NOT NULL REFERENCES "user"("Id"), "Content" TEXT NOT NULL DEFAULT '', "CreatedAt" TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS "event_log" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "CreatedAt" TEXT NOT NULL, "EntityTypeId" INTEGER NOT NULL REFERENCES "entity_type"("Id"), "EntityId" INTEGER NOT NULL, "EventTypeId" INTEGER NOT NULL REFERENCES "event_type"("Id"), "Description" TEXT, "UserId" INTEGER REFERENCES "user"("Id"));
+  CREATE TABLE IF NOT EXISTS "entity" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT);
+  CREATE TABLE IF NOT EXISTS "entity_event_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT);
+  CREATE TABLE IF NOT EXISTS "ticket_event_type" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT);
+  CREATE TABLE IF NOT EXISTS "ticket_status" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "IsClosed" INTEGER, "OrderNo" INTEGER);
+  CREATE TABLE IF NOT EXISTS "ticket_priority" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER);
+  CREATE TABLE IF NOT EXISTS "privilege" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER);
+  CREATE TABLE IF NOT EXISTS "firm" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER, "ParentId" INTEGER REFERENCES "firm"("Id"));
+  CREATE TABLE IF NOT EXISTS "label" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "Description" TEXT, "ColorHex" TEXT);
+  CREATE TABLE IF NOT EXISTS "user" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "Mail" TEXT, "Password" TEXT, "Gsm" TEXT, "FirmId" INTEGER REFERENCES "firm"("Id"), "PrivilegeId" INTEGER REFERENCES "privilege"("Id"), "OrderNo" INTEGER);
+  CREATE TABLE IF NOT EXISTS "product" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "ManagerId" INTEGER REFERENCES "user"("Id"), "OrderNo" INTEGER);
+  CREATE TABLE IF NOT EXISTS "ticket" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Title" TEXT, "Content" TEXT, "DueDate" TEXT, "AssignedUserId" INTEGER REFERENCES "user"("Id"), "CreatedUserId" INTEGER REFERENCES "user"("Id"), "FirmId" INTEGER REFERENCES "firm"("Id"), "PriorityId" INTEGER REFERENCES "ticket_priority"("Id"), "ProductId" INTEGER REFERENCES "product"("Id"), "StatusId" INTEGER REFERENCES "ticket_status"("Id"));
+  CREATE TABLE IF NOT EXISTS "ticket_label_history" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "ActionType" INTEGER, "ActionDate" TEXT, "LabelId" INTEGER NOT NULL REFERENCES "label"("Id"), "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id"), "UserId" INTEGER REFERENCES "user"("Id"));
+  CREATE TABLE IF NOT EXISTS "ticket_comment" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id") ON DELETE CASCADE, "UserId" INTEGER NOT NULL REFERENCES "user"("Id"), "Content" TEXT, "ActionDate" TEXT, "Inactive" INTEGER);
+  CREATE TABLE IF NOT EXISTS "entity_event_history" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "ActionDate" TEXT, "EntityEventTypeId" INTEGER NOT NULL REFERENCES "entity_event_type"("Id"), "EntityId" INTEGER NOT NULL, "UserId" INTEGER REFERENCES "user"("Id"), "Description" TEXT);
+  CREATE TABLE IF NOT EXISTS "ticket_event_history" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "ActionDate" TEXT, "TicketEventTypeId" INTEGER NOT NULL REFERENCES "ticket_event_type"("Id"), "TicketId" INTEGER NOT NULL REFERENCES "ticket"("Id"), "UserId" INTEGER REFERENCES "user"("Id"), "Description" TEXT, "NewValue" TEXT, "OldValue" TEXT);
   CREATE TABLE IF NOT EXISTS "firm_product" ("FirmId" INTEGER NOT NULL REFERENCES "firm"("Id") ON DELETE CASCADE, "ProductId" INTEGER NOT NULL REFERENCES "product"("Id") ON DELETE CASCADE, PRIMARY KEY("FirmId", "ProductId"));
 `);
 
@@ -50,10 +52,11 @@ function seed(table, rows) {
   }
 }
 seed('ticket_status', [{Id:1,Name:'Açık',IsClosed:0,OrderNo:1},{Id:2,Name:'Devam Ediyor',IsClosed:0,OrderNo:2},{Id:3,Name:'Çözümlendi',IsClosed:1,OrderNo:3},{Id:4,Name:'Kapalı',IsClosed:1,OrderNo:4}]);
-seed('ticket_priority', [{Id:1,Name:'Kritik',Level:1},{Id:2,Name:'Yüksek',Level:2},{Id:3,Name:'Normal',Level:3},{Id:4,Name:'Düşük',Level:4}]);
-seed('entity_type', [{Id:1,Name:'User'},{Id:2,Name:'Ticket'},{Id:3,Name:'Firm'},{Id:4,Name:'Tag'}]);
-seed('event_type', [{Id:1,Name:'Created'},{Id:2,Name:'Updated'},{Id:3,Name:'Assigned'},{Id:4,Name:'Deleted'}]);
-seed('yetki', [{Id:1,Name:'Admin'},{Id:2,Name:'Agent'},{Id:3,Name:'Müşteri'}]);
+seed('ticket_priority', [{Id:1,Name:'Kritik',OrderNo:1},{Id:2,Name:'Yüksek',OrderNo:2},{Id:3,Name:'Normal',OrderNo:3},{Id:4,Name:'Düşük',OrderNo:4}]);
+seed('entity', [{Id:1,Name:'User'},{Id:2,Name:'Ticket'},{Id:3,Name:'Firm'},{Id:4,Name:'Product'}]);
+seed('entity_event_type', [{Id:1,Name:'Created'},{Id:2,Name:'Updated'},{Id:3,Name:'Assigned'},{Id:4,Name:'Deleted'}]);
+seed('ticket_event_type', [{Id:1,Name:'Created'},{Id:2,Name:'StatusChanged'},{Id:3,Name:'PriorityChanged'},{Id:4,Name:'Assigned'},{Id:5,Name:'Updated'}]);
+seed('privilege', [{Id:1,Name:'Admin',OrderNo:1},{Id:2,Name:'Agent',OrderNo:2},{Id:3,Name:'Müşteri',OrderNo:3}]);
 
 // 4. VERİ FORMATLAYICI (PascalCase'i React için camelCase yapar)
 const toCamel = (obj) => {
@@ -70,12 +73,14 @@ const toCamel = (obj) => {
 app.get('/api/firms', (req, res) => res.json(db.prepare('SELECT * FROM "firm"').all().map(toCamel)));
 app.get('/api/firms/:id', (req, res) => res.json(toCamel(db.prepare('SELECT * FROM "firm" WHERE "Id" = ?').get(req.params.id))));
 app.post('/api/firms', (req, res) => {
-  const info = db.prepare('INSERT INTO "firm" ("Name") VALUES (?)').run(req.body.name);
-  res.json({ id: info.lastInsertRowid, name: req.body.name });
+  const { name, orderNo, parentId } = req.body;
+  const info = db.prepare('INSERT INTO "firm" ("Name", "OrderNo", "ParentId") VALUES (?, ?, ?)').run(name, orderNo || null, parentId || null);
+  res.json({ id: info.lastInsertRowid, ...req.body });
 });
 app.put('/api/firms/:id', (req, res) => {
-  db.prepare('UPDATE "firm" SET "Name" = ? WHERE "Id" = ?').run(req.body.name, req.params.id);
-  res.json({ id: Number(req.params.id), name: req.body.name });
+  const { name, orderNo, parentId } = req.body;
+  db.prepare('UPDATE "firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ? WHERE "Id" = ?').run(name, orderNo || null, parentId || null, req.params.id);
+  res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/firms/:id', (req, res) => {
   db.prepare('DELETE FROM "firm" WHERE "Id" = ?').run(req.params.id);
@@ -87,15 +92,22 @@ app.get('/api/firms/:firmId/products', (req, res) => {
 });
 
 // --- KULLANICILAR ---
-app.get('/api/users', (req, res) => res.json(db.prepare('SELECT * FROM "user"').all().map(toCamel)));
+app.get('/api/users', (req, res) => {
+  const users = db.prepare('SELECT * FROM "user"').all().map(toCamel);
+  users.forEach(u => {
+    u.firm = toCamel(db.prepare('SELECT * FROM "firm" WHERE "Id" = ?').get(u.firmId));
+    u.privilege = toCamel(db.prepare('SELECT * FROM "privilege" WHERE "Id" = ?').get(u.privilegeId));
+  });
+  res.json(users);
+});
 app.post('/api/users', (req, res) => {
-  const { name, mail, password, tel, roleId } = req.body;
-  const info = db.prepare('INSERT INTO "user" ("Name", "Mail", "Password", "Tel", "RoleId") VALUES (?, ?, ?, ?, ?)').run(name||'', mail||'', password||'', tel||'', roleId||2);
+  const { name, mail, password, gsm, firmId, privilegeId, orderNo } = req.body;
+  const info = db.prepare('INSERT INTO "user" ("Name", "Mail", "Password", "Gsm", "FirmId", "PrivilegeId", "OrderNo") VALUES (?, ?, ?, ?, ?, ?, ?)').run(name||'', mail||'', password||'', gsm||'', firmId||null, privilegeId||null, orderNo||null);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
 app.put('/api/users/:id', (req, res) => {
-  const { name, mail, tel, roleId } = req.body;
-  db.prepare('UPDATE "user" SET "Name"=?, "Mail"=?, "Tel"=?, "RoleId"=? WHERE "Id"=?').run(name, mail, tel||'', roleId, req.params.id);
+  const { name, mail, gsm, firmId, privilegeId, orderNo } = req.body;
+  db.prepare('UPDATE "user" SET "Name"=?, "Mail"=?, "Gsm"=?, "FirmId"=?, "PrivilegeId"=?, "OrderNo"=? WHERE "Id"=?').run(name, mail, gsm||'', firmId||null, privilegeId||null, orderNo||null, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/users/:id', (req, res) => {
@@ -103,20 +115,20 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// --- TAGLER ---
-app.get('/api/tags', (req, res) => res.json(db.prepare('SELECT * FROM "tag"').all().map(toCamel)));
-app.post('/api/tags', (req, res) => {
+// --- ETIKETLER (Labels) ---
+app.get('/api/labels', (req, res) => res.json(db.prepare('SELECT * FROM "label"').all().map(toCamel)));
+app.post('/api/labels', (req, res) => {
   const { name, description, colorHex } = req.body;
-  const info = db.prepare('INSERT INTO "tag" ("Name", "Description", "ColorHex") VALUES (?, ?, ?)').run(name, description, colorHex);
+  const info = db.prepare('INSERT INTO "label" ("Name", "Description", "ColorHex") VALUES (?, ?, ?)').run(name, description, colorHex);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
-app.put('/api/tags/:id', (req, res) => {
+app.put('/api/labels/:id', (req, res) => {
   const { name, description, colorHex } = req.body;
-  db.prepare('UPDATE "tag" SET "Name"=?, "Description"=?, "ColorHex"=? WHERE "Id"=?').run(name, description, colorHex, req.params.id);
+  db.prepare('UPDATE "label" SET "Name"=?, "Description"=?, "ColorHex"=? WHERE "Id"=?').run(name, description, colorHex, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
-app.delete('/api/tags/:id', (req, res) => {
-  db.prepare('DELETE FROM "tag" WHERE "Id" = ?').run(req.params.id);
+app.delete('/api/labels/:id', (req, res) => {
+  db.prepare('DELETE FROM "label" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
 });
 
@@ -133,11 +145,11 @@ app.get('/api/products', (req, res) => {
   res.json(products);
 });
 app.post('/api/products', (req, res) => {
-  const info = db.prepare('INSERT INTO "product" ("Name", "ManagerId") VALUES (?, ?)').run(req.body.name, req.body.managerId);
+  const info = db.prepare('INSERT INTO "product" ("Name", "ManagerId", "OrderNo") VALUES (?, ?, ?)').run(req.body.name, req.body.managerId || null, req.body.orderNo || null);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
 app.put('/api/products/:id', (req, res) => {
-  db.prepare('UPDATE "product" SET "Name"=?, "ManagerId"=? WHERE "Id"=?').run(req.body.name, req.body.managerId, req.params.id);
+  db.prepare('UPDATE "product" SET "Name"=?, "ManagerId"=?, "OrderNo"=? WHERE "Id"=?').run(req.body.name, req.body.managerId || null, req.body.orderNo || null, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/products/:id', (req, res) => {
@@ -159,10 +171,21 @@ const getFullTicket = (id) => {
   if (!t) return null;
   t.firm = toCamel(db.prepare('SELECT * FROM "firm" WHERE "Id" = ?').get(t.firmId));
   t.assignedUser = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(t.assignedUserId));
-  t.status = toCamel(db.prepare('SELECT * FROM "ticket_status" WHERE "Id" = ?').get(t.ticketStatusId));
-  t.priority = toCamel(db.prepare('SELECT * FROM "ticket_priority" WHERE "Id" = ?').get(t.ticketPriorityId));
+  t.createdUser = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(t.createdUserId));
+  t.status = toCamel(db.prepare('SELECT * FROM "ticket_status" WHERE "Id" = ?').get(t.statusId));
+  t.priority = toCamel(db.prepare('SELECT * FROM "ticket_priority" WHERE "Id" = ?').get(t.priorityId));
   t.product = toCamel(db.prepare('SELECT * FROM "product" WHERE "Id" = ?').get(t.productId));
-  t.ticketTags = db.prepare(`SELECT tt.*, t."Name", t."ColorHex" FROM "ticket_tag" tt JOIN "tag" t ON tt."TagId" = t."Id" WHERE tt."TicketId" = ?`).all(t.id).map(tt => ({ tag: { id: tt.TagId, name: tt.Name, colorHex: tt.ColorHex } }));
+  // Labels via ticket_label_history (actionType=1 means added, 0 means removed - get current active labels)
+  const labelHistory = db.prepare(`
+    SELECT tlh."LabelId", l."Name", l."ColorHex", l."Description",
+           MAX(tlh."Id") as lastAction, tlh."ActionType"
+    FROM "ticket_label_history" tlh
+    JOIN "label" l ON tlh."LabelId" = l."Id"
+    WHERE tlh."TicketId" = ?
+    GROUP BY tlh."LabelId"
+    HAVING tlh."ActionType" = 1
+  `).all(t.id);
+  t.ticketLabels = labelHistory.map(lh => ({ label: { id: lh.LabelId, name: lh.Name, colorHex: lh.ColorHex, description: lh.Description } }));
   if (t.status) t.status.isClosed = !!t.status.isClosed;
   return t;
 };
@@ -173,14 +196,14 @@ app.get('/api/tickets', (req, res) => {
 });
 app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
 app.post('/api/tickets', (req, res) => {
-  const { title, description, firmId, assignedUserId, ticketStatusId, ticketPriorityId, createdBy, productId } = req.body;
-  const info = db.prepare(`INSERT INTO "ticket" ("Title", "Description", "FirmId", "AssignedUserId", "TicketStatusId", "TicketPriorityId", "CreatedBy", "ProductId", "CreatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(title, description, firmId, assignedUserId, ticketStatusId||1, ticketPriorityId||3, createdBy, productId, new Date().toISOString());
-  db.prepare(`INSERT INTO "event_log" ("EntityTypeId", "EventTypeId", "EntityId", "Description", "UserId", "CreatedAt") VALUES (2, 1, ?, 'Ticket created', ?, ?)`).run(info.lastInsertRowid, createdBy, new Date().toISOString());
+  const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate } = req.body;
+  const info = db.prepare(`INSERT INTO "ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(title, content, firmId||null, assignedUserId||null, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null);
+  db.prepare(`INSERT INTO "ticket_event_history" ("TicketEventTypeId", "TicketId", "Description", "UserId", "ActionDate") VALUES (1, ?, 'Ticket oluşturuldu', ?, ?)`).run(info.lastInsertRowid, createdUserId||null, new Date().toISOString());
   res.json(getFullTicket(info.lastInsertRowid));
 });
 app.put('/api/tickets/:id', (req, res) => {
-  const { title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, productId } = req.body;
-  db.prepare(`UPDATE "ticket" SET "Title"=?, "Description"=?, "TicketPriorityId"=?, "TicketStatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "UpdatedAt"=? WHERE "Id"=?`).run(title, description, ticketPriorityId, ticketStatusId, firmId, assignedUserId, productId, new Date().toISOString(), req.params.id);
+  const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate } = req.body;
+  db.prepare(`UPDATE "ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=? WHERE "Id"=?`).run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, req.params.id);
   res.json(getFullTicket(req.params.id));
 });
 app.delete('/api/tickets/:id', (req, res) => {
@@ -188,10 +211,43 @@ app.delete('/api/tickets/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// --- TICKET COMMENTS ---
+app.get('/api/tickets/:id/comments', (req, res) => {
+  const comments = db.prepare('SELECT * FROM "ticket_comment" WHERE "TicketId" = ? ORDER BY "ActionDate" ASC').all(req.params.id).map(toCamel);
+  comments.forEach(c => { c.user = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(c.userId)); });
+  res.json(comments);
+});
+app.post('/api/tickets/:id/comments', (req, res) => {
+  const { content, userId } = req.body;
+  const info = db.prepare('INSERT INTO "ticket_comment" ("TicketId", "UserId", "Content", "ActionDate") VALUES (?, ?, ?, ?)').run(req.params.id, userId, content, new Date().toISOString());
+  res.json({ id: info.lastInsertRowid, ticketId: Number(req.params.id), userId, content, actionDate: new Date().toISOString() });
+});
+
+// --- TICKET LABELS ---
+app.post('/api/tickets/:id/labels/:labelId', (req, res) => {
+  const { userId } = req.body;
+  db.prepare('INSERT INTO "ticket_label_history" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (1, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId || null);
+  res.json({ success: true });
+});
+app.delete('/api/tickets/:id/labels/:labelId', (req, res) => {
+  db.prepare('INSERT INTO "ticket_label_history" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (0, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, null);
+  res.json({ success: true });
+});
+
+// --- TICKET ACTIVITY ---
+app.get('/api/tickets/:id/activity', (req, res) => {
+  const events = db.prepare('SELECT * FROM "ticket_event_history" WHERE "TicketId" = ? ORDER BY "ActionDate" DESC').all(req.params.id).map(toCamel);
+  events.forEach(e => { e.user = toCamel(db.prepare('SELECT * FROM "user" WHERE "Id" = ?').get(e.userId)); });
+  res.json(events);
+});
+
 // --- LOOKUPS ---
-app.get('/api/ticket-statuses', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_status" ORDER BY "OrderNo"').all().map(toCamel).map(s => ({...s, isClosed: !!s.isClosed}))));
-app.get('/api/ticket-priorities', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_priority" ORDER BY "Level"').all().map(toCamel)));
-app.get('/api/roles', (req, res) => res.json(db.prepare('SELECT * FROM "yetki" ORDER BY "Id"').all().map(toCamel)));
+app.get('/api/lookups/ticket-statuses', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_status" ORDER BY "OrderNo"').all().map(toCamel).map(s => ({...s, isClosed: !!s.isClosed}))));
+app.get('/api/lookups/ticket-priorities', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_priority" ORDER BY "OrderNo"').all().map(toCamel)));
+app.get('/api/lookups/privileges', (req, res) => res.json(db.prepare('SELECT * FROM "privilege" ORDER BY "OrderNo"').all().map(toCamel)));
+app.get('/api/lookups/entities', (req, res) => res.json(db.prepare('SELECT * FROM "entity" ORDER BY "Id"').all().map(toCamel)));
+app.get('/api/lookups/entity-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "entity_event_type" ORDER BY "Id"').all().map(toCamel)));
+app.get('/api/lookups/ticket-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "ticket_event_type" ORDER BY "Id"').all().map(toCamel)));
 
 app.listen(PORT, () => {
   console.log(`[API] Server çalışıyor → http://localhost:${PORT}`);

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
-import { tagsApi } from '../services/api';
+import { labelsApi } from '../services/api';
 
 const defaultColors = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#6B7280'];
 
@@ -22,7 +22,7 @@ export default function TagList() {
 
   const load = () => {
     setLoading(true);
-    tagsApi
+    labelsApi
       .getAll()
       .then(setTags)
       .catch(() => setTags([]))
@@ -48,9 +48,9 @@ export default function TagList() {
     setSaving(true);
     try {
       if (editing) {
-        await tagsApi.update(editing.id, form);
+        await labelsApi.update(editing.id, form);
       } else {
-        await tagsApi.create(form);
+        await labelsApi.create(form);
       }
       setShowModal(false);
       load();
@@ -65,7 +65,7 @@ export default function TagList() {
   const handleDelete = async (id) => {
     if (!confirm('Bu etiketi silmek istediğinize emin misiniz?')) return;
     try {
-      await tagsApi.delete(id);
+      await labelsApi.delete(id);
       load();
     } catch (err) {
       console.error('Tag delete error:', err);

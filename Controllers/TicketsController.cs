@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pratek.Data;
 using Pratek.Models;
@@ -25,10 +25,11 @@ namespace Pratek.Controllers
             var tickets = await _context.Tickets
                 .Include(t => t.Firm)
                 .Include(t => t.AssignedUser)
+                .Include(t => t.CreatedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
-                .Include(t => t.TicketTags).ThenInclude(tt => tt.Tag)
-                .OrderByDescending(t => t.CreatedAt)
+                .Include(t => t.Product)
+                .OrderByDescending(t => t.Id)
                 .ToListAsync();
 
             return Ok(tickets);
@@ -43,9 +44,10 @@ namespace Pratek.Controllers
             var ticket = await _context.Tickets
                 .Include(t => t.Firm)
                 .Include(t => t.AssignedUser)
+                .Include(t => t.CreatedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
-                .Include(t => t.TicketTags).ThenInclude(tt => tt.Tag)
+                .Include(t => t.Product)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (ticket == null)
@@ -60,19 +62,17 @@ namespace Pratek.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(Ticket model)
         {
-            model.CreatedAt = DateTime.UtcNow;
-
             _context.Tickets.Add(model);
             await _context.SaveChangesAsync();
 
-            // EVENT LOG
-            _context.EventLogs.Add(new EventLog
+            // TICKET EVENT HISTORY
+            _context.TicketEventHistories.Add(new TicketEventHistory
             {
-                EntityTypeId = 2, // Ticket
-                EventTypeId = 1,  // Created
-                EntityId = model.Id,
+                TicketId = model.Id,
+                TicketEventTypeId = 1, // Created
+                ActionDate = DateTime.UtcNow,
                 Description = $"Ticket created: {model.Title}",
-                UserId = model.CreatedBy
+                UserId = model.CreatedUserId
             });
 
             await _context.SaveChangesAsync();
@@ -81,8 +81,10 @@ namespace Pratek.Controllers
             var created = await _context.Tickets
                 .Include(t => t.Firm)
                 .Include(t => t.AssignedUser)
+                .Include(t => t.CreatedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
+                .Include(t => t.Product)
                 .FirstOrDefaultAsync(t => t.Id == model.Id);
 
             return Ok(created);
@@ -99,23 +101,23 @@ namespace Pratek.Controllers
                 return NotFound();
 
             ticket.Title = model.Title;
-            ticket.Description = model.Description;
-            ticket.TicketPriorityId = model.TicketPriorityId;
-            ticket.TicketStatusId = model.TicketStatusId;
+            ticket.Content = model.Content;
+            ticket.PriorityId = model.PriorityId;
+            ticket.StatusId = model.StatusId;
             ticket.FirmId = model.FirmId;
             ticket.AssignedUserId = model.AssignedUserId;
-            ticket.UpdatedAt = DateTime.UtcNow;
-            ticket.UpdatedBy = model.UpdatedBy;
+            ticket.ProductId = model.ProductId;
+            ticket.DueDate = model.DueDate;
 
             await _context.SaveChangesAsync();
 
-            _context.EventLogs.Add(new EventLog
+            _context.TicketEventHistories.Add(new TicketEventHistory
             {
-                EntityTypeId = 2,
-                EventTypeId = 2,
-                EntityId = ticket.Id,
+                TicketId = ticket.Id,
+                TicketEventTypeId = 2, // Updated
+                ActionDate = DateTime.UtcNow,
                 Description = $"Ticket updated: {ticket.Title}",
-                UserId = model.UpdatedBy
+                UserId = model.CreatedUserId
             });
 
             await _context.SaveChangesAsync();
@@ -124,8 +126,10 @@ namespace Pratek.Controllers
             var updated = await _context.Tickets
                 .Include(t => t.Firm)
                 .Include(t => t.AssignedUser)
+                .Include(t => t.CreatedUser)
                 .Include(t => t.Status)
                 .Include(t => t.Priority)
+                .Include(t => t.Product)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             return Ok(updated);
@@ -140,7 +144,7 @@ namespace Pratek.Controllers
             var comments = await _context.TicketComments
                 .Where(c => c.TicketId == id)
                 .Include(c => c.User)
-                .OrderByDescending(c => c.CreatedAt)
+                .OrderByDescending(c => c.ActionDate)
                 .ToListAsync();
 
             return Ok(comments);
@@ -153,16 +157,16 @@ namespace Pratek.Controllers
         public async Task<IActionResult> AddComment(int id, TicketComment model)
         {
             model.TicketId = id;
-            model.CreatedAt = DateTime.UtcNow;
+            model.ActionDate = DateTime.UtcNow;
 
             _context.TicketComments.Add(model);
             await _context.SaveChangesAsync();
 
-            _context.EventLogs.Add(new EventLog
+            _context.TicketEventHistories.Add(new TicketEventHistory
             {
-                EntityTypeId = 2,
-                EventTypeId = 2,
-                EntityId = id,
+                TicketId = id,
+                TicketEventTypeId = 2, // Updated
+                ActionDate = DateTime.UtcNow,
                 Description = "Comment added",
                 UserId = model.UserId
             });
@@ -183,17 +187,19 @@ namespace Pratek.Controllers
             if (ticket == null)
                 return NotFound();
 
+            var oldValue = ticket.AssignedUserId?.ToString();
             ticket.AssignedUserId = userId;
 
             await _context.SaveChangesAsync();
 
-            // EVENT LOG
-            _context.EventLogs.Add(new EventLog
+            _context.TicketEventHistories.Add(new TicketEventHistory
             {
-                EntityTypeId = 2, // Ticket
-                EventTypeId = 3,  // Assigned
-                EntityId = ticket.Id,
+                TicketId = ticket.Id,
+                TicketEventTypeId = 4, // Assigned
+                ActionDate = DateTime.UtcNow,
                 Description = $"Assigned to user {userId}",
+                OldValue = oldValue,
+                NewValue = userId.ToString(),
                 UserId = userId
             });
 
@@ -212,16 +218,19 @@ namespace Pratek.Controllers
             if (ticket == null)
                 return NotFound();
 
-            ticket.TicketStatusId = statusId;
+            var oldValue = ticket.StatusId?.ToString();
+            ticket.StatusId = statusId;
 
             await _context.SaveChangesAsync();
 
-            _context.EventLogs.Add(new EventLog
+            _context.TicketEventHistories.Add(new TicketEventHistory
             {
-                EntityTypeId = 2, // Ticket
-                EventTypeId = 2,  // Updated
-                EntityId = ticket.Id,
+                TicketId = ticket.Id,
+                TicketEventTypeId = 3, // StatusChanged
+                ActionDate = DateTime.UtcNow,
                 Description = $"Status changed to {statusId}",
+                OldValue = oldValue,
+                NewValue = statusId.ToString(),
                 UserId = ticket.AssignedUserId
             });
 
@@ -231,34 +240,18 @@ namespace Pratek.Controllers
         }
 
         // --------------------------------------------------
-        // ADD TAG
+        // ADD LABEL
         // --------------------------------------------------
-        [HttpPost("{id}/tag/{tagId}")]
-        public async Task<IActionResult> AddTag(int id, int tagId, int userId)
+        [HttpPost("{id}/label/{labelId}")]
+        public async Task<IActionResult> AddLabel(int id, int labelId, int userId)
         {
-            var exists = await _context.TicketTags
-                .AnyAsync(x => x.TicketId == id && x.TagId == tagId);
-
-            if (exists)
-                return BadRequest("Tag already exists");
-
-            _context.TicketTags.Add(new TicketTag
+            _context.TicketLabelHistories.Add(new TicketLabelHistory
             {
                 TicketId = id,
-                TagId = tagId,
-                CreatedBy = userId,
-                CreatedAt = DateTime.UtcNow
-            });
-
-            await _context.SaveChangesAsync();
-
-            _context.EventLogs.Add(new EventLog
-            {
-                EntityTypeId = 2,
-                EventTypeId = 2,
-                EntityId = id,
-                Description = $"Tag {tagId} added",
-                UserId = userId
+                LabelId = labelId,
+                UserId = userId,
+                ActionType = true, // added
+                ActionDate = DateTime.UtcNow
             });
 
             await _context.SaveChangesAsync();
@@ -267,32 +260,39 @@ namespace Pratek.Controllers
         }
 
         // --------------------------------------------------
-        // REMOVE TAG
+        // REMOVE LABEL
         // --------------------------------------------------
-        [HttpDelete("{id}/tag/{tagId}")]
-        public async Task<IActionResult> RemoveTag(int id, int tagId, int userId)
+        [HttpDelete("{id}/label/{labelId}")]
+        public async Task<IActionResult> RemoveLabel(int id, int labelId, int userId)
         {
-            var tag = await _context.TicketTags
-                .FirstOrDefaultAsync(x => x.TicketId == id && x.TagId == tagId);
-
-            if (tag == null)
-                return NotFound();
-
-            _context.TicketTags.Remove(tag);
-            await _context.SaveChangesAsync();
-
-            _context.EventLogs.Add(new EventLog
+            _context.TicketLabelHistories.Add(new TicketLabelHistory
             {
-                EntityTypeId = 2,
-                EventTypeId = 2,
-                EntityId = id,
-                Description = $"Tag {tagId} removed",
-                UserId = userId
+                TicketId = id,
+                LabelId = labelId,
+                UserId = userId,
+                ActionType = false, // removed
+                ActionDate = DateTime.UtcNow
             });
 
             await _context.SaveChangesAsync();
 
             return Ok();
+        }
+
+        // --------------------------------------------------
+        // GET EVENT HISTORY
+        // --------------------------------------------------
+        [HttpGet("{id}/activity")]
+        public async Task<IActionResult> GetActivity(int id)
+        {
+            var history = await _context.TicketEventHistories
+                .Where(e => e.TicketId == id)
+                .Include(e => e.TicketEventType)
+                .Include(e => e.User)
+                .OrderByDescending(e => e.ActionDate)
+                .ToListAsync();
+
+            return Ok(history);
         }
 
         // --------------------------------------------------
@@ -306,23 +306,10 @@ namespace Pratek.Controllers
                 return NotFound();
 
             // Remove related records first to avoid FK constraint violations
-            var ticketTags = _context.TicketTags.Where(tt => tt.TicketId == id);
-            _context.TicketTags.RemoveRange(ticketTags);
-
             var ticketComments = _context.TicketComments.Where(c => c.TicketId == id);
             _context.TicketComments.RemoveRange(ticketComments);
 
             _context.Tickets.Remove(ticket);
-            await _context.SaveChangesAsync();
-
-            _context.EventLogs.Add(new EventLog
-            {
-                EntityTypeId = 2,
-                EventTypeId = 4, // Deleted
-                EntityId = id,
-                Description = "Ticket deleted"
-            });
-
             await _context.SaveChangesAsync();
 
             return Ok();

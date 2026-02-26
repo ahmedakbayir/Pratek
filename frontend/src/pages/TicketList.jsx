@@ -21,7 +21,7 @@ import {
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { ticketsApi, firmsApi, productsApi, tagsApi, statusesApi, usersApi } from '../services/api';
+import { ticketsApi, firmsApi, productsApi, labelsApi, statusesApi, usersApi } from '../services/api';
 
 function getPriorityVariant(name) {
   if (!name) return { label: 'Normal', variant: 'info' };
@@ -79,7 +79,7 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
     result = result.filter(
       (t) =>
         t.title?.toLowerCase().includes(q) ||
-        t.description?.toLowerCase().includes(q) ||
+        t.content?.toLowerCase().includes(q) ||
         t.firm?.name?.toLowerCase().includes(q) ||
         t.assignedUser?.name?.toLowerCase().includes(q) ||
         String(t.id).includes(q)
@@ -91,17 +91,17 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
 
   if (firmFilter.length) result = result.filter((t) => firmFilter.includes(t.firmId));
   if (productFilter.length) result = result.filter((t) => productFilter.includes(t.productId));
-  if (statusFilter && statusFilter.length) result = result.filter((t) => statusFilter.includes(t.ticketStatusId));
-  if (tagFilter.length) result = result.filter((t) => t.ticketTags?.some((tt) => tagFilter.includes(tt.tagId)));
-  if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.ticketPriorityId));
+  if (statusFilter && statusFilter.length) result = result.filter((t) => statusFilter.includes(t.statusId));
+  if (tagFilter.length) result = result.filter((t) => t.ticketLabels?.some((tl) => tagFilter.includes(tl.labelId)));
+  if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.priorityId));
   if (assignedUserFilter && assignedUserFilter.length) result = result.filter((t) => assignedUserFilter.includes(t.assignedUserId));
 
   result.sort((a, b) => {
     switch (sortBy) {
-      case 'date-asc': return new Date(a.createdAt) - new Date(b.createdAt);
-      case 'date-desc': return new Date(b.createdAt) - new Date(a.createdAt);
-      case 'priority-asc': return (a.ticketPriorityId || 3) - (b.ticketPriorityId || 3);
-      case 'priority-desc': return (b.ticketPriorityId || 3) - (a.ticketPriorityId || 3);
+      case 'date-asc': return (a.id || 0) - (b.id || 0);
+      case 'date-desc': return (b.id || 0) - (a.id || 0);
+      case 'priority-asc': return (a.priorityId || 3) - (b.priorityId || 3);
+      case 'priority-desc': return (b.priorityId || 3) - (a.priorityId || 3);
       case 'title-asc': return (a.title || '').localeCompare(b.title || '', 'tr');
       default: return 0;
     }
@@ -115,7 +115,7 @@ export default function TicketList() {
   const [firms, setFirms] = useState([]);
   const [products, setProducts] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -128,9 +128,9 @@ export default function TicketList() {
     return localStorage.getItem('ticket_view_mode') || 'list';
   });
 
-  // hideTagsInList persisted in localStorage, NOT cleared by clearAllFilters
-  const [hideTagsInList, setHideTagsInList] = useState(() => {
-    return localStorage.getItem('ticket_hide_tags') === 'true';
+  // hideLabelsInList persisted in localStorage, NOT cleared by clearAllFilters
+  const [hideLabelsInList, setHideLabelsInList] = useState(() => {
+    return localStorage.getItem('ticket_hide_labels') === 'true';
   });
 
   const [collapsedColumns, setCollapsedColumns] = useState(new Set());
@@ -138,7 +138,7 @@ export default function TicketList() {
   const [firmFilter, setFirmFilter] = useState([]);
   const [productFilter, setProductFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
-  const [tagFilter, setTagFilter] = useState([]);
+  const [labelFilter, setLabelFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [assignedUserFilter, setAssignedUserFilter] = useState([]);
 
@@ -151,15 +151,15 @@ export default function TicketList() {
       ticketsApi.getAll().catch(() => []),
       firmsApi.getAll().catch(() => []),
       productsApi.getAll().catch(() => []),
-      tagsApi.getAll().catch(() => []),
+      labelsApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
       usersApi.getAll().catch(() => []),
     ])
-      .then(([t, f, p, tg, s, u]) => {
+      .then(([t, f, p, lb, s, u]) => {
         setTickets(t || []);
         setFirms(f || []);
         setProducts(p || []);
-        setTags(tg || []);
+        setLabels(lb || []);
         setStatuses(s || []);
         setUsers(u || []);
       })
@@ -170,16 +170,16 @@ export default function TicketList() {
     setFirmFilter([]);
     setProductFilter([]);
     setStatusFilter([]);
-    setTagFilter([]);
+    setLabelFilter([]);
     setPriorityFilter([]);
     setAssignedUserFilter([]);
-    // NOTE: hideTagsInList is intentionally NOT cleared here
+    // NOTE: hideLabelsInList is intentionally NOT cleared here
   };
 
-  const toggleHideTags = () => {
-    setHideTagsInList((prev) => {
+  const toggleHideLabels = () => {
+    setHideLabelsInList((prev) => {
       const next = !prev;
-      localStorage.setItem('ticket_hide_tags', String(next));
+      localStorage.setItem('ticket_hide_labels', String(next));
       return next;
     });
   };
@@ -188,16 +188,16 @@ export default function TicketList() {
     firmFilter.length ||
     productFilter.length ||
     (viewMode === 'list' ? statusFilter.length : 0) ||
-    tagFilter.length ||
+    labelFilter.length ||
     priorityFilter.length ||
     assignedUserFilter.length;
 
-  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy };
+  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter: labelFilter, priorityFilter, assignedUserFilter, sortBy };
 
   const processed = useMemo(
     () => applyFilters(tickets, { ...sharedFilterParams, statusFilter }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy]
+    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, sortBy]
   );
 
   const kanbanTickets = useMemo(
@@ -206,7 +206,7 @@ export default function TicketList() {
         ? applyFilters(tickets, { ...sharedFilterParams, statusFilter: [] })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy]
+    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, sortBy]
   );
 
   const handleSetViewMode = (mode) => {
@@ -217,16 +217,16 @@ export default function TicketList() {
 
   const handleStatusChange = async (ticketId, newStatusId) => {
     const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket || ticket.ticketStatusId === newStatusId) return;
+    if (!ticket || ticket.statusId === newStatusId) return;
 
-    const originalStatusId = ticket.ticketStatusId;
+    const originalStatusId = ticket.statusId;
     const originalStatus = ticket.status;
     const newStatus = statuses.find((s) => s.id === newStatusId);
 
     // Optimistic update
     setTickets((prev) =>
       prev.map((t) =>
-        t.id === ticketId ? { ...t, ticketStatusId: newStatusId, status: newStatus } : t
+        t.id === ticketId ? { ...t, statusId: newStatusId, status: newStatus } : t
       )
     );
 
@@ -237,7 +237,7 @@ export default function TicketList() {
       setTickets((prev) =>
         prev.map((t) =>
           t.id === ticketId
-            ? { ...t, ticketStatusId: originalStatusId, status: originalStatus }
+            ? { ...t, statusId: originalStatusId, status: originalStatus }
             : t
         )
       );
@@ -328,11 +328,11 @@ export default function TicketList() {
             )}
             <FilterDropdown
               label="Etiket"
-              options={tags.map((t) => ({ id: t.id, name: t.name, colorHex: t.colorHex }))}
-              selected={tagFilter}
-              onToggle={(id) => toggleFilter(setTagFilter, id)}
-              onClear={() => setTagFilter([])}
-              hideTagsOption={{ value: hideTagsInList, onToggle: toggleHideTags }}
+              options={labels.map((l) => ({ id: l.id, name: l.name, colorHex: l.colorHex }))}
+              selected={labelFilter}
+              onToggle={(id) => toggleFilter(setLabelFilter, id)}
+              onClear={() => setLabelFilter([])}
+              hideTagsOption={{ value: hideLabelsInList, onToggle: toggleHideLabels }}
             />
             <FilterDropdown
               label="Öncelik"
@@ -476,8 +476,8 @@ export default function TicketList() {
                       onFilterFirm={(fid) => toggleFilter(setFirmFilter, fid)}
                       onFilterProduct={(pid) => toggleFilter(setProductFilter, pid)}
                       onFilterStatus={(sid) => toggleFilter(setStatusFilter, sid)}
-                      onFilterTag={(tid) => toggleFilter(setTagFilter, tid)}
-                      hideTags={hideTagsInList}
+                      onFilterLabel={(lid) => toggleFilter(setLabelFilter, lid)}
+                      hideLabels={hideLabelsInList}
                     />
                   ))}
                 </div>
@@ -492,7 +492,7 @@ export default function TicketList() {
               onToggleColumn={toggleColumn}
               onStatusChange={handleStatusChange}
               loading={loading}
-              hideTags={hideTagsInList}
+              hideLabels={hideLabelsInList}
             />
           )}
         </div>
@@ -609,7 +609,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear, hideTagsO
 }
 
 // ── Ticket row (list view) ────────────────────────────────────────────────────
-function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterTag, hideTags }) {
+function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFilterLabel, hideLabels }) {
   const prio = getPriorityVariant(ticket.priority?.name);
   const ss = getStatusStyle(ticket.status);
 
@@ -656,16 +656,16 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
             </>
           )}
         </div>
-        {!hideTags && ticket.ticketTags && ticket.ticketTags.length > 0 && (
+        {!hideLabels && ticket.ticketLabels && ticket.ticketLabels.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {ticket.ticketTags.map((tt) => (
+            {ticket.ticketLabels.map((tl) => (
               <span
-                key={tt.tagId}
-                onClick={(e) => clickFilter(e, () => onFilterTag(tt.tagId))}
+                key={tl.labelId}
+                onClick={(e) => clickFilter(e, () => onFilterLabel(tl.labelId))}
                 className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px] hover:opacity-80 cursor-pointer transition-opacity"
-                style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+                style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
               >
-                {tt.tag?.name}
+                {tl.label?.name}
               </span>
             ))}
           </div>
@@ -674,7 +674,7 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
 
       <div>
         <span
-          onClick={(e) => clickFilter(e, () => onFilterStatus(ticket.ticketStatusId))}
+          onClick={(e) => clickFilter(e, () => onFilterStatus(ticket.statusId))}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 transition-opacity ${ss.bg} ${ss.text}`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`} />
@@ -699,8 +699,7 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
       </div>
 
       <div className="flex items-center gap-1 text-xs text-surface-500">
-        <Clock className="w-3.5 h-3.5" />
-        {formatDate(ticket.createdAt)}
+        <span className="font-mono">#{ticket.id}</span>
       </div>
 
       <div className="flex justify-end">
@@ -716,7 +715,7 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
 }
 
 // ── Kanban Board ──────────────────────────────────────────────────────────────
-function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onStatusChange, loading, hideTags }) {
+function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onStatusChange, loading, hideLabels }) {
   const [draggingId, setDraggingId] = useState(null);
   const [draggingFromStatusId, setDraggingFromStatusId] = useState(null);
   const [dragOverStatusId, setDragOverStatusId] = useState(null);
@@ -730,7 +729,7 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
       const next = { ...prev };
       statuses.forEach((status) => {
         const colTicketIds = tickets
-          .filter((t) => t.ticketStatusId === status.id)
+          .filter((t) => t.statusId === status.id)
           .map((t) => t.id);
         const existing = next[status.id] || [];
         // Keep existing order, append new tickets, drop removed ones
@@ -845,7 +844,7 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
   return (
     <div className="flex gap-3 p-4 overflow-x-auto pb-5" style={{ height: 'calc(100vh - 160px)' }}>
       {statuses.map((status) => {
-        const columnTickets = tickets.filter((t) => t.ticketStatusId === status.id);
+        const columnTickets = tickets.filter((t) => t.statusId === status.id);
         const columnOrder = kanbanOrder[status.id] || columnTickets.map((t) => t.id);
         const orderedTickets = columnOrder
           .map((id) => columnTickets.find((t) => t.id === id))
@@ -869,7 +868,7 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
             dragOverCardId={dragOverCardId}
             dragOverPosition={dragOverPosition}
             loading={loading}
-            hideTags={hideTags}
+            hideLabels={hideLabels}
           />
         );
       })}
@@ -899,7 +898,7 @@ function KanbanColumn({
   dragOverCardId,
   dragOverPosition,
   loading,
-  hideTags,
+  hideLabels,
 }) {
   const ss = getStatusStyle(status);
 
@@ -992,7 +991,7 @@ function KanbanColumn({
               isDragging={draggingId === ticket.id}
               isDragOver={dragOverCardId === ticket.id}
               dragOverPosition={dragOverCardId === ticket.id ? dragOverPosition : null}
-              hideTags={hideTags}
+              hideLabels={hideLabels}
             />
           ))
         )}
@@ -1002,7 +1001,7 @@ function KanbanColumn({
 }
 
 // ── Kanban Card ───────────────────────────────────────────────────────────────
-function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, isDragOver, dragOverPosition, hideTags }) {
+function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, isDragOver, dragOverPosition, hideLabels }) {
   const prio = getPriorityVariant(ticket.priority?.name);
   const ss = getStatusStyle(ticket.status);
   const wasDragged = useRef(false);
@@ -1080,20 +1079,20 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
           )}
         </div>
 
-        {/* Tags (conditional) */}
-        {!hideTags && ticket.ticketTags?.length > 0 && (
+        {/* Labels (conditional) */}
+        {!hideLabels && ticket.ticketLabels?.length > 0 && (
           <div className="flex items-center gap-1 mb-2 flex-wrap">
-            {ticket.ticketTags.slice(0, 3).map((tt) => (
+            {ticket.ticketLabels.slice(0, 3).map((tl) => (
               <span
-                key={tt.tagId}
+                key={tl.labelId}
                 className="inline-flex px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
-                style={{ backgroundColor: tt.tag?.colorHex || '#6B7280' }}
+                style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
               >
-                {tt.tag?.name}
+                {tl.label?.name}
               </span>
             ))}
-            {ticket.ticketTags.length > 3 && (
-              <span className="text-[10px] text-surface-400">+{ticket.ticketTags.length - 3}</span>
+            {ticket.ticketLabels.length > 3 && (
+              <span className="text-[10px] text-surface-400">+{ticket.ticketLabels.length - 3}</span>
             )}
           </div>
         )}
@@ -1116,8 +1115,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
             </span>
           )}
           <span className="flex items-center gap-1 text-xs text-surface-400 flex-shrink-0">
-            <Clock className="w-3 h-3" />
-            {formatDate(ticket.createdAt)}
+            <span className="font-mono">#{ticket.id}</span>
           </span>
         </div>
       </Link>
