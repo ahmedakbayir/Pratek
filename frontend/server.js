@@ -41,24 +41,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS "firm_product" ("FirmId" INTEGER NOT NULL REFERENCES "firm"("Id") ON DELETE CASCADE, "ProductId" INTEGER NOT NULL REFERENCES "product"("Id") ON DELETE CASCADE, PRIMARY KEY("FirmId", "ProductId"));
 `);
 
-// 3. İLK VERİLER (SEED)
-function seed(table, rows) {
-  const count = db.prepare(`SELECT COUNT(*) as c FROM "${table}"`).get().c;
-  if (count === 0) {
-    const cols = Object.keys(rows[0]);
-    const placeholders = cols.map(() => '?').join(', ');
-    const stmt = db.prepare(`INSERT INTO "${table}" ("${cols.join('", "')}") VALUES (${placeholders})`);
-    for (const r of rows) stmt.run(...cols.map(c => r[c]));
-  }
-}
-seed('ticket_status', [{Id:1,Name:'Açık',IsClosed:0,OrderNo:1},{Id:2,Name:'Devam Ediyor',IsClosed:0,OrderNo:2},{Id:3,Name:'Çözümlendi',IsClosed:1,OrderNo:3},{Id:4,Name:'Kapalı',IsClosed:1,OrderNo:4}]);
-seed('ticket_priority', [{Id:1,Name:'Kritik',OrderNo:1},{Id:2,Name:'Yüksek',OrderNo:2},{Id:3,Name:'Normal',OrderNo:3},{Id:4,Name:'Düşük',OrderNo:4}]);
-seed('entity', [{Id:1,Name:'User'},{Id:2,Name:'Ticket'},{Id:3,Name:'Firm'},{Id:4,Name:'Product'}]);
-seed('entity_event_type', [{Id:1,Name:'Created'},{Id:2,Name:'Updated'},{Id:3,Name:'Assigned'},{Id:4,Name:'Deleted'}]);
-seed('ticket_event_type', [{Id:1,Name:'Created'},{Id:2,Name:'StatusChanged'},{Id:3,Name:'PriorityChanged'},{Id:4,Name:'Assigned'},{Id:5,Name:'Updated'}]);
-seed('privilege', [{Id:1,Name:'Admin',OrderNo:1},{Id:2,Name:'Agent',OrderNo:2},{Id:3,Name:'Müşteri',OrderNo:3}]);
-
-// 4. VERİ FORMATLAYICI (PascalCase'i React için camelCase yapar)
+// 3. VERİ FORMATLAYICI (PascalCase'i React için camelCase yapar)
 const toCamel = (obj) => {
   if (!obj) return obj;
   const newObj = {};
