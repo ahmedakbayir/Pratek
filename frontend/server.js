@@ -362,9 +362,7 @@ app.get('/api/lookups/entity-event-types', (req, res) => res.json(db.prepare('SE
 app.get('/api/lookups/ticket-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "TicketEventType" ORDER BY "Id"').all().map(toCamel)));
 
 // --- FILE UPLOAD ---
-import multer from 'multer';
-// Fallback: manual multipart handling if multer not available
-app.post('/api/upload', express.raw({ type: 'multipart/form-data', limit: '50mb' }), async (req, res) => {
+app.post('/api/upload', async (req, res) => {
   try {
     // Simple base64 upload fallback
     const { fileName, data } = req.body || {};
