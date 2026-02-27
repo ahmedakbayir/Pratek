@@ -20,11 +20,11 @@ const navItems = [
   { to: '/users', icon: Users, label: 'Kullanıcılar' },
   { to: '/firms', icon: Building2, label: 'Firmalar' },
   { to: '/products', icon: Package, label: 'Ürünler' },
-  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi' },
   { to: '/labels', icon: Tags, label: 'Etiketler' },
   { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler' },
   { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar' },
   { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler' },
+  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi' },
 ];
 
 const bottomItems = [
