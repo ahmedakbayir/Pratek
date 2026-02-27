@@ -190,6 +190,7 @@ export default function TicketDetail() {
         firmId: ticket.firmId,
         assignedUserId: ticket.assignedUserId,
         productId: ticket.productId,
+        scope: ticket.scope,
         ...patch,
       };
       const updated = await ticketsApi.update(id, payload);

@@ -25,12 +25,19 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
 
-    // Add Scope column if not exists (for existing databases)
-    try
+    // Add missing columns if not exists (for existing databases)
+    string[] migrations = new[]
     {
-        db.Database.ExecuteSqlRaw("ALTER TABLE Ticket ADD COLUMN Scope TEXT");
+        "ALTER TABLE Ticket ADD COLUMN Scope TEXT",
+        "ALTER TABLE TicketPriority ADD COLUMN ColorHex TEXT",
+        "ALTER TABLE TicketStatus ADD COLUMN ColorHex TEXT",
+        "ALTER TABLE Privilege ADD COLUMN ColorHex TEXT",
+    };
+    foreach (var sql in migrations)
+    {
+        try { db.Database.ExecuteSqlRaw(sql); }
+        catch { /* Column already exists */ }
     }
-    catch { /* Column already exists */ }
 }
 
 // Ensure uploads directory exists

@@ -30,7 +30,7 @@ import {
   Minus,
 } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, firmsApi, prioritiesApi, labelsApi } from '../services/api';
+import { ticketsApi, firmsApi, prioritiesApi, labelsApi, statusesApi } from '../services/api';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -47,6 +47,7 @@ export default function CreateTicket() {
   const [saving, setSaving] = useState(false);
   const [firms, setFirms] = useState([]);
   const [priorities, setPriorities] = useState([]);
+  const [statuses, setStatuses] = useState([]);
   const [firmProducts, setFirmProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [allLabels, setAllLabels] = useState([]);
@@ -60,6 +61,7 @@ export default function CreateTicket() {
   const [form, setForm] = useState({
     title: '',
     priorityId: '',
+    statusId: '',
     firmId: '',
     productId: '',
     scope: '',
@@ -98,9 +100,22 @@ export default function CreateTicket() {
     }
   }, [priorities]);
 
+  // Set default status to "Yeni Talep" once statuses are loaded
+  useEffect(() => {
+    if (statuses.length > 0 && !form.statusId) {
+      const yeniTalep = statuses.find(
+        (s) => s.name && (s.name.toLowerCase().includes('yeni') || s.name.toLowerCase().includes('new'))
+      );
+      if (yeniTalep) {
+        setForm((prev) => ({ ...prev, statusId: String(yeniTalep.id) }));
+      }
+    }
+  }, [statuses]);
+
   useEffect(() => {
     firmsApi.getAll().then(setFirms).catch(() => {});
     prioritiesApi.getAll().then(setPriorities).catch(() => {});
+    statusesApi.getAll().then(setStatuses).catch(() => {});
     labelsApi.getAll().then(setAllLabels).catch(() => {});
   }, []);
 
@@ -226,7 +241,7 @@ export default function CreateTicket() {
         title: form.title,
         content: finalContent,
         priorityId: form.priorityId ? Number(form.priorityId) : null,
-        statusId: null,
+        statusId: form.statusId ? Number(form.statusId) : null,
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: null,
         productId: form.productId ? Number(form.productId) : null,

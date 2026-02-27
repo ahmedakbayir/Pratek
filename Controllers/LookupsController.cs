@@ -37,6 +37,7 @@ namespace Pratek.Controllers
             entity.Name = model.Name;
             entity.IsClosed = model.IsClosed;
             entity.OrderNo = model.OrderNo;
+            entity.ColorHex = model.ColorHex;
             await _context.SaveChangesAsync();
             return Ok(entity);
         }
@@ -71,6 +72,7 @@ namespace Pratek.Controllers
             if (entity == null) return NotFound();
             entity.Name = model.Name;
             entity.OrderNo = model.OrderNo;
+            entity.ColorHex = model.ColorHex;
             await _context.SaveChangesAsync();
             return Ok(entity);
         }
@@ -105,6 +107,7 @@ namespace Pratek.Controllers
             if (entity == null) return NotFound();
             entity.Name = model.Name;
             entity.OrderNo = model.OrderNo;
+            entity.ColorHex = model.ColorHex;
             await _context.SaveChangesAsync();
             return Ok(entity);
         }
