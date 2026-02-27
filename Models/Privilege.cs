@@ -7,5 +7,7 @@ namespace Pratek.Models
         public string? Name { get; set; }
 
         public int? OrderNo { get; set; }
+
+        public string? ColorHex { get; set; }
     }
 }

@@ -4,12 +4,14 @@ import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { statusesApi } from '../services/api';
 
+const defaultColors = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#6B7280'];
+
 export default function TicketStatusList() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', isClosed: false, orderNo: '' });
+  const [form, setForm] = useState({ name: '', isClosed: false, orderNo: '', colorHex: '#3B82F6' });
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -19,14 +21,14 @@ export default function TicketStatusList() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', isClosed: false, orderNo: '' }); setShowModal(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ name: item.name, isClosed: !!item.isClosed, orderNo: item.orderNo ?? '' }); setShowModal(true); };
+  const openCreate = () => { setEditing(null); setForm({ name: '', isClosed: false, orderNo: '', colorHex: '#3B82F6' }); setShowModal(true); };
+  const openEdit = (item) => { setEditing(item); setForm({ name: item.name, isClosed: !!item.isClosed, orderNo: item.orderNo ?? '', colorHex: item.colorHex || '#3B82F6' }); setShowModal(true); };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { name: form.name, isClosed: form.isClosed, orderNo: form.orderNo ? Number(form.orderNo) : null };
+      const payload = { name: form.name, isClosed: form.isClosed, orderNo: form.orderNo ? Number(form.orderNo) : null, colorHex: form.colorHex };
       if (editing) await statusesApi.update(editing.id, payload);
       else await statusesApi.create(payload);
       setShowModal(false); load();
@@ -58,6 +60,7 @@ export default function TicketStatusList() {
                 <th className="px-5 py-2.5 font-medium">ID</th>
                 <th className="px-5 py-2.5 font-medium">Sıra No</th>
                 <th className="px-5 py-2.5 font-medium">Ad</th>
+                <th className="px-5 py-2.5 font-medium">Renk</th>
                 <th className="px-5 py-2.5 font-medium">Kapalı mı?</th>
                 <th className="px-5 py-2.5 font-medium w-20"></th>
               </tr></thead>
@@ -66,7 +69,13 @@ export default function TicketStatusList() {
                   <tr key={item.id} className="border-b border-surface-50 hover:bg-surface-50/50">
                     <td className="px-5 py-3 text-surface-400 font-mono text-xs">#{item.id}</td>
                     <td className="px-5 py-3 text-surface-400 font-mono text-xs">{item.orderNo ?? '-'}</td>
-                    <td className="px-5 py-3 font-medium text-surface-900">{item.name}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.colorHex || '#6B7280' }} />
+                        <span className="font-medium text-surface-900">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-surface-400 font-mono text-xs">{item.colorHex || '-'}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.isClosed ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
                         {item.isClosed ? 'Evet' : 'Hayır'}
@@ -101,6 +110,17 @@ export default function TicketStatusList() {
                 <label htmlFor="isClosed" className="text-sm font-medium text-surface-700">Kapalı durumu (ticket kapanmış sayılır)</label>
               </div>
               <div><label className="block text-sm font-medium text-surface-700 mb-1.5">Sıra No</label><input type="number" value={form.orderNo} onChange={(e) => setForm(f => ({ ...f, orderNo: e.target.value }))} placeholder="Sıralama numarası" className="input-field" /></div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1.5">Renk</label>
+                <div className="flex items-center gap-2">
+                  {defaultColors.map((c) => (
+                    <button key={c} type="button" onClick={() => setForm(f => ({ ...f, colorHex: c }))}
+                      className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${form.colorHex === c ? 'border-surface-900 scale-110' : 'border-transparent'}`}
+                      style={{ backgroundColor: c }} />
+                  ))}
+                  <input type="color" value={form.colorHex} onChange={(e) => setForm(f => ({ ...f, colorHex: e.target.value }))} className="w-7 h-7 rounded border-0 cursor-pointer" />
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">İptal</button>
                 <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Kaydediliyor...' : editing ? 'Güncelle' : 'Oluştur'}</button>

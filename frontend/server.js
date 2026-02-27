@@ -3,13 +3,14 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Database from 'better-sqlite3';
+import { existsSync, mkdirSync, createWriteStream } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // 1. VERİTABANI BAĞLANTISI (Ortak Ana Dizinde)
 const dbPath = join(__dirname, '..', 'pratek.db');
@@ -41,6 +42,20 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS "Firm_Product" ("FirmId" INTEGER NOT NULL REFERENCES "Firm"("Id") ON DELETE CASCADE, "ProductId" INTEGER NOT NULL REFERENCES "Product"("Id") ON DELETE CASCADE, PRIMARY KEY("FirmId", "ProductId"));
 `);
 
+// --- SCHEMA MIGRATIONS (add missing columns) ---
+const safeAddColumn = (table, column, type) => {
+  try { db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${type}`); }
+  catch { /* column already exists */ }
+};
+safeAddColumn('Ticket', 'Scope', 'TEXT');
+safeAddColumn('TicketPriority', 'ColorHex', 'TEXT');
+safeAddColumn('TicketStatus', 'ColorHex', 'TEXT');
+safeAddColumn('Privilege', 'ColorHex', 'TEXT');
+
+// --- Uploads directory ---
+const uploadsDir = join(__dirname, 'uploads');
+if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+
 // 3. VERİ FORMATLAYICI (PascalCase'i React için camelCase yapar)
 const toCamel = (obj) => {
   if (!obj) return obj;
@@ -51,6 +66,12 @@ const toCamel = (obj) => {
   return newObj;
 };
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('[API ERROR]', err.message);
+  res.status(500).json({ error: err.message });
+});
+
 // 4. API ROUTE'LARI
 // --- FIRMALAR ---
 app.get('/api/firms', (req, res) => {
@@ -60,18 +81,42 @@ app.get('/api/firms', (req, res) => {
 });
 app.get('/api/firms/:id', (req, res) => res.json(toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(req.params.id))));
 app.post('/api/firms', (req, res) => {
-  const { name, orderNo, parentId, version } = req.body;
-  const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId", "Version") VALUES (?, ?, ?, ?)').run(name, orderNo || null, parentId || null, version ?? null);
-  res.json({ id: info.lastInsertRowid, ...req.body });
+  try {
+    const { name, orderNo, parentId, version } = req.body;
+    const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId", "Version") VALUES (?, ?, ?, ?)').run(name, orderNo != null ? Number(orderNo) : null, parentId ? Number(parentId) : null, version != null ? Number(version) : null);
+    const created = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(info.lastInsertRowid));
+    if (created) created.parent = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(created.parentId));
+    res.json(created);
+  } catch (err) {
+    console.error('[FIRM CREATE ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 app.put('/api/firms/:id', (req, res) => {
-  const { name, orderNo, parentId, version } = req.body;
-  db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ?, "Version" = ? WHERE "Id" = ?').run(name, orderNo || null, parentId || null, version ?? null, req.params.id);
-  res.json({ id: Number(req.params.id), ...req.body });
+  try {
+    const { name, orderNo, parentId, version } = req.body;
+    db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ?, "Version" = ? WHERE "Id" = ?').run(name, orderNo != null ? Number(orderNo) : null, parentId ? Number(parentId) : null, version != null ? Number(version) : null, req.params.id);
+    const updated = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(req.params.id));
+    if (updated) updated.parent = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(updated.parentId));
+    res.json(updated);
+  } catch (err) {
+    console.error('[FIRM UPDATE ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 app.delete('/api/firms/:id', (req, res) => {
-  db.prepare('DELETE FROM "Firm" WHERE "Id" = ?').run(req.params.id);
-  res.json({ success: true });
+  try {
+    // Nullify firm references before deleting
+    db.prepare('UPDATE "Ticket" SET "FirmId" = NULL WHERE "FirmId" = ?').run(req.params.id);
+    db.prepare('UPDATE "User" SET "FirmId" = NULL WHERE "FirmId" = ?').run(req.params.id);
+    db.prepare('UPDATE "Firm" SET "ParentId" = NULL WHERE "ParentId" = ?').run(req.params.id);
+    db.prepare('DELETE FROM "Firm_Product" WHERE "FirmId" = ?').run(req.params.id);
+    db.prepare('DELETE FROM "Firm" WHERE "Id" = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[FIRM DELETE ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 app.get('/api/firms/:firmId/products', (req, res) => {
   const products = db.prepare('SELECT p.* FROM "Product" p JOIN "Firm_Product" fp ON p."Id" = fp."ProductId" WHERE fp."FirmId" = ?').all(req.params.firmId).map(toCamel);
@@ -162,6 +207,10 @@ const getFullTicket = (id) => {
   t.status = toCamel(db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(t.statusId));
   t.priority = toCamel(db.prepare('SELECT * FROM "TicketPriority" WHERE "Id" = ?').get(t.priorityId));
   t.product = toCamel(db.prepare('SELECT * FROM "Product" WHERE "Id" = ?').get(t.productId));
+  // Product manager
+  if (t.product) {
+    t.product.manager = toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(t.product.managerId));
+  }
   const labelHistory = db.prepare(`
     SELECT tlh."LabelId", l."Name", l."ColorHex", l."Description",
            MAX(tlh."Id") as lastAction, tlh."ActionType"
@@ -171,7 +220,7 @@ const getFullTicket = (id) => {
     GROUP BY tlh."LabelId"
     HAVING tlh."ActionType" = 1
   `).all(t.id);
-  t.ticketLabels = labelHistory.map(lh => ({ label: { id: lh.LabelId, name: lh.Name, colorHex: lh.ColorHex, description: lh.Description } }));
+  t.ticketLabels = labelHistory.map(lh => ({ labelId: lh.LabelId, label: { id: lh.LabelId, name: lh.Name, colorHex: lh.ColorHex, description: lh.Description } }));
   if (t.status) t.status.isClosed = !!t.status.isClosed;
   return t;
 };
@@ -182,8 +231,8 @@ app.get('/api/tickets', (req, res) => {
 });
 app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
 app.post('/api/tickets', (req, res) => {
-  const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate } = req.body;
-  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, assignedUserId||null, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null);
+  const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate, scope } = req.body;
+  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate", "Scope") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, assignedUserId||null, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null, scope||null);
   // TicketEventHistory kaydı sadece TicketEventType tablosunda kayıt varsa oluştur
   const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType" WHERE "Id" = 1').get().c > 0;
   if (hasEventType) {
@@ -192,13 +241,37 @@ app.post('/api/tickets', (req, res) => {
   res.json(getFullTicket(info.lastInsertRowid));
 });
 app.put('/api/tickets/:id', (req, res) => {
-  const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate } = req.body;
-  db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, req.params.id);
+  const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate, scope } = req.body;
+  db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=?, "Scope"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, scope||null, req.params.id);
   res.json(getFullTicket(req.params.id));
 });
 app.delete('/api/tickets/:id', (req, res) => {
+  db.prepare('DELETE FROM "TicketComments" WHERE "TicketId" = ?').run(req.params.id);
+  db.prepare('DELETE FROM "TicketLabelHistory" WHERE "TicketId" = ?').run(req.params.id);
+  db.prepare('DELETE FROM "TicketEventHistory" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "Ticket" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// --- TICKET STATUS CHANGE ---
+app.post('/api/tickets/:id/status/:statusId', (req, res) => {
+  const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });
+  const oldStatusId = ticket.StatusId;
+  db.prepare('UPDATE "Ticket" SET "StatusId" = ? WHERE "Id" = ?').run(req.params.statusId, req.params.id);
+  const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType"').get().c > 0;
+  if (hasEventType) {
+    db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "Description", "OldValue", "NewValue", "UserId", "ActionDate") VALUES (3, ?, ?, ?, ?, ?, ?)').run(
+      req.params.id, 'Durum değiştirildi', String(oldStatusId || ''), String(req.params.statusId), ticket.AssignedUserId || null, new Date().toISOString()
+    );
+  }
+  res.json(getFullTicket(req.params.id));
+});
+
+// --- TICKET ASSIGN ---
+app.post('/api/tickets/:id/assign/:userId', (req, res) => {
+  db.prepare('UPDATE "Ticket" SET "AssignedUserId" = ? WHERE "Id" = ?').run(req.params.userId, req.params.id);
+  res.json(getFullTicket(req.params.id));
 });
 
 // --- TICKET COMMENTS ---
@@ -214,13 +287,14 @@ app.post('/api/tickets/:id/comments', (req, res) => {
 });
 
 // --- TICKET LABELS ---
-app.post('/api/tickets/:id/labels/:labelId', (req, res) => {
-  const { userId } = req.body;
-  db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (1, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId || null);
+app.post('/api/tickets/:id/label/:labelId', (req, res) => {
+  const userId = req.query.userId || req.body?.userId || null;
+  db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (1, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId);
   res.json({ success: true });
 });
-app.delete('/api/tickets/:id/labels/:labelId', (req, res) => {
-  db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (0, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, null);
+app.delete('/api/tickets/:id/label/:labelId', (req, res) => {
+  const userId = req.query.userId || null;
+  db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (0, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId);
   res.json({ success: true });
 });
 
@@ -234,14 +308,14 @@ app.get('/api/tickets/:id/activity', (req, res) => {
 // --- LOOKUPS: TICKET STATUS (CRUD) ---
 app.get('/api/lookups/ticket-statuses', (req, res) => res.json(db.prepare('SELECT * FROM "TicketStatus" ORDER BY "OrderNo"').all().map(toCamel).map(s => ({...s, isClosed: !!s.isClosed}))));
 app.post('/api/lookups/ticket-statuses', (req, res) => {
-  const { name, isClosed, orderNo } = req.body;
-  const info = db.prepare('INSERT INTO "TicketStatus" ("Name", "IsClosed", "OrderNo") VALUES (?, ?, ?)').run(name, isClosed ? 1 : 0, orderNo || null);
-  res.json({ id: info.lastInsertRowid, name, isClosed: !!isClosed, orderNo });
+  const { name, isClosed, orderNo, colorHex } = req.body;
+  const info = db.prepare('INSERT INTO "TicketStatus" ("Name", "IsClosed", "OrderNo", "ColorHex") VALUES (?, ?, ?, ?)').run(name, isClosed ? 1 : 0, orderNo || null, colorHex || null);
+  res.json({ id: info.lastInsertRowid, name, isClosed: !!isClosed, orderNo, colorHex });
 });
 app.put('/api/lookups/ticket-statuses/:id', (req, res) => {
-  const { name, isClosed, orderNo } = req.body;
-  db.prepare('UPDATE "TicketStatus" SET "Name"=?, "IsClosed"=?, "OrderNo"=? WHERE "Id"=?').run(name, isClosed ? 1 : 0, orderNo || null, req.params.id);
-  res.json({ id: Number(req.params.id), name, isClosed: !!isClosed, orderNo });
+  const { name, isClosed, orderNo, colorHex } = req.body;
+  db.prepare('UPDATE "TicketStatus" SET "Name"=?, "IsClosed"=?, "OrderNo"=?, "ColorHex"=? WHERE "Id"=?').run(name, isClosed ? 1 : 0, orderNo || null, colorHex || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, isClosed: !!isClosed, orderNo, colorHex });
 });
 app.delete('/api/lookups/ticket-statuses/:id', (req, res) => {
   db.prepare('DELETE FROM "TicketStatus" WHERE "Id" = ?').run(req.params.id);
@@ -251,14 +325,14 @@ app.delete('/api/lookups/ticket-statuses/:id', (req, res) => {
 // --- LOOKUPS: TICKET PRIORITY (CRUD) ---
 app.get('/api/lookups/ticket-priorities', (req, res) => res.json(db.prepare('SELECT * FROM "TicketPriority" ORDER BY "OrderNo"').all().map(toCamel)));
 app.post('/api/lookups/ticket-priorities', (req, res) => {
-  const { name, orderNo } = req.body;
-  const info = db.prepare('INSERT INTO "TicketPriority" ("Name", "OrderNo") VALUES (?, ?)').run(name, orderNo || null);
-  res.json({ id: info.lastInsertRowid, name, orderNo });
+  const { name, orderNo, colorHex } = req.body;
+  const info = db.prepare('INSERT INTO "TicketPriority" ("Name", "OrderNo", "ColorHex") VALUES (?, ?, ?)').run(name, orderNo || null, colorHex || null);
+  res.json({ id: info.lastInsertRowid, name, orderNo, colorHex });
 });
 app.put('/api/lookups/ticket-priorities/:id', (req, res) => {
-  const { name, orderNo } = req.body;
-  db.prepare('UPDATE "TicketPriority" SET "Name"=?, "OrderNo"=? WHERE "Id"=?').run(name, orderNo || null, req.params.id);
-  res.json({ id: Number(req.params.id), name, orderNo });
+  const { name, orderNo, colorHex } = req.body;
+  db.prepare('UPDATE "TicketPriority" SET "Name"=?, "OrderNo"=?, "ColorHex"=? WHERE "Id"=?').run(name, orderNo || null, colorHex || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, orderNo, colorHex });
 });
 app.delete('/api/lookups/ticket-priorities/:id', (req, res) => {
   db.prepare('DELETE FROM "TicketPriority" WHERE "Id" = ?').run(req.params.id);
@@ -268,14 +342,14 @@ app.delete('/api/lookups/ticket-priorities/:id', (req, res) => {
 // --- LOOKUPS: PRIVILEGE (CRUD) ---
 app.get('/api/lookups/privileges', (req, res) => res.json(db.prepare('SELECT * FROM "Privilege" ORDER BY "OrderNo"').all().map(toCamel)));
 app.post('/api/lookups/privileges', (req, res) => {
-  const { name, orderNo } = req.body;
-  const info = db.prepare('INSERT INTO "Privilege" ("Name", "OrderNo") VALUES (?, ?)').run(name, orderNo || null);
-  res.json({ id: info.lastInsertRowid, name, orderNo });
+  const { name, orderNo, colorHex } = req.body;
+  const info = db.prepare('INSERT INTO "Privilege" ("Name", "OrderNo", "ColorHex") VALUES (?, ?, ?)').run(name, orderNo || null, colorHex || null);
+  res.json({ id: info.lastInsertRowid, name, orderNo, colorHex });
 });
 app.put('/api/lookups/privileges/:id', (req, res) => {
-  const { name, orderNo } = req.body;
-  db.prepare('UPDATE "Privilege" SET "Name"=?, "OrderNo"=? WHERE "Id"=?').run(name, orderNo || null, req.params.id);
-  res.json({ id: Number(req.params.id), name, orderNo });
+  const { name, orderNo, colorHex } = req.body;
+  db.prepare('UPDATE "Privilege" SET "Name"=?, "OrderNo"=?, "ColorHex"=? WHERE "Id"=?').run(name, orderNo || null, colorHex || null, req.params.id);
+  res.json({ id: Number(req.params.id), name, orderNo, colorHex });
 });
 app.delete('/api/lookups/privileges/:id', (req, res) => {
   db.prepare('DELETE FROM "Privilege" WHERE "Id" = ?').run(req.params.id);
@@ -286,6 +360,31 @@ app.delete('/api/lookups/privileges/:id', (req, res) => {
 app.get('/api/lookups/entities', (req, res) => res.json(db.prepare('SELECT * FROM "Entity" ORDER BY "Id"').all().map(toCamel)));
 app.get('/api/lookups/entity-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "EntityEventType" ORDER BY "Id"').all().map(toCamel)));
 app.get('/api/lookups/ticket-event-types', (req, res) => res.json(db.prepare('SELECT * FROM "TicketEventType" ORDER BY "Id"').all().map(toCamel)));
+
+// --- FILE UPLOAD ---
+import multer from 'multer';
+// Fallback: manual multipart handling if multer not available
+app.post('/api/upload', express.raw({ type: 'multipart/form-data', limit: '50mb' }), async (req, res) => {
+  try {
+    // Simple base64 upload fallback
+    const { fileName, data } = req.body || {};
+    if (fileName && data) {
+      const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
+      const newName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
+      const filePath = join(uploadsDir, newName);
+      const buffer = Buffer.from(data, 'base64');
+      const { writeFileSync } = await import('fs');
+      writeFileSync(filePath, buffer);
+      return res.json({ url: `/uploads/${newName}`, name: fileName, size: buffer.length });
+    }
+    res.status(400).json({ error: 'No file provided' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve uploaded files
+app.use('/uploads', express.static(uploadsDir));
 
 app.listen(PORT, () => {
   console.log(`[API] Server çalışıyor → http://localhost:${PORT}`);

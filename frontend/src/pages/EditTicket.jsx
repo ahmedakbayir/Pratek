@@ -21,6 +21,7 @@ export default function EditTicket() {
     firmId: '',
     assignedUserId: '',
     productId: '',
+    scope: '',
   });
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function EditTicket() {
           firmId: ticket.firmId || '',
           assignedUserId: ticket.assignedUserId || '',
           productId: ticket.productId || '',
+          scope: ticket.scope || '',
         });
         setUsers(u);
         setFirms(f);
@@ -64,6 +66,7 @@ export default function EditTicket() {
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
         productId: form.productId ? Number(form.productId) : null,
+        scope: form.scope || null,
       };
       await ticketsApi.update(id, payload);
       navigate(`/tickets/${id}`);
@@ -202,6 +205,18 @@ export default function EditTicket() {
                   className="input-field"
                 />
               )}
+            </div>
+
+            {/* Scope */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                Kapsam
+              </label>
+              <select value={form.scope} onChange={update('scope')} className="input-field">
+                <option value="">Seçiniz...</option>
+                <option value="Yerel">Yerel</option>
+                <option value="Genel">Genel</option>
+              </select>
             </div>
           </div>
 

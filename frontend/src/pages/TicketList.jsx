@@ -17,11 +17,13 @@ import {
   ChevronRight,
   AlignJustify,
   Kanban,
+  UserCheck,
+  UserPlus,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { ticketsApi, firmsApi, productsApi, labelsApi, statusesApi, usersApi } from '../services/api';
+import { ticketsApi, firmsApi, productsApi, labelsApi, statusesApi, usersApi, prioritiesApi } from '../services/api';
 
 function getPriorityVariant(name) {
   if (!name) return { label: 'Normal', variant: 'info' };
@@ -31,13 +33,6 @@ function getPriorityVariant(name) {
   if (n.includes('düşük') || n.includes('low')) return { label: name, variant: 'default' };
   return { label: name, variant: 'info' };
 }
-
-const STATIC_PRIORITIES = [
-  { id: 1, name: 'Kritik' },
-  { id: 2, name: 'Yüksek' },
-  { id: 3, name: 'Normal' },
-  { id: 4, name: 'Düşük' },
-];
 
 const statusTabs = [
   { key: 'all', label: 'Tümü' },
@@ -71,7 +66,7 @@ function toggleFilter(setter, id) {
   setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 }
 
-function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, sortBy }) {
+function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy }) {
   let result = [...tickets];
 
   if (searchQuery) {
@@ -95,13 +90,15 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
   if (tagFilter.length) result = result.filter((t) => t.ticketLabels?.some((tl) => tagFilter.includes(tl.labelId)));
   if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.priorityId));
   if (assignedUserFilter && assignedUserFilter.length) result = result.filter((t) => assignedUserFilter.includes(t.assignedUserId));
+  if (productOwnerFilter && productOwnerFilter.length) result = result.filter((t) => productOwnerFilter.includes(t.product?.manager?.id));
+  if (createdByFilter && createdByFilter.length) result = result.filter((t) => createdByFilter.includes(t.createdUserId));
 
   result.sort((a, b) => {
     switch (sortBy) {
       case 'date-asc': return (a.id || 0) - (b.id || 0);
       case 'date-desc': return (b.id || 0) - (a.id || 0);
-      case 'priority-asc': return (a.priorityId || 3) - (b.priorityId || 3);
-      case 'priority-desc': return (b.priorityId || 3) - (a.priorityId || 3);
+      case 'priority-asc': return (a.priorityId || 999) - (b.priorityId || 999);
+      case 'priority-desc': return (b.priorityId || 0) - (a.priorityId || 0);
       case 'title-asc': return (a.title || '').localeCompare(b.title || '', 'tr');
       default: return 0;
     }
@@ -117,18 +114,17 @@ export default function TicketList() {
   const [statuses, setStatuses] = useState([]);
   const [labels, setLabels] = useState([]);
   const [users, setUsers] = useState([]);
+  const [priorities, setPriorities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('date-desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
 
-  // viewMode persisted in localStorage
   const [viewMode, setViewMode] = useState(() => {
     return localStorage.getItem('ticket_view_mode') || 'list';
   });
 
-  // hideLabelsInList persisted in localStorage, NOT cleared by clearAllFilters
   const [hideLabelsInList, setHideLabelsInList] = useState(() => {
     return localStorage.getItem('ticket_hide_labels') === 'true';
   });
@@ -141,6 +137,8 @@ export default function TicketList() {
   const [labelFilter, setLabelFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [assignedUserFilter, setAssignedUserFilter] = useState([]);
+  const [productOwnerFilter, setProductOwnerFilter] = useState([]);
+  const [createdByFilter, setCreatedByFilter] = useState([]);
 
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
@@ -154,14 +152,16 @@ export default function TicketList() {
       labelsApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
       usersApi.getAll().catch(() => []),
+      prioritiesApi.getAll().catch(() => []),
     ])
-      .then(([t, f, p, lb, s, u]) => {
+      .then(([t, f, p, lb, s, u, pr]) => {
         setTickets(t || []);
         setFirms(f || []);
         setProducts(p || []);
         setLabels(lb || []);
         setStatuses(s || []);
         setUsers(u || []);
+        setPriorities(pr || []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -173,7 +173,8 @@ export default function TicketList() {
     setLabelFilter([]);
     setPriorityFilter([]);
     setAssignedUserFilter([]);
-    // NOTE: hideLabelsInList is intentionally NOT cleared here
+    setProductOwnerFilter([]);
+    setCreatedByFilter([]);
   };
 
   const toggleHideLabels = () => {
@@ -190,14 +191,16 @@ export default function TicketList() {
     (viewMode === 'list' ? statusFilter.length : 0) ||
     labelFilter.length ||
     priorityFilter.length ||
-    assignedUserFilter.length;
+    assignedUserFilter.length ||
+    productOwnerFilter.length ||
+    createdByFilter.length;
 
-  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter: labelFilter, priorityFilter, assignedUserFilter, sortBy };
+  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter: labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy };
 
   const processed = useMemo(
     () => applyFilters(tickets, { ...sharedFilterParams, statusFilter }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, sortBy]
+    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy]
   );
 
   const kanbanTickets = useMemo(
@@ -206,8 +209,45 @@ export default function TicketList() {
         ? applyFilters(tickets, { ...sharedFilterParams, statusFilter: [] })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, sortBy]
+    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy]
   );
+
+  // Build dynamic filter options: only values present in tickets, with counts
+  const dynamicFilterOptions = useMemo(() => {
+    const firmCounts = {};
+    const productCounts = {};
+    const priorityCounts = {};
+    const statusCounts = {};
+    const labelCounts = {};
+    const assignedUserCounts = {};
+    const productOwnerCounts = {};
+    const createdByCounts = {};
+
+    tickets.forEach((t) => {
+      if (t.firmId) firmCounts[t.firmId] = (firmCounts[t.firmId] || 0) + 1;
+      if (t.productId) productCounts[t.productId] = (productCounts[t.productId] || 0) + 1;
+      if (t.priorityId) priorityCounts[t.priorityId] = (priorityCounts[t.priorityId] || 0) + 1;
+      if (t.statusId) statusCounts[t.statusId] = (statusCounts[t.statusId] || 0) + 1;
+      if (t.assignedUserId) assignedUserCounts[t.assignedUserId] = (assignedUserCounts[t.assignedUserId] || 0) + 1;
+      if (t.createdUserId) createdByCounts[t.createdUserId] = (createdByCounts[t.createdUserId] || 0) + 1;
+      if (t.product?.manager?.id) productOwnerCounts[t.product.manager.id] = (productOwnerCounts[t.product.manager.id] || 0) + 1;
+      if (t.ticketLabels) t.ticketLabels.forEach((tl) => {
+        const lid = tl.labelId || tl.label?.id;
+        if (lid) labelCounts[lid] = (labelCounts[lid] || 0) + 1;
+      });
+    });
+
+    return {
+      firms: firms.filter((f) => firmCounts[f.id]).map((f) => ({ id: f.id, name: f.name, count: firmCounts[f.id] })),
+      products: products.filter((p) => productCounts[p.id]).map((p) => ({ id: p.id, name: p.name, count: productCounts[p.id] })),
+      priorities: priorities.filter((p) => priorityCounts[p.id]).map((p) => ({ id: p.id, name: p.name, colorHex: p.colorHex, count: priorityCounts[p.id] })),
+      statuses: statuses.filter((s) => statusCounts[s.id]).map((s) => ({ id: s.id, name: s.name, colorHex: s.colorHex, count: statusCounts[s.id] })),
+      labels: labels.filter((l) => labelCounts[l.id]).map((l) => ({ id: l.id, name: l.name, colorHex: l.colorHex, count: labelCounts[l.id] })),
+      assignedUsers: users.filter((u) => assignedUserCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: assignedUserCounts[u.id] })),
+      productOwners: users.filter((u) => productOwnerCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: productOwnerCounts[u.id] })),
+      createdBy: users.filter((u) => createdByCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: createdByCounts[u.id] })),
+    };
+  }, [tickets, firms, products, priorities, statuses, labels, users]);
 
   const handleSetViewMode = (mode) => {
     setViewMode(mode);
@@ -223,7 +263,6 @@ export default function TicketList() {
     const originalStatus = ticket.status;
     const newStatus = statuses.find((s) => s.id === newStatusId);
 
-    // Optimistic update
     setTickets((prev) =>
       prev.map((t) =>
         t.id === ticketId ? { ...t, statusId: newStatusId, status: newStatus } : t
@@ -233,7 +272,6 @@ export default function TicketList() {
     try {
       await ticketsApi.changeStatus(ticketId, newStatusId);
     } catch {
-      // Revert on error
       setTickets((prev) =>
         prev.map((t) =>
           t.id === ticketId
@@ -305,14 +343,14 @@ export default function TicketList() {
             {/* Filters */}
             <FilterDropdown
               label="Firma"
-              options={firms.map((f) => ({ id: f.id, name: f.name }))}
+              options={dynamicFilterOptions.firms}
               selected={firmFilter}
               onToggle={(id) => toggleFilter(setFirmFilter, id)}
               onClear={() => setFirmFilter([])}
             />
             <FilterDropdown
               label="Ürün"
-              options={products.map((p) => ({ id: p.id, name: p.name }))}
+              options={dynamicFilterOptions.products}
               selected={productFilter}
               onToggle={(id) => toggleFilter(setProductFilter, id)}
               onClear={() => setProductFilter([])}
@@ -320,7 +358,7 @@ export default function TicketList() {
             {viewMode === 'list' && (
               <FilterDropdown
                 label="Durum"
-                options={statuses.map((s) => ({ id: s.id, name: s.name }))}
+                options={dynamicFilterOptions.statuses}
                 selected={statusFilter}
                 onToggle={(id) => toggleFilter(setStatusFilter, id)}
                 onClear={() => setStatusFilter([])}
@@ -328,7 +366,7 @@ export default function TicketList() {
             )}
             <FilterDropdown
               label="Etiket"
-              options={labels.map((l) => ({ id: l.id, name: l.name, colorHex: l.colorHex }))}
+              options={dynamicFilterOptions.labels}
               selected={labelFilter}
               onToggle={(id) => toggleFilter(setLabelFilter, id)}
               onClear={() => setLabelFilter([])}
@@ -336,17 +374,31 @@ export default function TicketList() {
             />
             <FilterDropdown
               label="Öncelik"
-              options={STATIC_PRIORITIES}
+              options={dynamicFilterOptions.priorities}
               selected={priorityFilter}
               onToggle={(id) => toggleFilter(setPriorityFilter, id)}
               onClear={() => setPriorityFilter([])}
             />
             <FilterDropdown
               label="Sorumlu"
-              options={users.map((u) => ({ id: u.id, name: u.name }))}
+              options={dynamicFilterOptions.assignedUsers}
               selected={assignedUserFilter}
               onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
               onClear={() => setAssignedUserFilter([])}
+            />
+            <FilterDropdown
+              label="Ürün Sahibi"
+              options={dynamicFilterOptions.productOwners}
+              selected={productOwnerFilter}
+              onToggle={(id) => toggleFilter(setProductOwnerFilter, id)}
+              onClear={() => setProductOwnerFilter([])}
+            />
+            <FilterDropdown
+              label="Oluşturan"
+              options={dynamicFilterOptions.createdBy}
+              selected={createdByFilter}
+              onToggle={(id) => toggleFilter(setCreatedByFilter, id)}
+              onClear={() => setCreatedByFilter([])}
             />
             {anyFilterActive ? (
               <button
@@ -360,7 +412,6 @@ export default function TicketList() {
 
             {/* Right: View Toggle + Sort */}
             <div className="ml-auto flex items-center gap-2">
-              {/* View Mode Toggle */}
               <div className="flex items-center gap-0.5 bg-surface-100 p-0.5 rounded-lg border border-surface-200">
                 <button
                   onClick={() => handleSetViewMode('list')}
@@ -423,7 +474,7 @@ export default function TicketList() {
             </div>
           </div>
 
-          {/* ── LIST VIEW ─────────────────────────────────────────────────── */}
+          {/* LIST VIEW */}
           {viewMode === 'list' ? (
             <>
               <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-200 bg-surface-50/50">
@@ -484,7 +535,7 @@ export default function TicketList() {
               )}
             </>
           ) : (
-            /* ── KANBAN VIEW ──────────────────────────────────────────────── */
+            /* KANBAN VIEW */
             <KanbanBoard
               statuses={statuses}
               tickets={kanbanTickets}
@@ -515,7 +566,8 @@ function FilterDropdown({ label, options, selected, onToggle, onClear, hideTagsO
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const count = selected.length + (hideTagsOption?.value ? 1 : 0);
+  // Count only actual filter selections, NOT the hideLabels toggle
+  const count = selected.length;
 
   return (
     <div className="relative" ref={ref}>
@@ -537,7 +589,7 @@ function FilterDropdown({ label, options, selected, onToggle, onClear, hideTagsO
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-52 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-30 py-1">
+        <div className="absolute left-0 top-full mt-1 w-56 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-30 py-1">
           {/* "Etiketleri Gizle" option at the top (only for tag filter) */}
           {hideTagsOption && (
             <>
@@ -577,12 +629,15 @@ function FilterDropdown({ label, options, selected, onToggle, onClear, hideTagsO
                     >
                       {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                     </div>
-                    <span className="truncate">{opt.name}</span>
                     {opt.colorHex && (
                       <div
-                        className="w-2.5 h-2.5 rounded-full ml-auto shrink-0"
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: opt.colorHex }}
                       />
+                    )}
+                    <span className="truncate flex-1 text-left">{opt.name}</span>
+                    {opt.count != null && (
+                      <span className="text-xs text-surface-400 shrink-0">{opt.count}</span>
                     )}
                   </button>
                 );
@@ -660,8 +715,8 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {ticket.ticketLabels.map((tl) => (
               <span
-                key={tl.labelId}
-                onClick={(e) => clickFilter(e, () => onFilterLabel(tl.labelId))}
+                key={tl.labelId || tl.label?.id}
+                onClick={(e) => clickFilter(e, () => onFilterLabel(tl.labelId || tl.label?.id))}
                 className="inline-flex items-center px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px] hover:opacity-80 cursor-pointer transition-opacity"
                 style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
               >
@@ -720,10 +775,9 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
   const [draggingFromStatusId, setDraggingFromStatusId] = useState(null);
   const [dragOverStatusId, setDragOverStatusId] = useState(null);
   const [dragOverCardId, setDragOverCardId] = useState(null);
-  const [dragOverPosition, setDragOverPosition] = useState(null); // 'before' | 'after'
-  const [kanbanOrder, setKanbanOrder] = useState({}); // { [statusId]: [ticketId, ...] }
+  const [dragOverPosition, setDragOverPosition] = useState(null);
+  const [kanbanOrder, setKanbanOrder] = useState({});
 
-  // Sync kanbanOrder when tickets or statuses change (add new, remove stale)
   useEffect(() => {
     setKanbanOrder((prev) => {
       const next = { ...prev };
@@ -732,7 +786,6 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
           .filter((t) => t.statusId === status.id)
           .map((t) => t.id);
         const existing = next[status.id] || [];
-        // Keep existing order, append new tickets, drop removed ones
         const filtered = existing.filter((id) => colTicketIds.includes(id));
         const added = colTicketIds.filter((id) => !filtered.includes(id));
         next[status.id] = [...filtered, ...added];
@@ -742,11 +795,13 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
   }, [tickets, statuses]);
 
   const handleDragStart = (e, ticketId, statusId) => {
-    e.dataTransfer.setData('ticketId', String(ticketId));
-    e.dataTransfer.setData('fromStatusId', String(statusId));
+    e.dataTransfer.setData('text/plain', JSON.stringify({ ticketId, fromStatusId: statusId }));
     e.dataTransfer.effectAllowed = 'move';
-    setDraggingId(ticketId);
-    setDraggingFromStatusId(statusId);
+    // Delay to allow the drag image to render before applying opacity
+    requestAnimationFrame(() => {
+      setDraggingId(ticketId);
+      setDraggingFromStatusId(statusId);
+    });
   };
 
   const handleDragEnd = () => {
@@ -784,10 +839,20 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
 
   const handleDrop = (e, statusId) => {
     e.preventDefault();
-    const ticketId = parseInt(e.dataTransfer.getData('ticketId'), 10);
-    const fromStatusId = parseInt(e.dataTransfer.getData('fromStatusId'), 10);
+    let ticketId, fromStatusId;
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      ticketId = data.ticketId;
+      fromStatusId = data.fromStatusId;
+    } catch {
+      setDragOverStatusId(null);
+      setDragOverCardId(null);
+      setDragOverPosition(null);
+      setDraggingId(null);
+      return;
+    }
 
-    if (isNaN(ticketId)) {
+    if (!ticketId) {
       setDragOverStatusId(null);
       setDragOverCardId(null);
       setDragOverPosition(null);
@@ -807,14 +872,11 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
     setKanbanOrder((prev) => {
       const next = { ...prev };
 
-      // Remove ticket from source column order
       if (!isSameColumn && next[fromStatusId]) {
         next[fromStatusId] = next[fromStatusId].filter((id) => id !== ticketId);
       }
 
-      // Build new target column order
       const targetOrder = [...(next[statusId] || [])];
-      // Remove ticket from current position in target (for same-column reorder)
       const existingIdx = targetOrder.indexOf(ticketId);
       if (existingIdx !== -1) targetOrder.splice(existingIdx, 1);
 
@@ -1024,19 +1086,17 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
 
   return (
     <div className="relative">
-      {/* Drop indicator — above card */}
       {isDragOver && dragOverPosition === 'before' && (
         <div className="absolute -top-1.5 left-2 right-2 h-0.5 bg-primary-500 rounded-full z-10" />
       )}
 
-      <Link
-        to={`/tickets/${ticket.id}`}
-        draggable
+      <div
+        draggable="true"
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
-        onClick={(e) => {
-          if (wasDragged.current) e.preventDefault();
+        onClick={() => {
+          if (!wasDragged.current) window.location.href = `/tickets/${ticket.id}`;
         }}
         className={`block border rounded-lg p-3 transition-all select-none ${ss.cardBg} ${
           isDragging
@@ -1079,12 +1139,12 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
           )}
         </div>
 
-        {/* Labels (conditional) */}
+        {/* Labels */}
         {!hideLabels && ticket.ticketLabels?.length > 0 && (
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             {ticket.ticketLabels.slice(0, 3).map((tl) => (
               <span
-                key={tl.labelId}
+                key={tl.labelId || tl.label?.id}
                 className="inline-flex px-1.5 py-0 text-[10px] font-medium rounded-full text-white leading-[18px]"
                 style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
               >
@@ -1097,7 +1157,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
           </div>
         )}
 
-        {/* Footer: Assignee + Date */}
+        {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t border-surface-100">
           {ticket.assignedUser ? (
             <div className="flex items-center gap-1.5 min-w-0">
@@ -1118,9 +1178,8 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
             <span className="font-mono">#{ticket.id}</span>
           </span>
         </div>
-      </Link>
+      </div>
 
-      {/* Drop indicator — below card */}
       {isDragOver && dragOverPosition === 'after' && (
         <div className="absolute -bottom-1.5 left-2 right-2 h-0.5 bg-primary-500 rounded-full z-10" />
       )}
@@ -1128,7 +1187,7 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
   );
 }
 
-// ── Loading skeleton (list view) ──────────────────────────────────────────────
+// ── Loading skeleton ──────────────────────────────────────────────────────────
 function LoadingRows() {
   return (
     <div className="divide-y divide-surface-200">
@@ -1149,9 +1208,4 @@ function LoadingRows() {
       ))}
     </div>
   );
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 }

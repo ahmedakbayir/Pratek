@@ -9,5 +9,7 @@ namespace Pratek.Models
         public bool? IsClosed { get; set; }
 
         public int? OrderNo { get; set; }
+
+        public string? ColorHex { get; set; }
     }
 }
