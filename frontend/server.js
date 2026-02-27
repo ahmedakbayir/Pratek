@@ -29,7 +29,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS "TicketStatus" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "IsClosed" INTEGER, "OrderNo" INTEGER);
   CREATE TABLE IF NOT EXISTS "TicketPriority" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER);
   CREATE TABLE IF NOT EXISTS "Privilege" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER);
-  CREATE TABLE IF NOT EXISTS "Firm" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER, "ParentId" INTEGER REFERENCES "Firm"("Id"));
+  CREATE TABLE IF NOT EXISTS "Firm" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "OrderNo" INTEGER, "ParentId" INTEGER REFERENCES "Firm"("Id"), "Version" INTEGER);
   CREATE TABLE IF NOT EXISTS "Label" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "Description" TEXT, "ColorHex" TEXT);
   CREATE TABLE IF NOT EXISTS "User" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "Mail" TEXT, "Password" TEXT, "Gsm" TEXT, "FirmId" INTEGER REFERENCES "Firm"("Id"), "PrivilegeId" INTEGER REFERENCES "Privilege"("Id"), "OrderNo" INTEGER);
   CREATE TABLE IF NOT EXISTS "Product" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "Name" TEXT, "ManagerId" INTEGER REFERENCES "User"("Id"), "OrderNo" INTEGER);
@@ -60,13 +60,13 @@ app.get('/api/firms', (req, res) => {
 });
 app.get('/api/firms/:id', (req, res) => res.json(toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(req.params.id))));
 app.post('/api/firms', (req, res) => {
-  const { name, orderNo, parentId } = req.body;
-  const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId") VALUES (?, ?, ?)').run(name, orderNo || null, parentId || null);
+  const { name, orderNo, parentId, version } = req.body;
+  const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId", "Version") VALUES (?, ?, ?, ?)').run(name, orderNo || null, parentId || null, version ?? null);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
 app.put('/api/firms/:id', (req, res) => {
-  const { name, orderNo, parentId } = req.body;
-  db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ? WHERE "Id" = ?').run(name, orderNo || null, parentId || null, req.params.id);
+  const { name, orderNo, parentId, version } = req.body;
+  db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ?, "Version" = ? WHERE "Id" = ?').run(name, orderNo || null, parentId || null, version ?? null, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/firms/:id', (req, res) => {
@@ -184,7 +184,11 @@ app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id))
 app.post('/api/tickets', (req, res) => {
   const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate } = req.body;
   const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, assignedUserId||null, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null);
-  db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "Description", "UserId", "ActionDate") VALUES (1, ?, \'Ticket oluşturuldu\', ?, ?)').run(info.lastInsertRowid, createdUserId||null, new Date().toISOString());
+  // TicketEventHistory kaydı sadece TicketEventType tablosunda kayıt varsa oluştur
+  const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType" WHERE "Id" = 1').get().c > 0;
+  if (hasEventType) {
+    db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "Description", "UserId", "ActionDate") VALUES (1, ?, \'Ticket oluşturuldu\', ?, ?)').run(info.lastInsertRowid, createdUserId||null, new Date().toISOString());
+  }
   res.json(getFullTicket(info.lastInsertRowid));
 });
 app.put('/api/tickets/:id', (req, res) => {

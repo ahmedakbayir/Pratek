@@ -194,27 +194,17 @@ export default function CreateTicket() {
               )}
             </div>
 
-            {/* Assigned User */}
+            {/* Sorumlu */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                Atanan Kullanıcı
+                Sorumlu
               </label>
-              {users.length > 0 ? (
-                <select value={form.assignedUserId} onChange={update('assignedUserId')} className="input-field">
-                  <option value="">Seçiniz...</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  value={form.assignedUserId}
-                  onChange={update('assignedUserId')}
-                  placeholder="Kullanıcı ID (opsiyonel)"
-                  className="input-field"
-                />
-              )}
+              <select value={form.assignedUserId} onChange={update('assignedUserId')} className="input-field">
+                <option value="">Seçiniz...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
