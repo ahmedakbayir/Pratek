@@ -10,6 +10,8 @@ namespace Pratek.Models
 
         public int? ParentId { get; set; }
 
+        public byte? Version { get; set; }
+
         // Navigation
         public Firm? Parent { get; set; }
     }

@@ -55,6 +55,7 @@ namespace Pratek.Controllers
             firm.Name = model.Name;
             firm.OrderNo = model.OrderNo;
             firm.ParentId = model.ParentId;
+            firm.Version = model.Version;
 
             await _context.SaveChangesAsync();
             return Ok(firm);

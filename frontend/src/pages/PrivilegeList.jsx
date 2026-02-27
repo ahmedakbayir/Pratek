@@ -63,16 +63,16 @@ export default function PrivilegeList() {
             <table className="w-full text-sm">
               <thead><tr className="border-b border-surface-100 text-left text-surface-500">
                 <th className="px-5 py-2.5 font-medium">ID</th>
-                <th className="px-5 py-2.5 font-medium">Ad</th>
                 <th className="px-5 py-2.5 font-medium">Sıra No</th>
+                <th className="px-5 py-2.5 font-medium">Ad</th>
                 <th className="px-5 py-2.5 font-medium w-20"></th>
               </tr></thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="border-b border-surface-50 hover:bg-surface-50/50">
-                    <td className="px-5 py-3 text-surface-400">{item.id}</td>
+                    <td className="px-5 py-3 text-surface-400 font-mono text-xs">#{item.id}</td>
+                    <td className="px-5 py-3 text-surface-400 font-mono text-xs">{item.orderNo ?? '-'}</td>
                     <td className="px-5 py-3 font-medium text-surface-900">{item.name}</td>
-                    <td className="px-5 py-3 text-surface-600">{item.orderNo ?? '-'}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
