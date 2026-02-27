@@ -57,7 +57,7 @@ export default function FirmList() {
 
   const openEdit = (firm) => {
     setEditing(firm);
-    setForm({ name: firm.name, orderNo: firm.orderNo ?? '', parentId: firm.parentId || '', version: firm.version ?? '' });
+    setForm({ name: firm.name, orderNo: firm.orderNo ?? '', parentId: firm.parentId || '', version: firm.version ?? '',avatarUrl: firm.avatarUrl || '' });
     setShowModal(true);
   };
 
@@ -137,11 +137,15 @@ export default function FirmList() {
                   <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
                   <div className="text-xs text-surface-400 font-mono">{firm.orderNo ?? '-'}</div>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                      <Building2 className="w-4.5 h-4.5 text-primary-600" />
+                      <div className="w-9 h-9 rounded-lg bg-primary-50 overflow-hidden flex items-center justify-center shrink-0">
+                        {firm.avatarUrl ? (
+                          <img src={firm.avatarUrl} alt={firm.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Building2 className="w-4.5 h-4.5 text-primary-600" />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-surface-900 truncate">{firm.name}</span>
                     </div>
-                    <span className="text-sm font-medium text-surface-900 truncate">{firm.name}</span>
-                  </div>
                   <div className="text-sm text-surface-600 truncate">{getFirmParentName(firm)}</div>
                   <div className="text-xs text-surface-600 font-mono">{firm.version ?? '-'}</div>
                   <div className="flex items-center gap-0.5">
