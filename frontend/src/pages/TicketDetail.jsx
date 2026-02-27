@@ -220,8 +220,6 @@ export default function TicketDetail() {
     );
   }
 
-  const prio = getPriorityVariant(ticket.priority?.name);
-
   return (
     <div>
       <Header title={`#${ticket.id} ${ticket.title}`} />
