@@ -51,6 +51,7 @@ safeAddColumn('Ticket', 'Scope', 'TEXT');
 safeAddColumn('TicketPriority', 'ColorHex', 'TEXT');
 safeAddColumn('TicketStatus', 'ColorHex', 'TEXT');
 safeAddColumn('Privilege', 'ColorHex', 'TEXT');
+safeAddColumn('Firm', 'Version', 'INTEGER');
 
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');

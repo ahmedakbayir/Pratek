@@ -23,53 +23,25 @@ import Header from '../components/Header';
 import Badge from '../components/Badge';
 import { ticketsApi, labelsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
 
-function getPriorityVariant(name) {
-  if (!name) return { label: 'Normal', variant: 'info' };
-  const n = name.toLowerCase();
-  if (n.includes('kritik') || n.includes('critical')) return { label: name, variant: 'danger' };
-  if (n.includes('yüksek') || n.includes('high')) return { label: name, variant: 'warning' };
-  if (n.includes('düşük') || n.includes('low')) return { label: name, variant: 'default' };
-  return { label: name, variant: 'info' };
+function hexToRgb(hex) {
+  if (!hex) return null;
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.substring(0, 2), 16), g: parseInt(h.substring(2, 4), 16), b: parseInt(h.substring(4, 6), 16) };
 }
 
-function getPriorityDotColor(name) {
-  if (!name) return '#3B82F6';
-  const n = name.toLowerCase();
-  if (n.includes('kritik') || n.includes('critical')) return '#EF4444';
-  if (n.includes('yüksek') || n.includes('high')) return '#F59E0B';
-  if (n.includes('düşük') || n.includes('low')) return '#9CA3AF';
+function getColorDot(entity) {
+  if (entity?.colorHex) return entity.colorHex;
   return '#3B82F6';
 }
 
-function getStatusDotColor(name) {
-  if (!name) return '#3B82F6';
-  const n = name.toLowerCase();
-  if (n === 'new' || n === 'yeni') return '#3B82F6';
-  if (n === 'in_progress' || n.includes('devam') || n.includes('progress')) return '#F59E0B';
-  if (n.includes('resolve') || n.includes('çözül') || n.includes('tamamlan')) return '#10B981';
-  if (n === 'closed' || n.includes('kapal')) return '#6B7280';
-  if (n.includes('bekle') || n.includes('wait')) return '#8B5CF6';
-  return '#3B82F6';
-}
-
-function getStatusSelectStyle(name) {
-  if (!name) return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
-  const n = name.toLowerCase();
-  if (n === 'closed' || n.includes('kapal')) return { bg: '#F1F5F9', color: '#475569', border: '#CBD5E1' };
-  if (n === 'in_progress' || n.includes('devam') || n.includes('progress')) return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
-  if (n.includes('resolve') || n.includes('çözül') || n.includes('tamamlan')) return { bg: '#ECFDF5', color: '#047857', border: '#6EE7B7' };
-  if (n.includes('bekle') || n.includes('wait')) return { bg: '#F5F3FF', color: '#6D28D9', border: '#C4B5FD' };
+function getSelectStyle(entity) {
+  if (entity?.colorHex) {
+    const rgb = hexToRgb(entity.colorHex);
+    if (rgb) {
+      return { bg: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`, color: entity.colorHex, border: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)` };
+    }
+  }
   return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
-}
-
-function getPrioritySelectStyle(name) {
-  if (!name) return {};
-  const n = name.toLowerCase();
-  if (n.includes('kritik') || n.includes('critical')) return { bg: '#FEF2F2', color: '#B91C1C', border: '#FCA5A5' };
-  if (n.includes('yüksek') || n.includes('high')) return { bg: '#FFFBEB', color: '#B45309', border: '#FCD34D' };
-  if (n.includes('normal') || n.includes('medium')) return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
-  if (n.includes('düşük') || n.includes('low')) return { bg: '#F9FAFB', color: '#6B7280', border: '#D1D5DB' };
-  return {};
 }
 
 const fieldLabels = {
@@ -96,6 +68,7 @@ export default function TicketDetail() {
   const [allStatuses, setAllStatuses] = useState([]);
   const [allPriorities, setAllPriorities] = useState([]);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const [firmProducts, setFirmProducts] = useState([]);
   const labelPickerRef = useRef(null);
 
   const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
@@ -121,6 +94,10 @@ export default function TicketDetail() {
         setAllProducts(products || []);
         setAllStatuses(statuses || []);
         setAllPriorities(priorities || []);
+        // Load firm-specific products
+        if (t.firmId) {
+          firmsApi.getProducts(t.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
+        }
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -193,6 +170,15 @@ export default function TicketDetail() {
         scope: ticket.scope,
         ...patch,
       };
+      // If firm changed, clear product and reload firm products
+      if ('firmId' in patch && patch.firmId !== ticket.firmId) {
+        payload.productId = null;
+        if (patch.firmId) {
+          firmsApi.getProducts(patch.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
+        } else {
+          setFirmProducts([]);
+        }
+      }
       const updated = await ticketsApi.update(id, payload);
       setTicket(updated);
       loadActivity();
@@ -378,8 +364,8 @@ export default function TicketDetail() {
                   ...allStatuses.map((s) => ({ value: s.id, label: s.name })),
                 ]}
                 onChange={(val) => updateTicket({ statusId: val ? Number(val) : null })}
-                colorDot={getStatusDotColor(ticket.status?.name)}
-                selectStyle={getStatusSelectStyle(ticket.status?.name)}
+                colorDot={getColorDot(ticket.status)}
+                selectStyle={getSelectStyle(ticket.status)}
               />
               {/* Priority */}
               <SidebarSelect
@@ -391,8 +377,8 @@ export default function TicketDetail() {
                   ...allPriorities.map((p) => ({ value: p.id, label: p.name })),
                 ]}
                 onChange={(val) => updateTicket({ priorityId: val ? Number(val) : null })}
-                colorDot={getPriorityDotColor(ticket.priority?.name)}
-                selectStyle={getPrioritySelectStyle(ticket.priority?.name)}
+                colorDot={getColorDot(ticket.priority)}
+                selectStyle={getSelectStyle(ticket.priority)}
               />
               {/* Assigned User */}
               <SidebarSelect
@@ -422,8 +408,8 @@ export default function TicketDetail() {
                 label="Ürün"
                 value={ticket.productId || ''}
                 options={[
-                  { value: '', label: 'Belirtilmedi' },
-                  ...allProducts.map((p) => ({ value: p.id, label: p.name })),
+                  { value: '', label: ticket.firmId ? 'Belirtilmedi' : 'Firma seçin' },
+                  ...(ticket.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
                 ]}
                 onChange={(val) => updateTicket({ productId: val ? Number(val) : null })}
               />
@@ -465,7 +451,28 @@ export default function TicketDetail() {
                 Etiketler
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                <span className="text-xs text-surface-400">Etiket yok</span>
+                {ticket.ticketLabels && ticket.ticketLabels.length > 0 ? (
+                  ticket.ticketLabels.map((tl) => (
+                    <span
+                      key={tl.labelId || tl.label?.id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-surface-100 text-surface-700"
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
+                      />
+                      {tl.label?.name}
+                      <button
+                        onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
+                        className="p-0.5 hover:text-danger transition-colors cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-surface-400">Etiket yok</span>
+                )}
                 <div className="relative" ref={labelPickerRef}>
                   <button
                     onClick={() => setShowLabelPicker(!showLabelPicker)}
@@ -541,6 +548,20 @@ function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, 
 }
 
 function StatusBadge({ status }) {
+  if (status?.colorHex) {
+    const rgb = hexToRgb(status.colorHex);
+    if (rgb) {
+      return (
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full"
+          style={{ backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`, color: status.colorHex }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.colorHex }} />
+          {status.name || 'Yeni'}
+        </span>
+      );
+    }
+  }
   const name = (status?.name || '').toLowerCase();
   let bg, text, dot;
   if (status?.isClosed || name === 'closed' || name.includes('kapal')) {

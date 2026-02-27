@@ -177,9 +177,17 @@ export default function CreateTicket() {
     setUploading(true);
     try {
       for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const reader = new FileReader();
+        const base64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, data: base64 }),
+        });
         if (!res.ok) throw new Error('Upload failed');
         const data = await res.json();
         setAttachments((prev) => [...prev, { ...data, originalName: file.name }]);
@@ -197,9 +205,17 @@ export default function CreateTicket() {
     setUploading(true);
     try {
       for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const reader = new FileReader();
+        const base64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, data: base64 }),
+        });
         if (!res.ok) throw new Error('Upload failed');
         const data = await res.json();
         editor.chain().focus().setImage({ src: data.url, alt: file.name }).run();
