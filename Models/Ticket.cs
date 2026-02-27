@@ -22,6 +22,8 @@ namespace Pratek.Models
 
         public int? StatusId { get; set; }
 
+        public string? Scope { get; set; }
+
         // Navigation
         public User? AssignedUser { get; set; }
         public User? CreatedUser { get; set; }
