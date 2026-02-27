@@ -51,6 +51,7 @@ safeAddColumn('Ticket', 'Scope', 'TEXT');
 safeAddColumn('TicketPriority', 'ColorHex', 'TEXT');
 safeAddColumn('TicketStatus', 'ColorHex', 'TEXT');
 safeAddColumn('Privilege', 'ColorHex', 'TEXT');
+safeAddColumn('Firm', 'Version', 'INTEGER');
 safeAddColumn('User', 'AvatarUrl', 'TEXT');
 safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
 

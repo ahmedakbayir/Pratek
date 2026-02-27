@@ -13,19 +13,11 @@ import StatsCard from '../components/StatsCard';
 import Badge from '../components/Badge';
 import { ticketsApi } from '../services/api';
 
-const priorityVariant = {
-  1: 'danger',
-  2: 'warning',
-  3: 'info',
-  4: 'default',
-};
-
-const priorityLabel = {
-  1: 'Kritik',
-  2: 'Yüksek',
-  3: 'Normal',
-  4: 'Düşük',
-};
+function hexToRgb(hex) {
+  if (!hex) return null;
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.substring(0, 2), 16), g: parseInt(h.substring(2, 4), 16), b: parseInt(h.substring(4, 6), 16) };
+}
 
 export default function Dashboard() {
   const [tickets, setTickets] = useState([]);
@@ -83,38 +75,69 @@ export default function Dashboard() {
                 </Link>
               </div>
             ) : (
-              recentTickets.map((ticket) => (
-                <Link
-                  key={ticket.id}
-                  to={`/tickets/${ticket.id}`}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-surface-900 truncate">
-                        {ticket.title}
-                      </span>
-                      <Badge variant={priorityVariant[ticket.priorityId] || 'default'}>
-                        {priorityLabel[ticket.priorityId] || '-'}
-                      </Badge>
+              recentTickets.map((ticket) => {
+                const prioColor = ticket.priority?.colorHex;
+                const statusColor = ticket.status?.colorHex;
+                const statusRgb = statusColor ? hexToRgb(statusColor) : null;
+                return (
+                  <Link
+                    key={ticket.id}
+                    to={`/tickets/${ticket.id}`}
+                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-surface-900 truncate">
+                          {ticket.title}
+                        </span>
+                        {prioColor ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ring-inset"
+                            style={{
+                              backgroundColor: `${prioColor}15`,
+                              color: prioColor,
+                              '--tw-ring-color': `${prioColor}30`,
+                            }}
+                          >
+                            {ticket.priority?.name || '-'}
+                          </span>
+                        ) : (
+                          <Badge variant="default">
+                            {ticket.priority?.name || '-'}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-surface-500 mt-0.5 truncate">
+                        {ticket.content ? ticket.content.replace(/<[^>]*>/g, '').substring(0, 100) : 'Açıklama yok'}
+                      </p>
                     </div>
-                    <p className="text-xs text-surface-500 mt-0.5 truncate">
-                      {ticket.content || 'Açıklama yok'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Badge
-                      variant={ticket.status?.isClosed ? 'closed' : 'open'}
-                      dot
-                    >
-                      {ticket.status?.name || '-'}
-                    </Badge>
-                    <div className="flex items-center gap-1.5 text-xs text-surface-500">
-                      <span className="font-mono text-surface-400">#{ticket.id}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {statusRgb ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full"
+                          style={{
+                            backgroundColor: `rgba(${statusRgb.r}, ${statusRgb.g}, ${statusRgb.b}, 0.1)`,
+                            color: statusColor,
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+                          {ticket.status?.name || '-'}
+                        </span>
+                      ) : (
+                        <Badge
+                          variant={ticket.status?.isClosed ? 'closed' : 'open'}
+                          dot
+                        >
+                          {ticket.status?.name || '-'}
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-1.5 text-xs text-surface-500">
+                        <span className="font-mono text-surface-400">#{ticket.id}</span>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              ))
+                  </Link>
+                );
+              })
             )}
           </div>
         </div>
@@ -133,10 +156,4 @@ function LoadingRows() {
       <div className="h-5 bg-surface-100 rounded-full w-16" />
     </div>
   ));
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 }
