@@ -10,6 +10,7 @@ import {
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { firmsApi } from '../services/api';
+import AvatarUpload from '../components/AvatarUpload';
 
 export default function FirmList() {
   const [firms, setFirms] = useState([]);
@@ -66,6 +67,7 @@ export default function FirmList() {
     try {
       const payload = {
         name: form.name,
+        avatarUrl: form.avatarUrl, // State'e eklenmeli
         orderNo: form.orderNo !== '' ? Number(form.orderNo) : null,
         parentId: form.parentId ? Number(form.parentId) : null,
         version: form.version !== '' ? Number(form.version) : null,
@@ -163,6 +165,8 @@ export default function FirmList() {
               <button onClick={() => setShowModal(false)} className="p-1 text-surface-400 hover:text-surface-600 rounded cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
+
+              <AvatarUpload label="Firma Logosu" value={form.avatarUrl} onChange={(url) => setForm(f => ({ ...f, avatarUrl: url }))} />
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">Firma Adı <span className="text-danger">*</span></label>
                 <input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Firma adını girin..." className="input-field" />

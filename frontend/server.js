@@ -51,6 +51,8 @@ safeAddColumn('Ticket', 'Scope', 'TEXT');
 safeAddColumn('TicketPriority', 'ColorHex', 'TEXT');
 safeAddColumn('TicketStatus', 'ColorHex', 'TEXT');
 safeAddColumn('Privilege', 'ColorHex', 'TEXT');
+safeAddColumn('User', 'AvatarUrl', 'TEXT');
+safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
 
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');
@@ -132,14 +134,19 @@ app.get('/api/users', (req, res) => {
   });
   res.json(users);
 });
+// POST (Yeni kullanıcı oluşturma)
 app.post('/api/users', (req, res) => {
-  const { name, mail, password, gsm, firmId, privilegeId, orderNo } = req.body;
-  const info = db.prepare('INSERT INTO "User" ("Name", "Mail", "Password", "Gsm", "FirmId", "PrivilegeId", "OrderNo") VALUES (?, ?, ?, ?, ?, ?, ?)').run(name||'', mail||'', password||'', gsm||'', firmId||null, privilegeId||null, orderNo||null);
+  const { name, mail, password, gsm, firmId, privilegeId, orderNo, avatarUrl } = req.body;
+  const info = db.prepare('INSERT INTO "User" ("Name", "Mail", "Password", "Gsm", "FirmId", "PrivilegeId", "OrderNo", "AvatarUrl") VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(name||'', mail||'', password||'', gsm||'', firmId||null, privilegeId||null, orderNo||null, avatarUrl||null);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
+
+// PUT (Kullanıcı güncelleme)
 app.put('/api/users/:id', (req, res) => {
-  const { name, mail, gsm, firmId, privilegeId, orderNo } = req.body;
-  db.prepare('UPDATE "User" SET "Name"=?, "Mail"=?, "Gsm"=?, "FirmId"=?, "PrivilegeId"=?, "OrderNo"=? WHERE "Id"=?').run(name, mail, gsm||'', firmId||null, privilegeId||null, orderNo||null, req.params.id);
+  const { name, mail, gsm, firmId, privilegeId, orderNo, avatarUrl } = req.body;
+  db.prepare('UPDATE "User" SET "Name"=?, "Mail"=?, "Gsm"=?, "FirmId"=?, "PrivilegeId"=?, "OrderNo"=?, "AvatarUrl"=? WHERE "Id"=?')
+    .run(name, mail, gsm||'', firmId||null, privilegeId||null, orderNo||null, avatarUrl||null, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/users/:id', (req, res) => {

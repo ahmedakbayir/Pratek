@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import { usersApi, privilegesApi, firmsApi } from '../services/api';
+import AvatarUpload from '../components/AvatarUpload';
 
 const roleVariants = ['default', 'danger', 'info', 'default', 'warning', 'success', 'primary'];
 const emptyForm = { name: '', mail: '', password: '', gsm: '', privilegeId: '', firmId: '', orderNo: '' };
@@ -70,7 +71,7 @@ export default function UserList() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, privilegeId: form.privilegeId ? Number(form.privilegeId) : null, firmId: form.firmId ? Number(form.firmId) : null, orderNo: form.orderNo !== '' ? Number(form.orderNo) : null };
+      const payload = { ...form, avatarUrl: form.avatarUrl, privilegeId: form.privilegeId ? Number(form.privilegeId) : null, firmId: form.firmId ? Number(form.firmId) : null, orderNo: form.orderNo !== '' ? Number(form.orderNo) : null };
       if (editing) await usersApi.update(editing.id, payload);
       else await usersApi.create(payload);
       setShowModal(false); load();
@@ -141,8 +142,13 @@ export default function UserList() {
                     <div className="text-xs text-surface-400 font-mono">#{user.id}</div>
                     <div className="text-xs text-surface-400 font-mono">{user.orderNo ?? '-'}</div>
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">{user.name?.charAt(0) || '?'}</div>
-                      <span className="text-sm font-medium text-surface-900 truncate">{user.name}</span>
+<div className="w-8 h-8 rounded-full bg-primary-100 overflow-hidden flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">
+  {user.avatarUrl ? (
+    <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+  ) : (
+    user.name?.charAt(0) || '?'
+  )}
+</div>                      <span className="text-sm font-medium text-surface-900 truncate">{user.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-surface-600 truncate"><Mail className="w-3.5 h-3.5 shrink-0 text-surface-400" />{user.mail}</div>
                     <div className="flex items-center gap-1.5 text-sm text-surface-600"><Phone className="w-3.5 h-3.5 shrink-0 text-surface-400" />{user.gsm || '-'}</div>
@@ -163,6 +169,7 @@ export default function UserList() {
       {showModal && (
         <Modal title={editing ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı'} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSave} className="space-y-4">
+            <AvatarUpload label="Profil Resmi" value={form.avatarUrl} onChange={(url) => setForm(f => ({ ...f, avatarUrl: url }))} />
             <Field label="Ad Soyad" required><input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="input-field" /></Field>
             <Field label="E-posta" required><input type="email" required value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} className="input-field" /></Field>
             {!editing && <Field label="Şifre" required><input type="password" required value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="input-field" /></Field>}

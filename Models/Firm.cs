@@ -14,5 +14,7 @@ namespace Pratek.Models
 
         // Navigation
         public Firm? Parent { get; set; }
+
+        public string? AvatarUrl { get; set; }
     }
 }
