@@ -24,7 +24,18 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    // Add Scope column if not exists (for existing databases)
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Ticket ADD COLUMN Scope TEXT");
+    }
+    catch { /* Column already exists */ }
 }
+
+// Ensure uploads directory exists
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "Uploads");
+Directory.CreateDirectory(uploadsPath);
 
 // Global exception handler – returns JSON so the frontend can display the real error
 app.Use(async (context, next) =>
@@ -51,6 +62,39 @@ app.UseCors("AllowFrontend");
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// Serve uploaded files
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+        Path.Combine(app.Environment.ContentRootPath, "Uploads")),
+    RequestPath = "/uploads"
+});
+
 app.MapControllers();
+
+// File upload endpoint
+app.MapPost("/api/upload", async (HttpContext context) =>
+{
+    var file = context.Request.Form.Files.FirstOrDefault();
+    if (file == null || file.Length == 0)
+        return Results.BadRequest(new { error = "Dosya seçilmedi" });
+
+    var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "Uploads");
+    var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+    var filePath = Path.Combine(uploadsDir, fileName);
+
+    using (var stream = new FileStream(filePath, FileMode.Create))
+    {
+        await file.CopyToAsync(stream);
+    }
+
+    return Results.Ok(new
+    {
+        url = $"/uploads/{fileName}",
+        name = file.FileName,
+        size = file.Length,
+        contentType = file.ContentType
+    });
+}).DisableAntiforgery();
 
 app.Run();

@@ -17,6 +17,7 @@ import {
   Plus,
   Minus,
   UserPlus,
+  Globe,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -278,9 +279,14 @@ export default function TicketDetail() {
                 </div>
               </div>
               <div className="px-6 py-5">
-                <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">
-                  {ticket.content || 'Aciklama eklenmemis.'}
-                </p>
+                {ticket.content ? (
+                  <div
+                    className="tiptap-editor text-sm text-surface-700 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: ticket.content }}
+                  />
+                ) : (
+                  <p className="text-sm text-surface-400">Aciklama eklenmemis.</p>
+                )}
               </div>
             </div>
 
@@ -419,6 +425,18 @@ export default function TicketDetail() {
                   ...allProducts.map((p) => ({ value: p.id, label: p.name })),
                 ]}
                 onChange={(val) => updateTicket({ productId: val ? Number(val) : null })}
+              />
+              {/* Scope (Kapsam) */}
+              <SidebarSelect
+                icon={Globe}
+                label="Kapsam"
+                value={ticket.scope || ''}
+                options={[
+                  { value: '', label: 'Belirtilmedi' },
+                  { value: 'Yerel', label: 'Yerel' },
+                  { value: 'Genel', label: 'Genel' },
+                ]}
+                onChange={(val) => updateTicket({ scope: val || null })}
               />
               {/* Creator (read-only) */}
               <SidebarItem

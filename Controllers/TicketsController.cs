@@ -108,6 +108,7 @@ namespace Pratek.Controllers
             ticket.AssignedUserId = model.AssignedUserId;
             ticket.ProductId = model.ProductId;
             ticket.DueDate = model.DueDate;
+            ticket.Scope = model.Scope;
 
             await _context.SaveChangesAsync();
 
