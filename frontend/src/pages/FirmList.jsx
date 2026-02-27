@@ -15,7 +15,7 @@ export default function FirmList() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '' });
+  const [form, setForm] = useState({ name: '', orderNo: '', parentId: '' });
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -31,13 +31,13 @@ export default function FirmList() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '' });
+    setForm({ name: '', orderNo: '', parentId: '' });
     setShowModal(true);
   };
 
   const openEdit = (firm) => {
     setEditing(firm);
-    setForm({ name: firm.name });
+    setForm({ name: firm.name, orderNo: firm.orderNo ?? '', parentId: firm.parentId || '' });
     setShowModal(true);
   };
 
@@ -45,10 +45,15 @@ export default function FirmList() {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = {
+        name: form.name,
+        orderNo: form.orderNo !== '' ? Number(form.orderNo) : null,
+        parentId: form.parentId ? Number(form.parentId) : null,
+      };
       if (editing) {
-        await firmsApi.update(editing.id, form);
+        await firmsApi.update(editing.id, payload);
       } else {
-        await firmsApi.create(form);
+        await firmsApi.create(payload);
       }
       setShowModal(false);
       load();
@@ -71,6 +76,17 @@ export default function FirmList() {
     }
   };
 
+  // Üst firma seçenekleri: düzenleme modundayken kendisini listeden çıkar
+  const parentOptions = editing
+    ? firms.filter((f) => f.id !== editing.id)
+    : firms;
+
+  const getFirmParentName = (firm) => {
+    if (!firm.parentId) return '-';
+    const parent = firm.parent || firms.find((f) => f.id === firm.parentId);
+    return parent?.name || '-';
+  };
+
   return (
     <div>
       <Header title="Firmalar" subtitle={`${firms.length} firma`} />
@@ -89,9 +105,17 @@ export default function FirmList() {
             </button>
           </div>
 
+          {/* Table Header */}
+          <div className="grid grid-cols-[0.5fr_2fr_2fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+            <span>Sıra</span>
+            <span>Firma Adı</span>
+            <span>Üst Firma</span>
+            <span />
+          </div>
+
           {/* Content */}
           {loading ? (
-            <LoadingCards />
+            <LoadingRows />
           ) : firms.length === 0 ? (
             <EmptyState
               icon={Building2}
@@ -108,20 +132,26 @@ export default function FirmList() {
               }
             />
           ) : (
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="divide-y divide-surface-100">
               {firms.map((firm) => (
                 <div
                   key={firm.id}
-                  className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-200 hover:border-primary-200 hover:bg-primary-50/30 transition-colors"
+                  className="grid grid-cols-[0.5fr_2fr_2fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                    <Building2 className="w-4.5 h-4.5 text-primary-600" />
+                  <div className="text-xs text-surface-400 font-mono">{firm.orderNo ?? '-'}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4.5 h-4.5 text-primary-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-surface-900 truncate">{firm.name}</div>
+                      <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-surface-900 truncate">{firm.name}</div>
-                    <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
+                  <div className="text-sm text-surface-600 truncate">
+                    {getFirmParentName(firm)}
                   </div>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5">
                     <button
                       onClick={() => openEdit(firm)}
                       className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
@@ -155,7 +185,7 @@ export default function FirmList() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="px-6 py-5">
+            <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">
                   Firma Adı <span className="text-danger">*</span>
@@ -164,12 +194,39 @@ export default function FirmList() {
                   type="text"
                   required
                   value={form.name}
-                  onChange={(e) => setForm({ name: e.target.value })}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="Firma adını girin..."
                   className="input-field"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-5">
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                  Üst Firma
+                </label>
+                <select
+                  value={form.parentId}
+                  onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
+                  className="input-field"
+                >
+                  <option value="">Yok (Ana firma)</option>
+                  {parentOptions.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                  Sıra No
+                </label>
+                <input
+                  type="number"
+                  value={form.orderNo}
+                  onChange={(e) => setForm((f) => ({ ...f, orderNo: e.target.value }))}
+                  placeholder="Sıralama numarası"
+                  className="input-field"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
                   İptal
                 </button>
@@ -185,16 +242,21 @@ export default function FirmList() {
   );
 }
 
-function LoadingCards() {
+function LoadingRows() {
   return (
-    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-100 animate-pulse">
-          <div className="w-9 h-9 rounded-lg bg-surface-200" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-4 bg-surface-200 rounded w-24" />
-            <div className="h-3 bg-surface-100 rounded w-10" />
+    <div className="divide-y divide-surface-100">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="grid grid-cols-[0.5fr_2fr_2fr_auto] gap-3 px-5 py-3.5 animate-pulse">
+          <div className="h-4 bg-surface-100 rounded w-8" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-surface-200" />
+            <div className="space-y-1.5">
+              <div className="h-4 bg-surface-200 rounded w-24" />
+              <div className="h-3 bg-surface-100 rounded w-10" />
+            </div>
           </div>
+          <div className="h-4 bg-surface-100 rounded w-28" />
+          <div />
         </div>
       ))}
     </div>
