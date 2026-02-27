@@ -775,9 +775,13 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
       <div className="flex items-center gap-2 min-w-0">
         {ticket.assignedUser ? (
           <>
-            <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700 shrink-0">
-              {ticket.assignedUser.name?.charAt(0) || '?'}
-            </div>
+          <div className="w-6 h-6 rounded-full bg-primary-100 overflow-hidden flex items-center justify-center text-[10px] font-medium text-primary-700 shrink-0">
+            {ticket.assignedUser?.avatarUrl ? (
+              <img src={ticket.assignedUser.avatarUrl} alt={ticket.assignedUser.name} className="w-full h-full object-cover" />
+            ) : (
+              ticket.assignedUser?.name?.charAt(0) || '?'
+            )}
+          </div>
             <span className="text-sm text-surface-700 truncate">{ticket.assignedUser.name}</span>
           </>
         ) : (

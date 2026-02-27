@@ -432,8 +432,12 @@ export default function TicketDetail() {
                 value={
                   ticket.createdUser ? (
                     <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-surface-200 flex items-center justify-center text-[10px] font-medium text-surface-600">
-                        {ticket.createdUser.name?.charAt(0)}
+                      <div className="w-5 h-5 rounded-full bg-surface-200 overflow-hidden flex items-center justify-center text-[10px] font-medium text-surface-600">
+                        {ticket.createdUser.avatarUrl ? (
+                          <img src={ticket.createdUser.avatarUrl} alt={ticket.createdUser.name} className="w-full h-full object-cover" />
+                        ) : (
+                          ticket.createdUser.name?.charAt(0)
+                        )}
                       </div>
                       {ticket.createdUser.name}
                     </div>

@@ -18,6 +18,8 @@ namespace Pratek.Models
 
         public int? PrivilegeId { get; set; }
 
+        public string? AvatarUrl { get; set; }
+
         // Navigation
         public Firm? Firm { get; set; }
         public Privilege? Privilege { get; set; }
