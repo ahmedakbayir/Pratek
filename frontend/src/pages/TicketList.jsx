@@ -25,6 +25,12 @@ import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import { ticketsApi, firmsApi, productsApi, labelsApi, statusesApi, usersApi, prioritiesApi } from '../services/api';
 
+function hexToRgb(hex) {
+  if (!hex) return null;
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.substring(0, 2), 16), g: parseInt(h.substring(2, 4), 16), b: parseInt(h.substring(4, 6), 16) };
+}
+
 function getPriorityVariant(name) {
   if (!name) return { label: 'Normal', variant: 'info' };
   const n = name.toLowerCase();
@@ -49,17 +55,29 @@ const sortOptions = [
 ];
 
 function getStatusStyle(status) {
-  if (!status) return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
+  if (!status) return { useInline: false, bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
+  if (status.colorHex) {
+    const rgb = hexToRgb(status.colorHex);
+    if (rgb) {
+      return {
+        useInline: true,
+        dotColor: status.colorHex,
+        bgColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`,
+        textColor: status.colorHex,
+        cardBgColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`,
+      };
+    }
+  }
   const name = (status.name || '').toLowerCase();
   if (status.isClosed || name === 'closed' || name.includes('kapal'))
-    return { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', cardBg: 'bg-slate-100/70' };
+    return { useInline: false, bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', cardBg: 'bg-slate-100/70' };
   if (name === 'in_progress' || name.includes('devam') || name.includes('progress'))
-    return { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', cardBg: 'bg-amber-50/50' };
+    return { useInline: false, bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', cardBg: 'bg-amber-50/50' };
   if (name.includes('resolve') || name.includes('çözül') || name.includes('tamamlan'))
-    return { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', cardBg: 'bg-emerald-50/70' };
+    return { useInline: false, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', cardBg: 'bg-emerald-50/70' };
   if (name.includes('bekle') || name.includes('wait'))
-    return { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500', cardBg: 'bg-purple-50/70' };
-  return { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
+    return { useInline: false, bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500', cardBg: 'bg-purple-50/70' };
+  return { useInline: false, bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', cardBg: 'bg-blue-50/70' };
 }
 
 function toggleFilter(setter, id) {
@@ -97,8 +115,8 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
     switch (sortBy) {
       case 'date-asc': return (a.id || 0) - (b.id || 0);
       case 'date-desc': return (b.id || 0) - (a.id || 0);
-      case 'priority-asc': return (a.priorityId || 999) - (b.priorityId || 999);
-      case 'priority-desc': return (b.priorityId || 0) - (a.priorityId || 0);
+      case 'priority-asc': return (a.priority?.orderNo ?? 999) - (b.priority?.orderNo ?? 999);
+      case 'priority-desc': return (b.priority?.orderNo ?? 0) - (a.priority?.orderNo ?? 0);
       case 'title-asc': return (a.title || '').localeCompare(b.title || '', 'tr');
       default: return 0;
     }
@@ -380,7 +398,7 @@ export default function TicketList() {
               onClear={() => setPriorityFilter([])}
             />
             <FilterDropdown
-              label="Sorumlu"
+              label="Atanan"
               options={dynamicFilterOptions.assignedUsers}
               selected={assignedUserFilter}
               onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
@@ -682,7 +700,20 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-surface-900 truncate">{ticket.title}</span>
-          <Badge variant={prio.variant}>{prio.label}</Badge>
+          {ticket.priority?.colorHex ? (
+            <span
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ring-inset"
+              style={{
+                backgroundColor: `${ticket.priority.colorHex}15`,
+                color: ticket.priority.colorHex,
+                '--tw-ring-color': `${ticket.priority.colorHex}30`,
+              }}
+            >
+              {prio.label}
+            </span>
+          ) : (
+            <Badge variant={prio.variant}>{prio.label}</Badge>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-surface-400">
           <span className="font-mono">#{ticket.id}</span>
@@ -730,9 +761,13 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
       <div>
         <span
           onClick={(e) => clickFilter(e, () => onFilterStatus(ticket.statusId))}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 transition-opacity ${ss.bg} ${ss.text}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 transition-opacity ${ss.useInline ? '' : `${ss.bg} ${ss.text}`}`}
+          style={ss.useInline ? { backgroundColor: ss.bgColor, color: ss.textColor } : undefined}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`} />
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${ss.useInline ? '' : ss.dot}`}
+            style={ss.useInline ? { backgroundColor: ss.dotColor } : undefined}
+          />
           {ticket.status?.name || 'Yeni'}
         </span>
       </div>
@@ -984,12 +1019,15 @@ function KanbanColumn({
       >
         <ChevronRight className="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
         <span
-          className={`text-xs font-semibold px-1 py-0.5 rounded-full ${ss.bg} ${ss.text}`}
-          style={{ fontSize: '10px' }}
+          className={`text-xs font-semibold px-1 py-0.5 rounded-full ${ss.useInline ? '' : `${ss.bg} ${ss.text}`}`}
+          style={ss.useInline ? { fontSize: '10px', backgroundColor: ss.bgColor, color: ss.textColor } : { fontSize: '10px' }}
         >
           {tickets.length}
         </span>
-        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ss.dot}`} />
+        <div
+          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ss.useInline ? '' : ss.dot}`}
+          style={ss.useInline ? { backgroundColor: ss.dotColor } : undefined}
+        />
         <span
           className="text-xs font-medium text-surface-600 flex-1 text-center leading-tight"
           style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
@@ -1014,10 +1052,14 @@ function KanbanColumn({
     >
       {/* Column Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-surface-200 rounded-t-xl bg-surface-0/60">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${ss.dot}`} />
+        <div
+          className={`w-2 h-2 rounded-full flex-shrink-0 ${ss.useInline ? '' : ss.dot}`}
+          style={ss.useInline ? { backgroundColor: ss.dotColor } : undefined}
+        />
         <span className="text-sm font-semibold text-surface-800 flex-1 truncate">{status.name}</span>
         <span
-          className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${ss.bg} ${ss.text}`}
+          className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${ss.useInline ? '' : `${ss.bg} ${ss.text}`}`}
+          style={ss.useInline ? { backgroundColor: ss.bgColor, color: ss.textColor } : undefined}
         >
           {tickets.length}
         </span>
@@ -1102,13 +1144,14 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
         onClick={() => {
           if (!wasDragged.current) window.location.href = `/tickets/${ticket.id}`;
         }}
-        className={`block border rounded-lg p-3 transition-all select-none ${ss.cardBg} ${
+        className={`block border rounded-lg p-3 transition-all select-none ${ss.useInline ? '' : ss.cardBg} ${
           isDragging
             ? 'opacity-40 border-primary-300 shadow-none cursor-grabbing'
             : isDragOver
             ? 'border-primary-300 shadow-sm cursor-grab'
             : 'border-surface-200 hover:border-primary-200 hover:shadow-sm cursor-grab active:cursor-grabbing'
         }`}
+        style={ss.useInline ? { backgroundColor: ss.cardBgColor } : undefined}
       >
         {/* Title + Priority */}
         <div className="flex items-start gap-2 mb-2">
@@ -1116,7 +1159,20 @@ function KanbanCard({ ticket, onDragStart, onDragEnd, onDragOver, isDragging, is
             {ticket.title}
           </span>
           <div className="flex-shrink-0">
-            <Badge variant={prio.variant}>{prio.label}</Badge>
+            {ticket.priority?.colorHex ? (
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ring-inset"
+                style={{
+                  backgroundColor: `${ticket.priority.colorHex}15`,
+                  color: ticket.priority.colorHex,
+                  '--tw-ring-color': `${ticket.priority.colorHex}30`,
+                }}
+              >
+                {prio.label}
+              </span>
+            ) : (
+              <Badge variant={prio.variant}>{prio.label}</Badge>
+            )}
           </div>
         </div>
 
