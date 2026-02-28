@@ -39,6 +39,7 @@ async function request(url, options = {}) {
 export const ticketsApi = {
   getAll: () => request('/tickets'),
   get: (id) => request(`/tickets/${id}`),
+  search: (q) => request(`/tickets/search?q=${encodeURIComponent(q || '')}`),
   create: (data) => request('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/tickets/${id}`, { method: 'DELETE' }),

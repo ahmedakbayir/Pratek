@@ -206,3 +206,101 @@ body {
   border-radius: 0.125rem;
   padding: 0.0625rem 0.125rem;
 }
+
+/* Hashtag Mention Styles */
+.hashtag-mention {
+  display: inline;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.hashtag-ticket {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-200);
+}
+
+.hashtag-ticket:hover {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.hashtag-user {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.hashtag-user:hover {
+  background-color: #FDE68A;
+  color: #78350F;
+}
+
+/* Mention Dropdown */
+.mention-dropdown {
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-200);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 50;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.mention-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.mention-dropdown-item:hover,
+.mention-dropdown-item.is-selected {
+  background-color: var(--color-primary-50);
+}
+
+.mention-dropdown-item.is-selected {
+  color: var(--color-primary-700);
+}
+
+/* TipTap mention node styling inside editor */
+.tiptap-editor [data-type="mention"] {
+  display: inline;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.tiptap-editor a[data-mention-type="ticket"] {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-200);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tiptap-editor a[data-mention-type="ticket"]:hover {
+  background-color: var(--color-primary-100);
+}
+
+.tiptap-editor span[data-mention-type="user"] {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}

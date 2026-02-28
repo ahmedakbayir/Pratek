@@ -30,7 +30,7 @@ import {
   Minus,
 } from 'lucide-react';
 import Header from '../components/Header';
-import { ticketsApi, firmsApi, prioritiesApi, labelsApi, statusesApi } from '../services/api';
+import { ticketsApi, usersApi, firmsApi, prioritiesApi, labelsApi, statusesApi } from '../services/api';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -41,6 +41,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
+import TicketMention, { setMentionData } from '../extensions/ticketMention';
 
 export default function CreateTicket() {
   const navigate = useNavigate();
@@ -72,13 +73,14 @@ export default function CreateTicket() {
     extensions: [
       StarterKit,
       Image.configure({ inline: true, allowBase64: true }),
-      Placeholder.configure({ placeholder: 'Detayli aciklama yazin...' }),
+      Placeholder.configure({ placeholder: 'Detayli aciklama yazin... (# ile ticket veya kullanici referansi ekleyin)' }),
       Underline,
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Color,
       TextStyle,
       Highlight.configure({ multicolor: true }),
+      TicketMention,
     ],
     content: '',
     editorProps: {
@@ -117,6 +119,13 @@ export default function CreateTicket() {
     prioritiesApi.getAll().then(setPriorities).catch(() => {});
     statusesApi.getAll().then(setStatuses).catch(() => {});
     labelsApi.getAll().then(setAllLabels).catch(() => {});
+    // Load tickets and users for # mention autocomplete
+    Promise.all([
+      ticketsApi.search('').catch(() => []),
+      usersApi.getAll().catch(() => []),
+    ]).then(([tickets, users]) => {
+      setMentionData(tickets, users);
+    });
   }, []);
 
   // When firm changes, fetch products for that firm
