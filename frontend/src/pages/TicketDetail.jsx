@@ -24,6 +24,7 @@ import {
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import { ticketsApi, labelsApi, usersApi, firmsApi, productsApi, statusesApi, prioritiesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 function hexToRgb(hex) {
   if (!hex) return null;
@@ -76,6 +77,8 @@ export default function TicketDetail() {
   // Local sidebar state for deferred save
   const [sidebarForm, setSidebarForm] = useState(null);
   const [savingSidebar, setSavingSidebar] = useState(false);
+
+  const { isRestrictedUser, canEditTickets, canUseMentions } = useAuth();
 
   const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
   const loadActivity = () => ticketsApi.getActivity(id).then(setActivity).catch(() => setActivity([]));
@@ -459,20 +462,22 @@ export default function TicketDetail() {
                     </div>
                     <h2 className="text-xl font-semibold text-surface-900">{ticket.title}</h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => navigate(`/tickets/${ticket.id}/edit`)}
-                      className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {canEditTickets && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => navigate(`/tickets/${ticket.id}/edit`)}
+                        className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="px-6 py-5">
@@ -535,15 +540,15 @@ export default function TicketDetail() {
                   <div className="flex-1 relative">
                     <textarea
                       ref={commentInputRef}
-                      placeholder="Yorum ekle... (# ile referans verin)"
+                      placeholder={canUseMentions ? "Yorum ekle... (# ile referans verin)" : "Yorum ekle..."}
                       rows={2}
                       value={newComment}
-                      onChange={handleCommentChange}
-                      onKeyDown={handleCommentKeyDown}
+                      onChange={canUseMentions ? handleCommentChange : (e) => setNewComment(e.target.value)}
+                      onKeyDown={canUseMentions ? handleCommentKeyDown : (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendComment(); }}
                       onBlur={() => setTimeout(() => setShowMentionPopup(false), 200)}
                       className="w-full px-3 py-2 text-sm bg-surface-50 border border-surface-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
                     />
-                    {showMentionPopup && mentionSuggestions.length > 0 && (
+                    {canUseMentions && showMentionPopup && mentionSuggestions.length > 0 && (
                       <div ref={mentionPopupRef} className="mention-dropdown" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '4px' }}>
                         {mentionSuggestions.map((item, idx) => (
                           <button
@@ -574,7 +579,7 @@ export default function TicketDetail() {
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-surface-400">Ctrl+Enter ile gonder | # ile referans</span>
+                      <span className="text-xs text-surface-400">{canUseMentions ? 'Ctrl+Enter ile gonder | # ile referans' : 'Ctrl+Enter ile gonder'}</span>
                       <button
                         onClick={handleSendComment}
                         disabled={!newComment.trim() || sendingComment}
@@ -594,79 +599,93 @@ export default function TicketDetail() {
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
 
-              <SidebarSelect
-                icon={CheckCircle2}
-                label="Durum"
-                value={sidebarForm?.statusId || ''}
-                options={[
-                  { value: '', label: 'Seçiniz...' },
-                  ...allStatuses.map((s) => ({ value: s.id, label: s.name })),
-                ]}
-                onChange={(val) => updateSidebarField('statusId', val)}
-                colorDot={getColorDot(sidebarStatus)}
-                selectStyle={getSelectStyle(sidebarStatus)}
-              />
+              {/* Restricted users see read-only text, others see dropdowns */}
+              {isRestrictedUser ? (
+                <>
+                  <SidebarItem icon={CheckCircle2} label="Durum" value={ticket.status?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={AlertCircle} label="Öncelik" value={ticket.priority?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={UserPlus} label="Atanan Kişi" value={ticket.assignedUser?.name || <span className="text-surface-400">Atanmadı</span>} />
+                  <SidebarItem icon={Building2} label="Firma" value={ticket.firm?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={Package} label="Ürün" value={ticket.product?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={Globe} label="Kapsam" value={ticket.scope || <span className="text-surface-400">Belirtilmedi</span>} />
+                </>
+              ) : (
+                <>
+                  <SidebarSelect
+                    icon={CheckCircle2}
+                    label="Durum"
+                    value={sidebarForm?.statusId || ''}
+                    options={[
+                      { value: '', label: 'Seçiniz...' },
+                      ...allStatuses.map((s) => ({ value: s.id, label: s.name })),
+                    ]}
+                    onChange={(val) => updateSidebarField('statusId', val)}
+                    colorDot={getColorDot(sidebarStatus)}
+                    selectStyle={getSelectStyle(sidebarStatus)}
+                  />
 
-              <SidebarSelect
-                icon={AlertCircle}
-                label="Öncelik"
-                value={sidebarForm?.priorityId || ''}
-                options={[
-                  { value: '', label: 'Seçiniz...' },
-                  ...allPriorities.map((p) => ({ value: p.id, label: p.name })),
-                ]}
-                onChange={(val) => updateSidebarField('priorityId', val)}
-                colorDot={getColorDot(sidebarPriority)}
-                selectStyle={getSelectStyle(sidebarPriority)}
-              />
+                  <SidebarSelect
+                    icon={AlertCircle}
+                    label="Öncelik"
+                    value={sidebarForm?.priorityId || ''}
+                    options={[
+                      { value: '', label: 'Seçiniz...' },
+                      ...allPriorities.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
+                    onChange={(val) => updateSidebarField('priorityId', val)}
+                    colorDot={getColorDot(sidebarPriority)}
+                    selectStyle={getSelectStyle(sidebarPriority)}
+                  />
 
-              <SidebarSelect
-                icon={UserPlus}
-                label="Atanan Kişi"
-                value={sidebarForm?.assignedUserId || ''}
-                options={[
-                  { value: '', label: 'Atanmadı' },
-                  ...allUsers.map((u) => ({ value: u.id, label: u.name })),
-                ]}
-                onChange={(val) => updateSidebarField('assignedUserId', val)}
-                avatarUrl={allUsers.find(u => u.id === Number(sidebarForm?.assignedUserId || ticket?.assignedUserId))?.avatarUrl}
-              />
+                  <SidebarSelect
+                    icon={UserPlus}
+                    label="Atanan Kişi"
+                    value={sidebarForm?.assignedUserId || ''}
+                    options={[
+                      { value: '', label: 'Atanmadı' },
+                      ...allUsers.map((u) => ({ value: u.id, label: u.name })),
+                    ]}
+                    onChange={(val) => updateSidebarField('assignedUserId', val)}
+                    avatarUrl={allUsers.find(u => u.id === Number(sidebarForm?.assignedUserId || ticket?.assignedUserId))?.avatarUrl}
+                  />
 
-              <SidebarSelect
-                icon={Building2}
-                label="Firma"
-                value={sidebarForm?.firmId || ''}
-                options={[
-                  { value: '', label: 'Belirtilmedi' },
-                  ...allFirms.map((f) => ({ value: f.id, label: f.name })),
-                ]}
-                onChange={(val) => updateSidebarField('firmId', val)}
-                avatarUrl={allFirms.find(f => f.id === Number(sidebarForm?.firmId || ticket?.firmId))?.avatarUrl}
-              />
+                  <SidebarSelect
+                    icon={Building2}
+                    label="Firma"
+                    value={sidebarForm?.firmId || ''}
+                    options={[
+                      { value: '', label: 'Belirtilmedi' },
+                      ...allFirms.map((f) => ({ value: f.id, label: f.name })),
+                    ]}
+                    onChange={(val) => updateSidebarField('firmId', val)}
+                    avatarUrl={allFirms.find(f => f.id === Number(sidebarForm?.firmId || ticket?.firmId))?.avatarUrl}
+                  />
 
-              <SidebarSelect
-                icon={Package}
-                label="Ürün"
-                value={sidebarForm?.productId || ''}
-                options={[
-                  { value: '', label: sidebarForm?.firmId ? 'Belirtilmedi' : 'Firma seçin' },
-                  ...(sidebarForm?.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
-                ]}
-                onChange={(val) => updateSidebarField('productId', val)}
-                avatarUrl={firmProducts.find(p => p.id === Number(sidebarForm?.productId || ticket?.productId))?.avatarUrl}
-              />
+                  <SidebarSelect
+                    icon={Package}
+                    label="Ürün"
+                    value={sidebarForm?.productId || ''}
+                    options={[
+                      { value: '', label: sidebarForm?.firmId ? 'Belirtilmedi' : 'Firma seçin' },
+                      ...(sidebarForm?.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
+                    ]}
+                    onChange={(val) => updateSidebarField('productId', val)}
+                    avatarUrl={firmProducts.find(p => p.id === Number(sidebarForm?.productId || ticket?.productId))?.avatarUrl}
+                  />
 
-              <SidebarSelect
-                icon={Globe}
-                label="Kapsam"
-                value={sidebarForm?.scope || ''}
-                options={[
-                  { value: '', label: 'Belirtilmedi' },
-                  { value: 'Yerel', label: 'Yerel' },
-                  { value: 'Genel', label: 'Genel' },
-                ]}
-                onChange={(val) => updateSidebarField('scope', val)}
-              />
+                  <SidebarSelect
+                    icon={Globe}
+                    label="Kapsam"
+                    value={sidebarForm?.scope || ''}
+                    options={[
+                      { value: '', label: 'Belirtilmedi' },
+                      { value: 'Yerel', label: 'Yerel' },
+                      { value: 'Genel', label: 'Genel' },
+                    ]}
+                    onChange={(val) => updateSidebarField('scope', val)}
+                  />
+                </>
+              )}
 
               <SidebarItem
                 icon={User}
@@ -690,8 +709,8 @@ export default function TicketDetail() {
               />
             </div>
 
-            {/* Save / Discard buttons for sidebar */}
-            {hasSidebarChanges && (
+            {/* Save / Discard buttons for sidebar - only for non-restricted users */}
+            {!isRestrictedUser && hasSidebarChanges && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSaveSidebar}
@@ -729,50 +748,54 @@ export default function TicketDetail() {
                         style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
                       />
                       {tl.label?.name}
-                      <button
-                        onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
-                        className="p-0.5 hover:text-danger transition-colors cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      {canEditTickets && (
+                        <button
+                          onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
+                          className="p-0.5 hover:text-danger transition-colors cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </span>
                   ))
                 ) : (
                   <span className="text-xs text-surface-400">Etiket yok</span>
                 )}
-                <div className="relative" ref={labelPickerRef}>
-                  <button
-                    onClick={() => setShowLabelPicker(!showLabelPicker)}
-                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer"
-                  >
-                    + Ekle
-                  </button>
-                  {showLabelPicker && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-surface-0 rounded-lg border border-surface-200 shadow-lg z-10">
-                      {availableLabels.length > 0 ? (
-                        <div className="py-1 max-h-48 overflow-y-auto">
-                          {availableLabels.map((label) => (
-                            <button
-                              key={label.id}
-                              onClick={() => handleAddLabel(label.id)}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
-                            >
-                              <div
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: label.colorHex || '#6B7280' }}
-                              />
-                              {label.name}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="px-3 py-2 text-xs text-surface-400">
-                          Eklenecek etiket kalmadi
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {canEditTickets && (
+                  <div className="relative" ref={labelPickerRef}>
+                    <button
+                      onClick={() => setShowLabelPicker(!showLabelPicker)}
+                      className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-surface-400 border border-dashed border-surface-300 rounded-full hover:text-surface-600 hover:border-surface-400 transition-colors cursor-pointer"
+                    >
+                      + Ekle
+                    </button>
+                    {showLabelPicker && (
+                      <div className="absolute top-full left-0 mt-1 w-48 bg-surface-0 rounded-lg border border-surface-200 shadow-lg z-10">
+                        {availableLabels.length > 0 ? (
+                          <div className="py-1 max-h-48 overflow-y-auto">
+                            {availableLabels.map((label) => (
+                              <button
+                                key={label.id}
+                                onClick={() => handleAddLabel(label.id)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+                              >
+                                <div
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: label.colorHex || '#6B7280' }}
+                                />
+                                {label.name}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-3 py-2 text-xs text-surface-400">
+                            Eklenecek etiket kalmadi
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

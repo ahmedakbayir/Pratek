@@ -161,7 +161,7 @@ export default function TicketList() {
 
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
-  const { isAdmin, authorizedFirmIds } = useAuth();
+  const { isAdmin, authorizedFirmIds, isRestrictedUser, canEditTickets } = useAuth();
 
   useEffect(() => {
     setLoading(true);
@@ -384,77 +384,81 @@ export default function TicketList() {
               ))}
             </div>
 
-            <div className="w-px h-6 bg-surface-200 mx-1" />
+            {/* Filters - hidden for restricted users (GDF/TKL Kullanıcı) */}
+            {!isRestrictedUser && (
+              <>
+                <div className="w-px h-6 bg-surface-200 mx-1" />
 
-            {/* Filters */}
-            <FilterDropdown
-              label="Firma"
-              options={dynamicFilterOptions.firms}
-              selected={firmFilter}
-              onToggle={(id) => toggleFilter(setFirmFilter, id)}
-              onClear={() => setFirmFilter([])}
-            />
-            <FilterDropdown
-              label="Ürün"
-              options={dynamicFilterOptions.products}
-              selected={productFilter}
-              onToggle={(id) => toggleFilter(setProductFilter, id)}
-              onClear={() => setProductFilter([])}
-            />
-            {viewMode === 'list' && (
-              <FilterDropdown
-                label="Durum"
-                options={dynamicFilterOptions.statuses}
-                selected={statusFilter}
-                onToggle={(id) => toggleFilter(setStatusFilter, id)}
-                onClear={() => setStatusFilter([])}
-              />
+                <FilterDropdown
+                  label="Firma"
+                  options={dynamicFilterOptions.firms}
+                  selected={firmFilter}
+                  onToggle={(id) => toggleFilter(setFirmFilter, id)}
+                  onClear={() => setFirmFilter([])}
+                />
+                <FilterDropdown
+                  label="Ürün"
+                  options={dynamicFilterOptions.products}
+                  selected={productFilter}
+                  onToggle={(id) => toggleFilter(setProductFilter, id)}
+                  onClear={() => setProductFilter([])}
+                />
+                {viewMode === 'list' && (
+                  <FilterDropdown
+                    label="Durum"
+                    options={dynamicFilterOptions.statuses}
+                    selected={statusFilter}
+                    onToggle={(id) => toggleFilter(setStatusFilter, id)}
+                    onClear={() => setStatusFilter([])}
+                  />
+                )}
+                <FilterDropdown
+                  label="Etiket"
+                  options={dynamicFilterOptions.labels}
+                  selected={labelFilter}
+                  onToggle={(id) => toggleFilter(setLabelFilter, id)}
+                  onClear={() => setLabelFilter([])}
+                  hideTagsOption={{ value: hideLabelsInList, onToggle: toggleHideLabels }}
+                />
+                <FilterDropdown
+                  label="Öncelik"
+                  options={dynamicFilterOptions.priorities}
+                  selected={priorityFilter}
+                  onToggle={(id) => toggleFilter(setPriorityFilter, id)}
+                  onClear={() => setPriorityFilter([])}
+                />
+                <FilterDropdown
+                  label="Atanan"
+                  options={dynamicFilterOptions.assignedUsers}
+                  selected={assignedUserFilter}
+                  onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
+                  onClear={() => setAssignedUserFilter([])}
+                />
+                <FilterDropdown
+                  label="Ürün Sahibi"
+                  options={dynamicFilterOptions.productOwners}
+                  selected={productOwnerFilter}
+                  onToggle={(id) => toggleFilter(setProductOwnerFilter, id)}
+                  onClear={() => setProductOwnerFilter([])}
+                />
+                <FilterDropdown
+                  label="Oluşturan"
+                  options={dynamicFilterOptions.createdBy}
+                  selected={createdByFilter}
+                  onToggle={(id) => toggleFilter(setCreatedByFilter, id)}
+                  onClear={() => setCreatedByFilter([])}
+                />
+                {anyFilterActive ? (
+                  <button
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                    Temizle
+                  </button>
+                ) : null}
+              </>
             )}
-            <FilterDropdown
-              label="Etiket"
-              options={dynamicFilterOptions.labels}
-              selected={labelFilter}
-              onToggle={(id) => toggleFilter(setLabelFilter, id)}
-              onClear={() => setLabelFilter([])}
-              hideTagsOption={{ value: hideLabelsInList, onToggle: toggleHideLabels }}
-            />
-            <FilterDropdown
-              label="Öncelik"
-              options={dynamicFilterOptions.priorities}
-              selected={priorityFilter}
-              onToggle={(id) => toggleFilter(setPriorityFilter, id)}
-              onClear={() => setPriorityFilter([])}
-            />
-            <FilterDropdown
-              label="Atanan"
-              options={dynamicFilterOptions.assignedUsers}
-              selected={assignedUserFilter}
-              onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
-              onClear={() => setAssignedUserFilter([])}
-            />
-            <FilterDropdown
-              label="Ürün Sahibi"
-              options={dynamicFilterOptions.productOwners}
-              selected={productOwnerFilter}
-              onToggle={(id) => toggleFilter(setProductOwnerFilter, id)}
-              onClear={() => setProductOwnerFilter([])}
-            />
-            <FilterDropdown
-              label="Oluşturan"
-              options={dynamicFilterOptions.createdBy}
-              selected={createdByFilter}
-              onToggle={(id) => toggleFilter(setCreatedByFilter, id)}
-              onClear={() => setCreatedByFilter([])}
-            />
-            {anyFilterActive ? (
-              <button
-                onClick={clearAllFilters}
-                className="flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-                Temizle
-              </button>
-            ) : null}
 
             {/* Right: View Toggle + Sort */}
             <div className="ml-auto flex items-center gap-2">
@@ -553,7 +557,7 @@ export default function TicketList() {
                         <X className="w-4 h-4" />
                         Filtreleri temizle
                       </button>
-                    ) : (
+                    ) : canEditTickets ? (
                       <Link
                         to="/tickets/new"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
@@ -561,7 +565,7 @@ export default function TicketList() {
                         <Plus className="w-4 h-4" />
                         Yeni Ticket Oluştur
                       </Link>
-                    )
+                    ) : null
                   }
                 />
               ) : (
@@ -587,7 +591,7 @@ export default function TicketList() {
               tickets={kanbanTickets}
               collapsedColumns={collapsedColumns}
               onToggleColumn={toggleColumn}
-              onStatusChange={handleStatusChange}
+              onStatusChange={isRestrictedUser ? undefined : handleStatusChange}
               loading={loading}
               hideLabels={hideLabelsInList}
             />
@@ -929,7 +933,7 @@ function KanbanBoard({ statuses, tickets, collapsedColumns, onToggleColumn, onSt
 
     const isSameColumn = fromStatusId === statusId;
 
-    if (!isSameColumn) {
+    if (!isSameColumn && onStatusChange) {
       onStatusChange(ticketId, statusId);
     }
 

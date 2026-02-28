@@ -9,10 +9,12 @@ import {
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { labelsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const defaultColors = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#6B7280'];
 
 export default function TagList() {
+  const { canEditAdminPages } = useAuth();
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -82,13 +84,15 @@ export default function TagList() {
           {/* Toolbar */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
             <h2 className="text-sm font-semibold text-surface-900">Etiket Listesi</h2>
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Yeni Etiket
-            </button>
+            {canEditAdminPages && (
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Yeni Etiket
+              </button>
+            )}
           </div>
 
           {/* Grid */}
@@ -99,7 +103,7 @@ export default function TagList() {
               icon={TagsIcon}
               title="Etiket bulunamadı"
               description="Henüz bir etiket eklenmemiş."
-              action={
+              action={canEditAdminPages &&
                 <button
                   onClick={openCreate}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"
@@ -126,20 +130,22 @@ export default function TagList() {
                       <p className="text-xs text-surface-500 mt-0.5 truncate">{tag.description}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(tag)}
-                      className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tag.id)}
-                      className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {canEditAdminPages && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEdit(tag)}
+                        className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(tag.id)}
+                        className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

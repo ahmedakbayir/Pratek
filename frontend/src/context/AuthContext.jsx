@@ -75,14 +75,42 @@ export function AuthProvider({ children }) {
   const isAdmin = !!(user?.isAdmin) || !!(user?.privilege?.isAdmin);
   const authorizedFirmIds = user?.authorizedFirmIds || [];
 
+  // Role detection based on privilege name
+  const privilegeName = (user?.privilege?.name || '').trim();
+  const effectiveAdmin = isImpersonating ? false : isAdmin;
+
+  // TKL Ürün Yönetim: privilege name contains "Ürün Yönetim" pattern
+  const isTklProductManager = !effectiveAdmin && /ürün\s*yönetim/i.test(privilegeName);
+
+  // Restricted users: GDF Yetkili, GDF Kullanıcı, TKL Kullanıcı (everyone who is not admin and not TKL Ürün Yönetim)
+  const isRestrictedUser = !!user && !effectiveAdmin && !isTklProductManager;
+
+  // # mention: only Admin and TKL Ürün Yönetim can use
+  const canUseMentions = effectiveAdmin || isTklProductManager;
+
+  // Can perform CRUD on ticket pages (create, edit, delete, sidebar changes)
+  const canEditTickets = effectiveAdmin || isTklProductManager;
+
+  // Can view admin pages (firms, products, labels, etc.) in read-only mode
+  const canViewAdminPages = effectiveAdmin || isTklProductManager;
+
+  // Can perform CRUD on admin pages (only admin)
+  const canEditAdminPages = effectiveAdmin;
+
   const value = {
     user,
     loading,
-    isAdmin: isImpersonating ? false : isAdmin,
+    isAdmin: effectiveAdmin,
     realIsAdmin: isAdmin,
     authorizedFirmIds,
     isImpersonating,
     originalUser,
+    isTklProductManager,
+    isRestrictedUser,
+    canUseMentions,
+    canEditTickets,
+    canViewAdminPages,
+    canEditAdminPages,
     login,
     logout,
     impersonate,

@@ -13,8 +13,10 @@ import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { firmsApi } from '../services/api';
 import AvatarUpload from '../components/AvatarUpload';
+import { useAuth } from '../context/AuthContext';
 
 export default function FirmList() {
+  const { canEditAdminPages } = useAuth();
   const [firms, setFirms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -154,9 +156,11 @@ export default function FirmList() {
                   className="pl-8 pr-3 py-1.5 text-xs border border-surface-200 rounded-lg bg-surface-0 text-surface-700 placeholder:text-surface-400 focus:outline-none focus:border-primary-400 w-48"
                 />
               </div>
-              <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
-                <Plus className="w-3.5 h-3.5" /> Yeni Firma
-              </button>
+              {canEditAdminPages && (
+                <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
+                  <Plus className="w-3.5 h-3.5" /> Yeni Firma
+                </button>
+              )}
             </div>
           </div>
 
@@ -172,7 +176,7 @@ export default function FirmList() {
 
           {loading ? <LoadingRows /> : filteredAndSorted.length === 0 ? (
             <EmptyState icon={Building2} title="Firma bulunamadı" description={search ? 'Arama kriterine uygun firma bulunamadı.' : 'Henüz bir firma eklenmemiş.'}
-              action={!search && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Firma Ekle</button>}
+              action={!search && canEditAdminPages && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Firma Ekle</button>}
             />
           ) : (
             <div className="divide-y divide-surface-100">
@@ -192,10 +196,12 @@ export default function FirmList() {
                   </div>
                   <div className="text-sm text-surface-600 truncate">{getFirmParentName(firm)}</div>
                   <div className="text-xs text-surface-600 font-mono">{firm.version ?? '-'}</div>
-                  <div className="flex items-center gap-0.5">
-                    <button onClick={() => openEdit(firm)} className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleDelete(firm.id)} className="p-1.5 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
+                  {canEditAdminPages && (
+                    <div className="flex items-center gap-0.5">
+                      <button onClick={() => openEdit(firm)} className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDelete(firm.id)} className="p-1.5 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

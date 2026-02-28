@@ -7,10 +7,12 @@ import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { productsApi, usersApi } from '../services/api';
 import AvatarUpload from '../components/AvatarUpload';
+import { useAuth } from '../context/AuthContext';
 
 const emptyForm = { name: '', managerId: '', orderNo: '', avatarUrl: '' };
 
 export default function ProductList() {
+  const { canEditAdminPages } = useAuth();
   const [products, setProducts] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,9 +101,11 @@ export default function ProductList() {
         <div className="bg-surface-0 rounded-xl border border-surface-200">
           <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
             <h2 className="text-sm font-semibold text-surface-900">Ürün Listesi</h2>
-            <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
-              <Plus className="w-3.5 h-3.5" /> Yeni Ürün
-            </button>
+            {canEditAdminPages && (
+              <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> Yeni Ürün
+              </button>
+            )}
           </div>
 
           {/* Table Header */}
@@ -115,7 +119,7 @@ export default function ProductList() {
 
           {loading ? <LoadingRows /> : sortedProducts.length === 0 ? (
             <EmptyState icon={Package} title="Ürün bulunamadı" description="Henüz bir ürün eklenmemiş."
-              action={<button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Ürün Ekle</button>}
+              action={canEditAdminPages && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Ürün Ekle</button>}
             />
           ) : (
             <div className="divide-y divide-surface-100">
@@ -143,10 +147,12 @@ export default function ProductList() {
                       <span className="text-xs text-surface-400 flex items-center gap-1"><User className="w-3.5 h-3.5" />Atanmadı</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => openEdit(product)} className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleDelete(product.id)} className="p-1.5 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
+                  {canEditAdminPages && (
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => openEdit(product)} className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDelete(product.id)} className="p-1.5 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
