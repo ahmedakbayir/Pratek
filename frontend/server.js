@@ -82,11 +82,21 @@ app.get('/api/firms', (req, res) => {
   firms.forEach(f => { f.parent = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(f.parentId)); });
   res.json(firms);
 });
+
 app.get('/api/firms/:id', (req, res) => res.json(toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(req.params.id))));
+
 app.post('/api/firms', (req, res) => {
   try {
-    const { name, orderNo, parentId, version } = req.body;
-    const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId", "Version") VALUES (?, ?, ?, ?)').run(name, orderNo != null ? Number(orderNo) : null, parentId ? Number(parentId) : null, version != null ? Number(version) : null);
+    // BURAYA avatarUrl EKLENDİ
+    const { name, orderNo, parentId, version, avatarUrl } = req.body; 
+    const info = db.prepare('INSERT INTO "Firm" ("Name", "OrderNo", "ParentId", "Version", "AvatarUrl") VALUES (?, ?, ?, ?, ?)')
+      .run(
+        name, 
+        orderNo != null ? Number(orderNo) : null, 
+        parentId ? Number(parentId) : null, 
+        version != null ? Number(version) : null,
+        avatarUrl || null // EKLENDİ
+      );
     const created = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(info.lastInsertRowid));
     if (created) created.parent = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(created.parentId));
     res.json(created);
@@ -95,10 +105,20 @@ app.post('/api/firms', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.put('/api/firms/:id', (req, res) => {
   try {
-    const { name, orderNo, parentId, version } = req.body;
-    db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ?, "Version" = ? WHERE "Id" = ?').run(name, orderNo != null ? Number(orderNo) : null, parentId ? Number(parentId) : null, version != null ? Number(version) : null, req.params.id);
+    // BURAYA avatarUrl EKLENDİ
+    const { name, orderNo, parentId, version, avatarUrl } = req.body; 
+    db.prepare('UPDATE "Firm" SET "Name" = ?, "OrderNo" = ?, "ParentId" = ?, "Version" = ?, "AvatarUrl" = ? WHERE "Id" = ?')
+      .run(
+        name, 
+        orderNo != null ? Number(orderNo) : null, 
+        parentId ? Number(parentId) : null, 
+        version != null ? Number(version) : null,
+        avatarUrl || null, // EKLENDİ
+        req.params.id
+      );
     const updated = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(req.params.id));
     if (updated) updated.parent = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(updated.parentId));
     res.json(updated);
@@ -107,9 +127,9 @@ app.put('/api/firms/:id', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.delete('/api/firms/:id', (req, res) => {
   try {
-    // Nullify firm references before deleting
     db.prepare('UPDATE "Ticket" SET "FirmId" = NULL WHERE "FirmId" = ?').run(req.params.id);
     db.prepare('UPDATE "User" SET "FirmId" = NULL WHERE "FirmId" = ?').run(req.params.id);
     db.prepare('UPDATE "Firm" SET "ParentId" = NULL WHERE "ParentId" = ?').run(req.params.id);
@@ -121,6 +141,7 @@ app.delete('/api/firms/:id', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.get('/api/firms/:firmId/products', (req, res) => {
   const products = db.prepare('SELECT p.* FROM "Product" p JOIN "Firm_Product" fp ON p."Id" = fp."ProductId" WHERE fp."FirmId" = ?').all(req.params.firmId).map(toCamel);
   res.json(products);

@@ -17,7 +17,7 @@ export default function FirmList() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', orderNo: '', parentId: '', version: '' });
+  const [form, setForm] = useState({ name: '', orderNo: '', parentId: '', version: '', avatarUrl: '' });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -51,13 +51,19 @@ export default function FirmList() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', orderNo: '', parentId: '', version: '' });
+    setForm({ name: '', orderNo: '', parentId: '', version: '', avatarUrl: '' });
     setShowModal(true);
   };
 
   const openEdit = (firm) => {
     setEditing(firm);
-    setForm({ name: firm.name, orderNo: firm.orderNo ?? '', parentId: firm.parentId || '', version: firm.version ?? '',avatarUrl: firm.avatarUrl || '' });
+    setForm({ 
+      name: firm.name, 
+      orderNo: firm.orderNo ?? '', 
+      parentId: firm.parentId || '', 
+      version: firm.version ?? '',
+      avatarUrl: firm.avatarUrl || '' 
+    });
     setShowModal(true);
   };
 
@@ -67,7 +73,7 @@ export default function FirmList() {
     try {
       const payload = {
         name: form.name,
-        avatarUrl: form.avatarUrl, // State'e eklenmeli
+        avatarUrl: form.avatarUrl,
         orderNo: form.orderNo !== '' ? Number(form.orderNo) : null,
         parentId: form.parentId ? Number(form.parentId) : null,
         version: form.version !== '' ? Number(form.version) : null,
@@ -96,7 +102,6 @@ export default function FirmList() {
       <Header title="Firmalar" subtitle={`${filteredFirms.length} firma`} />
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
-          {/* Toolbar */}
           <div className="flex items-center gap-2 px-5 py-3 border-b border-surface-200">
             <h2 className="text-sm font-semibold text-surface-900 mr-2">Firma Listesi</h2>
             <div className="ml-auto flex items-center gap-3">
@@ -116,7 +121,6 @@ export default function FirmList() {
             </div>
           </div>
 
-          {/* Table Header */}
           <div className="grid grid-cols-[0.4fr_0.4fr_2fr_2fr_0.6fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
             <span>ID</span>
             <span>Sıra</span>
@@ -137,15 +141,15 @@ export default function FirmList() {
                   <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
                   <div className="text-xs text-surface-400 font-mono">{firm.orderNo ?? '-'}</div>
                   <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-primary-50 overflow-hidden flex items-center justify-center shrink-0">
-                        {firm.avatarUrl ? (
-                          <img src={firm.avatarUrl} alt={firm.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Building2 className="w-4.5 h-4.5 text-primary-600" />
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-surface-900 truncate">{firm.name}</span>
+                    <div className="w-9 h-9 rounded-lg bg-primary-50 overflow-hidden flex items-center justify-center shrink-0 border border-surface-200">
+                      {firm.avatarUrl ? (
+                        <img src={firm.avatarUrl} alt={firm.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Building2 className="w-4.5 h-4.5 text-primary-600" />
+                      )}
                     </div>
+                    <span className="text-sm font-medium text-surface-900 truncate">{firm.name}</span>
+                  </div>
                   <div className="text-sm text-surface-600 truncate">{getFirmParentName(firm)}</div>
                   <div className="text-xs text-surface-600 font-mono">{firm.version ?? '-'}</div>
                   <div className="flex items-center gap-0.5">
@@ -159,7 +163,6 @@ export default function FirmList() {
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} />
@@ -169,8 +172,9 @@ export default function FirmList() {
               <button onClick={() => setShowModal(false)} className="p-1 text-surface-400 hover:text-surface-600 rounded cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
-
+              
               <AvatarUpload label="Firma Logosu" value={form.avatarUrl} onChange={(url) => setForm(f => ({ ...f, avatarUrl: url }))} />
+
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">Firma Adı <span className="text-danger">*</span></label>
                 <input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Firma adını girin..." className="input-field" />
