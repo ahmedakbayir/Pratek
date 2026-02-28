@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Search, Bell, Plus } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Header({ title, subtitle }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
+  const { user } = useAuth();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -54,8 +56,12 @@ export default function Header({ title, subtitle }) {
         </button>
 
         {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-medium">
-          A
+        <div className="w-8 h-8 rounded-full bg-primary-600 overflow-hidden flex items-center justify-center text-white text-sm font-medium">
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+          ) : (
+            user?.name?.charAt(0) || 'A'
+          )}
         </div>
       </div>
     </header>

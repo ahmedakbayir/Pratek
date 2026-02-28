@@ -9,7 +9,7 @@ export default function PrivilegeList() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', orderNo: '' });
+  const [form, setForm] = useState({ name: '', orderNo: '', isAdmin: false });
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -19,14 +19,14 @@ export default function PrivilegeList() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', orderNo: '' }); setShowModal(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ name: item.name, orderNo: item.orderNo ?? '' }); setShowModal(true); };
+  const openCreate = () => { setEditing(null); setForm({ name: '', orderNo: '', isAdmin: false }); setShowModal(true); };
+  const openEdit = (item) => { setEditing(item); setForm({ name: item.name, orderNo: item.orderNo ?? '', isAdmin: !!item.isAdmin }); setShowModal(true); };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { name: form.name, orderNo: form.orderNo ? Number(form.orderNo) : null };
+      const payload = { name: form.name, orderNo: form.orderNo ? Number(form.orderNo) : null, isAdmin: form.isAdmin };
       if (editing) { await privilegesApi.update(editing.id, payload); }
       else { await privilegesApi.create(payload); }
       setShowModal(false);
@@ -65,6 +65,7 @@ export default function PrivilegeList() {
                 <th className="px-5 py-2.5 font-medium">ID</th>
                 <th className="px-5 py-2.5 font-medium">Sıra No</th>
                 <th className="px-5 py-2.5 font-medium">Ad</th>
+                <th className="px-5 py-2.5 font-medium">Admin</th>
                 <th className="px-5 py-2.5 font-medium w-20"></th>
               </tr></thead>
               <tbody>
@@ -73,6 +74,13 @@ export default function PrivilegeList() {
                     <td className="px-5 py-3 text-surface-400 font-mono text-xs">#{item.id}</td>
                     <td className="px-5 py-3 text-surface-400 font-mono text-xs">{item.orderNo ?? '-'}</td>
                     <td className="px-5 py-3 font-medium text-surface-900">{item.name}</td>
+                    <td className="px-5 py-3">
+                      {item.isAdmin ? (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-primary-50 text-primary-700">Admin</span>
+                      ) : (
+                        <span className="text-surface-400 text-xs">-</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
@@ -103,6 +111,18 @@ export default function PrivilegeList() {
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">Sıra No</label>
                 <input type="number" value={form.orderNo} onChange={(e) => setForm(f => ({ ...f, orderNo: e.target.value }))} placeholder="Sıralama numarası" className="input-field" />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.isAdmin}
+                    onChange={(e) => setForm(f => ({ ...f, isAdmin: e.target.checked }))}
+                    className="w-4 h-4 rounded border-surface-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-surface-700">Admin Yetkisi</span>
+                </label>
+                <p className="text-xs text-surface-500 mt-1 ml-6">Bu yetkiye sahip kullanıcılar tüm sayfalara erişebilir</p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">İptal</button>

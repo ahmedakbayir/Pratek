@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Ticket,
@@ -12,19 +12,21 @@ import {
   AlertTriangle,
   CircleDot,
   ShieldCheck,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/tickets', icon: Ticket, label: 'Ticket\'lar' },
-  { to: '/users', icon: Users, label: 'Kullanıcılar' },
-  { to: '/firms', icon: Building2, label: 'Firmalar' },
-  { to: '/products', icon: Package, label: 'Ürünler' },
-  { to: '/labels', icon: Tags, label: 'Etiketler' },
-  { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler' },
-  { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar' },
-  { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler' },
-  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi' },
+const allNavItems = [
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
+  { to: '/tickets', icon: Ticket, label: 'Ticket\'lar', adminOnly: false },
+  { to: '/users', icon: Users, label: 'Kullanıcılar', adminOnly: true },
+  { to: '/firms', icon: Building2, label: 'Firmalar', adminOnly: true },
+  { to: '/products', icon: Package, label: 'Ürünler', adminOnly: true },
+  { to: '/labels', icon: Tags, label: 'Etiketler', adminOnly: true },
+  { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler', adminOnly: true },
+  { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar', adminOnly: true },
+  { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler', adminOnly: true },
+  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi', adminOnly: true },
 ];
 
 const bottomItems = [
@@ -32,6 +34,16 @@ const bottomItems = [
 ];
 
 export default function Sidebar() {
+  const { user, isAdmin, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-60 bg-surface-900 text-white flex flex-col z-30">
       {/* Logo */}
@@ -62,7 +74,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom */}
-      <div className="px-3 pb-4 border-t border-white/10 pt-3 space-y-1">
+      <div className="px-3 pb-2 border-t border-white/10 pt-3 space-y-1">
         {bottomItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -79,7 +91,35 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-surface-400 hover:bg-white/8 hover:text-white transition-colors w-full cursor-pointer"
+        >
+          <LogOut className="w-[18px] h-[18px]" />
+          Çıkış Yap
+        </button>
       </div>
+
+      {/* User info */}
+      {user && (
+        <div className="px-3 pb-4 pt-2 border-t border-white/10">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-8 h-8 rounded-full bg-primary-500/30 overflow-hidden flex items-center justify-center text-sm font-medium text-primary-200 shrink-0">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user.name?.charAt(0) || '?'
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white truncate">{user.name}</p>
+              <p className="text-xs text-surface-500 truncate">{user.mail}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

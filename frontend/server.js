@@ -40,6 +40,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS "EntityEventHistory" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "ActionDate" TEXT, "EntityEventTypeId" INTEGER NOT NULL REFERENCES "EntityEventType"("Id"), "EntityId" INTEGER NOT NULL, "UserId" INTEGER REFERENCES "User"("Id"), "Description" TEXT);
   CREATE TABLE IF NOT EXISTS "TicketEventHistory" ("Id" INTEGER PRIMARY KEY AUTOINCREMENT, "ActionDate" TEXT, "TicketEventTypeId" INTEGER NOT NULL REFERENCES "TicketEventType"("Id"), "TicketId" INTEGER NOT NULL REFERENCES "Ticket"("Id"), "UserId" INTEGER REFERENCES "User"("Id"), "Description" TEXT, "NewValue" TEXT, "OldValue" TEXT);
   CREATE TABLE IF NOT EXISTS "Firm_Product" ("FirmId" INTEGER NOT NULL REFERENCES "Firm"("Id") ON DELETE CASCADE, "ProductId" INTEGER NOT NULL REFERENCES "Product"("Id") ON DELETE CASCADE, PRIMARY KEY("FirmId", "ProductId"));
+  CREATE TABLE IF NOT EXISTS "User_Firm" ("UserId" INTEGER NOT NULL REFERENCES "User"("Id") ON DELETE CASCADE, "FirmId" INTEGER NOT NULL REFERENCES "Firm"("Id") ON DELETE CASCADE, PRIMARY KEY("UserId", "FirmId"));
 `);
 
 // --- SCHEMA MIGRATIONS (add missing columns) ---
@@ -55,6 +56,7 @@ safeAddColumn('Firm', 'Version', 'INTEGER');
 safeAddColumn('User', 'AvatarUrl', 'TEXT');
 safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
 safeAddColumn('Product', 'AvatarUrl', 'TEXT');
+safeAddColumn('Privilege', 'IsAdmin', 'INTEGER DEFAULT 0');
 
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');
@@ -77,6 +79,22 @@ app.use((err, req, res, next) => {
 });
 
 // 4. API ROUTE'LARI
+
+// --- AUTH ---
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'E-posta ve şifre gerekli' });
+  const user = db.prepare('SELECT * FROM "User" WHERE "Mail" = ? AND "Password" = ?').get(email, password);
+  if (!user) return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
+  const u = toCamel(user);
+  u.firm = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(u.firmId));
+  u.privilege = toCamel(db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(u.privilegeId));
+  const authorizedFirms = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(u.id).map(r => r.FirmId);
+  u.authorizedFirmIds = authorizedFirms;
+  u.isAdmin = !!(u.privilege && u.privilege.isAdmin);
+  res.json(u);
+});
+
 // --- FIRMALAR ---
 app.get('/api/firms', (req, res) => {
   const firms = db.prepare('SELECT * FROM "Firm" ORDER BY "OrderNo"').all().map(toCamel);
@@ -154,6 +172,9 @@ app.get('/api/users', (req, res) => {
   users.forEach(u => {
     u.firm = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(u.firmId));
     u.privilege = toCamel(db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(u.privilegeId));
+    if (u.privilege) u.privilege.isAdmin = !!u.privilege.isAdmin;
+    u.authorizedFirmIds = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(u.id).map(r => r.FirmId);
+    u.isAdmin = !!(u.privilege && u.privilege.isAdmin);
   });
   res.json(users);
 });
@@ -173,8 +194,28 @@ app.put('/api/users/:id', (req, res) => {
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/users/:id', (req, res) => {
+  db.prepare('DELETE FROM "User_Firm" WHERE "UserId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "User" WHERE "Id" = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// --- USER FIRM AUTHORIZATIONS ---
+app.get('/api/users/:id/firms', (req, res) => {
+  const firms = db.prepare('SELECT f.* FROM "Firm" f JOIN "User_Firm" uf ON f."Id" = uf."FirmId" WHERE uf."UserId" = ?').all(req.params.id).map(toCamel);
+  res.json(firms);
+});
+
+app.put('/api/users/:id/firms', (req, res) => {
+  const { firmIds } = req.body;
+  db.prepare('DELETE FROM "User_Firm" WHERE "UserId" = ?').run(req.params.id);
+  const insert = db.prepare('INSERT OR IGNORE INTO "User_Firm" ("UserId", "FirmId") VALUES (?, ?)');
+  if (firmIds && Array.isArray(firmIds)) {
+    for (const firmId of firmIds) {
+      insert.run(req.params.id, firmId);
+    }
+  }
+  const firms = db.prepare('SELECT f.* FROM "Firm" f JOIN "User_Firm" uf ON f."Id" = uf."FirmId" WHERE uf."UserId" = ?').all(req.params.id).map(toCamel);
+  res.json(firms);
 });
 
 // --- ETIKETLER (Labels) ---
@@ -385,16 +426,16 @@ app.delete('/api/lookups/ticket-priorities/:id', (req, res) => {
 });
 
 // --- LOOKUPS: PRIVILEGE (CRUD) ---
-app.get('/api/lookups/privileges', (req, res) => res.json(db.prepare('SELECT * FROM "Privilege" ORDER BY "OrderNo"').all().map(toCamel)));
+app.get('/api/lookups/privileges', (req, res) => res.json(db.prepare('SELECT * FROM "Privilege" ORDER BY "OrderNo"').all().map(toCamel).map(p => ({ ...p, isAdmin: !!p.isAdmin }))));
 app.post('/api/lookups/privileges', (req, res) => {
-  const { name, orderNo, colorHex } = req.body;
-  const info = db.prepare('INSERT INTO "Privilege" ("Name", "OrderNo", "ColorHex") VALUES (?, ?, ?)').run(name, orderNo || null, colorHex || null);
-  res.json({ id: info.lastInsertRowid, name, orderNo, colorHex });
+  const { name, orderNo, colorHex, isAdmin } = req.body;
+  const info = db.prepare('INSERT INTO "Privilege" ("Name", "OrderNo", "ColorHex", "IsAdmin") VALUES (?, ?, ?, ?)').run(name, orderNo || null, colorHex || null, isAdmin ? 1 : 0);
+  res.json({ id: info.lastInsertRowid, name, orderNo, colorHex, isAdmin: !!isAdmin });
 });
 app.put('/api/lookups/privileges/:id', (req, res) => {
-  const { name, orderNo, colorHex } = req.body;
-  db.prepare('UPDATE "Privilege" SET "Name"=?, "OrderNo"=?, "ColorHex"=? WHERE "Id"=?').run(name, orderNo || null, colorHex || null, req.params.id);
-  res.json({ id: Number(req.params.id), name, orderNo, colorHex });
+  const { name, orderNo, colorHex, isAdmin } = req.body;
+  db.prepare('UPDATE "Privilege" SET "Name"=?, "OrderNo"=?, "ColorHex"=?, "IsAdmin"=? WHERE "Id"=?').run(name, orderNo || null, colorHex || null, isAdmin ? 1 : 0, req.params.id);
+  res.json({ id: Number(req.params.id), name, orderNo, colorHex, isAdmin: !!isAdmin });
 });
 app.delete('/api/lookups/privileges/:id', (req, res) => {
   db.prepare('DELETE FROM "Privilege" WHERE "Id" = ?').run(req.params.id);
