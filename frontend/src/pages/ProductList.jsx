@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Plus, Edit3, Trash2, X, Package, User,
+  ChevronUp, ChevronDown,
 } from 'lucide-react';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
@@ -16,6 +17,7 @@ export default function ProductList() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [sortStack, setSortStack] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -25,6 +27,40 @@ export default function ProductList() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const handleSort = (key) => {
+    setSortStack((prev) => {
+      const idx = prev.findIndex((s) => s.key === key);
+      if (idx !== -1 && idx === prev.length - 1) {
+        const next = [...prev];
+        next[idx] = { key, dir: prev[idx].dir === 'asc' ? 'desc' : 'asc' };
+        return next;
+      }
+      return [...prev.filter((s) => s.key !== key), { key, dir: 'asc' }];
+    });
+  };
+
+  const sortedProducts = useMemo(() => {
+    if (sortStack.length === 0) return products;
+    return [...products].sort((a, b) => {
+      for (let i = sortStack.length - 1; i >= 0; i--) {
+        const { key, dir } = sortStack[i];
+        let aVal, bVal;
+        switch (key) {
+          case 'id': aVal = a.id; bVal = b.id; break;
+          case 'orderNo': aVal = a.orderNo ?? Infinity; bVal = b.orderNo ?? Infinity; break;
+          case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
+          case 'manager': aVal = (a.manager?.name || '').toLowerCase(); bVal = (b.manager?.name || '').toLowerCase(); break;
+          default: continue;
+        }
+        let cmp;
+        if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
+        else cmp = String(aVal).localeCompare(String(bVal), 'tr');
+        if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+      }
+      return 0;
+    });
+  }, [products, sortStack]);
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
   const openEdit = (product) => {
@@ -68,20 +104,20 @@ export default function ProductList() {
 
           {/* Table Header */}
           <div className="grid grid-cols-[0.4fr_0.4fr_1.5fr_1.5fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
-            <span>ID</span>
-            <span>Sıra</span>
-            <span>Ürün Adı</span>
-            <span>Sorumlu</span>
+            <SortableHeader sortKey="id" sortStack={sortStack} onSort={handleSort}>ID</SortableHeader>
+            <SortableHeader sortKey="orderNo" sortStack={sortStack} onSort={handleSort}>Sıra</SortableHeader>
+            <SortableHeader sortKey="name" sortStack={sortStack} onSort={handleSort}>Ürün Adı</SortableHeader>
+            <SortableHeader sortKey="manager" sortStack={sortStack} onSort={handleSort}>Sorumlu</SortableHeader>
             <span />
           </div>
 
-          {loading ? <LoadingRows /> : products.length === 0 ? (
+          {loading ? <LoadingRows /> : sortedProducts.length === 0 ? (
             <EmptyState icon={Package} title="Ürün bulunamadı" description="Henüz bir ürün eklenmemiş."
               action={<button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Ürün Ekle</button>}
             />
           ) : (
             <div className="divide-y divide-surface-100">
-              {products.map((product) => (
+              {sortedProducts.map((product) => (
                 <div key={product.id} className="grid grid-cols-[0.4fr_0.4fr_1.5fr_1.5fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                   <span className="text-xs font-mono text-surface-400">#{product.id}</span>
                   <span className="text-xs font-mono text-surface-400">{product.orderNo ?? '-'}</span>
@@ -145,6 +181,24 @@ export default function ProductList() {
         </div>
       )}
     </div>
+  );
+}
+
+function SortableHeader({ children, sortKey, sortStack, onSort }) {
+  const current = sortStack.find((s) => s.key === sortKey);
+  const isPrimary = sortStack.length > 0 && sortStack[sortStack.length - 1].key === sortKey;
+  return (
+    <span
+      onClick={() => onSort(sortKey)}
+      className="flex items-center gap-0.5 cursor-pointer hover:text-surface-700 select-none transition-colors"
+    >
+      {children}
+      {current ? (
+        current.dir === 'asc'
+          ? <ChevronUp className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+          : <ChevronDown className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+      ) : null}
+    </span>
   );
 }
 
