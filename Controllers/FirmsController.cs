@@ -56,6 +56,8 @@ namespace Pratek.Controllers
             firm.OrderNo = model.OrderNo;
             firm.ParentId = model.ParentId;
             firm.Version = model.Version;
+            
+            // LOGO GÜNCELLEMESİ İÇİN EKLENEN TEK SATIR (SİZİN KODUNUZA DOKUNMADAN)
             firm.AvatarUrl = model.AvatarUrl; 
 
             await _context.SaveChangesAsync();

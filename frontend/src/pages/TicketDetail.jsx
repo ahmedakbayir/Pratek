@@ -44,14 +44,6 @@ function getSelectStyle(entity) {
   return { bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' };
 }
 
-const fieldLabels = {
-  status: 'Durum',
-  priority: 'Öncelik',
-  assignedUser: 'Atanan Kişi',
-  firm: 'Firma',
-  product: 'Ürün',
-};
-
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -94,7 +86,7 @@ export default function TicketDetail() {
         setAllProducts(products || []);
         setAllStatuses(statuses || []);
         setAllPriorities(priorities || []);
-        // Load firm-specific products
+        
         if (t.firmId) {
           firmsApi.getProducts(t.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
         }
@@ -156,7 +148,6 @@ export default function TicketDetail() {
     }
   };
 
-  // Inline update helper
   const updateTicket = async (patch) => {
     try {
       const payload = {
@@ -170,7 +161,7 @@ export default function TicketDetail() {
         scope: ticket.scope,
         ...patch,
       };
-      // If firm changed, clear product and reload firm products
+      
       if ('firmId' in patch && patch.firmId !== ticket.firmId) {
         payload.productId = null;
         if (patch.firmId) {
@@ -236,7 +227,7 @@ export default function TicketDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Title & Content */}
+            
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-5 border-b border-surface-200">
                 <div className="flex items-start justify-between">
@@ -275,7 +266,6 @@ export default function TicketDetail() {
               </div>
             </div>
 
-            {/* Activity Timeline */}
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-4 border-b border-surface-200">
                 <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
@@ -315,7 +305,6 @@ export default function TicketDetail() {
                 </div>
               )}
 
-              {/* Comment Input */}
               <div className="px-6 py-4 border-t border-surface-200">
                 <div className="flex gap-3">
                   <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs font-medium text-white shrink-0">
@@ -352,7 +341,7 @@ export default function TicketDetail() {
           {/* Sidebar */}
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
-              {/* Status */}
+              
               <SidebarSelect
                 icon={CheckCircle2}
                 label="Durum"
@@ -365,7 +354,7 @@ export default function TicketDetail() {
                 colorDot={getColorDot(ticket.status)}
                 selectStyle={getSelectStyle(ticket.status)}
               />
-              {/* Priority */}
+              
               <SidebarSelect
                 icon={AlertCircle}
                 label="Öncelik"
@@ -378,7 +367,7 @@ export default function TicketDetail() {
                 colorDot={getColorDot(ticket.priority)}
                 selectStyle={getSelectStyle(ticket.priority)}
               />
-              {/* Assigned User */}
+              
               <SidebarSelect
                 icon={UserPlus}
                 label="Atanan Kişi"
@@ -388,8 +377,9 @@ export default function TicketDetail() {
                   ...allUsers.map((u) => ({ value: u.id, label: u.name })),
                 ]}
                 onChange={(val) => updateTicket({ assignedUserId: val ? Number(val) : null })}
+                avatarUrl={allUsers.find(u => u.id === ticket.assignedUserId)?.avatarUrl}
               />
-              {/* Firm */}
+              
               <SidebarSelect
                 icon={Building2}
                 label="Firma"
@@ -399,8 +389,9 @@ export default function TicketDetail() {
                   ...allFirms.map((f) => ({ value: f.id, label: f.name })),
                 ]}
                 onChange={(val) => updateTicket({ firmId: val ? Number(val) : null })}
+                avatarUrl={allFirms.find(f => f.id === ticket.firmId)?.avatarUrl}
               />
-              {/* Product */}
+              
               <SidebarSelect
                 icon={Package}
                 label="Ürün"
@@ -411,7 +402,7 @@ export default function TicketDetail() {
                 ]}
                 onChange={(val) => updateTicket({ productId: val ? Number(val) : null })}
               />
-              {/* Scope (Kapsam) */}
+              
               <SidebarSelect
                 icon={Globe}
                 label="Kapsam"
@@ -423,14 +414,14 @@ export default function TicketDetail() {
                 ]}
                 onChange={(val) => updateTicket({ scope: val || null })}
               />
-              {/* Creator (read-only) */}
+              
               <SidebarItem
                 icon={User}
                 label="Olusturan"
                 value={
                   ticket.createdUser ? (
                     <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-surface-200 overflow-hidden flex items-center justify-center text-[10px] font-medium text-surface-600">
+                      <div className="w-5 h-5 rounded-full bg-surface-200 overflow-hidden flex items-center justify-center text-[10px] font-medium text-surface-600 border border-surface-200">
                         {ticket.createdUser.avatarUrl ? (
                           <img src={ticket.createdUser.avatarUrl} alt={ticket.createdUser.name} className="w-full h-full object-cover" />
                         ) : (
@@ -446,7 +437,6 @@ export default function TicketDetail() {
               />
             </div>
 
-            {/* Labels */}
             <div className="bg-surface-0 rounded-xl border border-surface-200 p-4">
               <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5" />
@@ -517,7 +507,7 @@ export default function TicketDetail() {
   );
 }
 
-function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, selectStyle }) {
+function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, selectStyle, avatarUrl }) {
   const inlineStyle = {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
@@ -531,9 +521,12 @@ function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, 
         {label}
       </span>
       <div className="flex items-center gap-2 min-w-0">
-        {colorDot && (
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0 border border-surface-200" />
+        ) : colorDot ? (
           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorDot }} />
-        )}
+        ) : null}
+        
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}

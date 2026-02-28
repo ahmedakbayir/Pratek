@@ -25,13 +25,14 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
 
-    // Add missing columns if not exists (for existing databases)
     string[] migrations = new[]
     {
         "ALTER TABLE Ticket ADD COLUMN Scope TEXT",
         "ALTER TABLE TicketPriority ADD COLUMN ColorHex TEXT",
         "ALTER TABLE TicketStatus ADD COLUMN ColorHex TEXT",
         "ALTER TABLE Privilege ADD COLUMN ColorHex TEXT",
+        // EKLENEN KISIM:
+        "ALTER TABLE Firm ADD COLUMN AvatarUrl TEXT",
     };
     foreach (var sql in migrations)
     {
@@ -40,11 +41,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Ensure uploads directory exists
 var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "Uploads");
 Directory.CreateDirectory(uploadsPath);
 
-// Global exception handler – returns JSON so the frontend can display the real error
 app.Use(async (context, next) =>
 {
     try
@@ -69,7 +68,6 @@ app.UseCors("AllowFrontend");
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Serve uploaded files
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
@@ -79,7 +77,6 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.MapControllers();
 
-// File upload endpoint
 app.MapPost("/api/upload", async (HttpContext context) =>
 {
     var file = context.Request.Form.Files.FirstOrDefault();
