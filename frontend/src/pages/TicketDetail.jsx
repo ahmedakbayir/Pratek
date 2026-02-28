@@ -508,6 +508,7 @@ export default function TicketDetail() {
                   ...(sidebarForm?.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
                 ]}
                 onChange={(val) => updateSidebarField('productId', val)}
+                avatarUrl={firmProducts.find(p => p.id === Number(sidebarForm?.productId || ticket?.productId))?.avatarUrl}
               />
 
               <SidebarSelect
