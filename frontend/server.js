@@ -54,6 +54,7 @@ safeAddColumn('Privilege', 'ColorHex', 'TEXT');
 safeAddColumn('Firm', 'Version', 'INTEGER');
 safeAddColumn('User', 'AvatarUrl', 'TEXT');
 safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
+safeAddColumn('Product', 'AvatarUrl', 'TEXT');
 
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');
@@ -206,11 +207,13 @@ app.get('/api/products', (req, res) => {
   res.json(products);
 });
 app.post('/api/products', (req, res) => {
-  const info = db.prepare('INSERT INTO "Product" ("Name", "ManagerId", "OrderNo") VALUES (?, ?, ?)').run(req.body.name, req.body.managerId || null, req.body.orderNo || null);
+  const { name, managerId, orderNo, avatarUrl } = req.body;
+  const info = db.prepare('INSERT INTO "Product" ("Name", "ManagerId", "OrderNo", "AvatarUrl") VALUES (?, ?, ?, ?)').run(name, managerId || null, orderNo || null, avatarUrl || null);
   res.json({ id: info.lastInsertRowid, ...req.body });
 });
 app.put('/api/products/:id', (req, res) => {
-  db.prepare('UPDATE "Product" SET "Name"=?, "ManagerId"=?, "OrderNo"=? WHERE "Id"=?').run(req.body.name, req.body.managerId || null, req.body.orderNo || null, req.params.id);
+  const { name, managerId, orderNo, avatarUrl } = req.body;
+  db.prepare('UPDATE "Product" SET "Name"=?, "ManagerId"=?, "OrderNo"=?, "AvatarUrl"=? WHERE "Id"=?').run(name, managerId || null, orderNo || null, avatarUrl || null, req.params.id);
   res.json({ id: Number(req.params.id), ...req.body });
 });
 app.delete('/api/products/:id', (req, res) => {
