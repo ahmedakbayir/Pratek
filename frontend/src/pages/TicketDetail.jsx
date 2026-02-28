@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -18,6 +18,7 @@ import {
   Minus,
   UserPlus,
   Globe,
+  Save,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -63,6 +64,10 @@ export default function TicketDetail() {
   const [firmProducts, setFirmProducts] = useState([]);
   const labelPickerRef = useRef(null);
 
+  // Local sidebar state for deferred save
+  const [sidebarForm, setSidebarForm] = useState(null);
+  const [savingSidebar, setSavingSidebar] = useState(false);
+
   const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
   const loadActivity = () => ticketsApi.getActivity(id).then(setActivity).catch(() => setActivity([]));
 
@@ -86,7 +91,16 @@ export default function TicketDetail() {
         setAllProducts(products || []);
         setAllStatuses(statuses || []);
         setAllPriorities(priorities || []);
-        
+        // Initialize sidebar form from ticket data
+        setSidebarForm({
+          statusId: t.statusId || '',
+          priorityId: t.priorityId || '',
+          assignedUserId: t.assignedUserId || '',
+          firmId: t.firmId || '',
+          productId: t.productId || '',
+          scope: t.scope || '',
+        });
+        // Load firm-specific products
         if (t.firmId) {
           firmsApi.getProducts(t.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
         }
@@ -148,6 +162,28 @@ export default function TicketDetail() {
     }
   };
 
+  // Check if sidebar has unsaved changes
+  const hasSidebarChanges = useMemo(() => {
+    if (!ticket || !sidebarForm) return false;
+    return (
+      String(sidebarForm.statusId || '') !== String(ticket.statusId || '') ||
+      String(sidebarForm.priorityId || '') !== String(ticket.priorityId || '') ||
+      String(sidebarForm.assignedUserId || '') !== String(ticket.assignedUserId || '') ||
+      String(sidebarForm.firmId || '') !== String(ticket.firmId || '') ||
+      String(sidebarForm.productId || '') !== String(ticket.productId || '') ||
+      String(sidebarForm.scope || '') !== String(ticket.scope || '')
+    );
+  }, [ticket, sidebarForm]);
+
+  // Update local sidebar form (no API call)
+  const updateSidebarField = (field, value) => {
+    setSidebarForm((prev) => {
+      const next = { ...prev, [field]: value };
+      // If firm changed, clear product and reload firm products
+      if (field === 'firmId' && value !== prev.firmId) {
+        next.productId = '';
+        if (value) {
+          firmsApi.getProducts(value).then(setFirmProducts).catch(() => setFirmProducts([]));
   const updateTicket = async (patch) => {
     try {
       const payload = {
@@ -170,17 +206,70 @@ export default function TicketDetail() {
           setFirmProducts([]);
         }
       }
+      return next;
+    });
+  };
+
+  // Save sidebar changes to API
+  const handleSaveSidebar = async () => {
+    if (!hasSidebarChanges) return;
+    setSavingSidebar(true);
+    try {
+      const payload = {
+        title: ticket.title,
+        content: ticket.content,
+        statusId: sidebarForm.statusId ? Number(sidebarForm.statusId) : null,
+        priorityId: sidebarForm.priorityId ? Number(sidebarForm.priorityId) : null,
+        assignedUserId: sidebarForm.assignedUserId ? Number(sidebarForm.assignedUserId) : null,
+        firmId: sidebarForm.firmId ? Number(sidebarForm.firmId) : null,
+        productId: sidebarForm.productId ? Number(sidebarForm.productId) : null,
+        scope: sidebarForm.scope || null,
+      };
       const updated = await ticketsApi.update(id, payload);
       setTicket(updated);
+      // Re-sync sidebar form from updated ticket
+      setSidebarForm({
+        statusId: updated.statusId || '',
+        priorityId: updated.priorityId || '',
+        assignedUserId: updated.assignedUserId || '',
+        firmId: updated.firmId || '',
+        productId: updated.productId || '',
+        scope: updated.scope || '',
+      });
       loadActivity();
     } catch (err) {
-      alert('Guncelleme hatasi:\n' + err.message);
+      alert('Güncelleme hatası:\n' + err.message);
+    } finally {
+      setSavingSidebar(false);
+    }
+  };
+
+  // Discard sidebar changes
+  const handleDiscardSidebar = () => {
+    if (!ticket) return;
+    setSidebarForm({
+      statusId: ticket.statusId || '',
+      priorityId: ticket.priorityId || '',
+      assignedUserId: ticket.assignedUserId || '',
+      firmId: ticket.firmId || '',
+      productId: ticket.productId || '',
+      scope: ticket.scope || '',
+    });
+    // Reload firm products for original firm
+    if (ticket.firmId) {
+      firmsApi.getProducts(ticket.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
+    } else {
+      setFirmProducts([]);
     }
   };
 
   const availableLabels = allLabels.filter(
     (label) => !ticket?.ticketLabels?.some((tl) => tl.labelId === label.id)
   );
+
+  // Sidebar color lookups based on local form state
+  const sidebarStatus = allStatuses.find((s) => String(s.id) === String(sidebarForm?.statusId));
+  const sidebarPriority = allPriorities.find((p) => String(p.id) === String(sidebarForm?.priorityId));
 
   if (loading) {
     return (
@@ -345,37 +434,38 @@ export default function TicketDetail() {
               <SidebarSelect
                 icon={CheckCircle2}
                 label="Durum"
-                value={ticket.statusId || ''}
+                value={sidebarForm?.statusId || ''}
                 options={[
                   { value: '', label: 'Seçiniz...' },
                   ...allStatuses.map((s) => ({ value: s.id, label: s.name })),
                 ]}
-                onChange={(val) => updateTicket({ statusId: val ? Number(val) : null })}
-                colorDot={getColorDot(ticket.status)}
-                selectStyle={getSelectStyle(ticket.status)}
+                onChange={(val) => updateSidebarField('statusId', val)}
+                colorDot={getColorDot(sidebarStatus)}
+                selectStyle={getSelectStyle(sidebarStatus)}
               />
               
               <SidebarSelect
                 icon={AlertCircle}
                 label="Öncelik"
-                value={ticket.priorityId || ''}
+                value={sidebarForm?.priorityId || ''}
                 options={[
                   { value: '', label: 'Seçiniz...' },
                   ...allPriorities.map((p) => ({ value: p.id, label: p.name })),
                 ]}
-                onChange={(val) => updateTicket({ priorityId: val ? Number(val) : null })}
-                colorDot={getColorDot(ticket.priority)}
-                selectStyle={getSelectStyle(ticket.priority)}
+                onChange={(val) => updateSidebarField('priorityId', val)}
+                colorDot={getColorDot(sidebarPriority)}
+                selectStyle={getSelectStyle(sidebarPriority)}
               />
               
               <SidebarSelect
                 icon={UserPlus}
                 label="Atanan Kişi"
-                value={ticket.assignedUserId || ''}
+                value={sidebarForm?.assignedUserId || ''}
                 options={[
                   { value: '', label: 'Atanmadı' },
                   ...allUsers.map((u) => ({ value: u.id, label: u.name })),
                 ]}
+                onChange={(val) => updateSidebarField('assignedUserId', val)}
                 onChange={(val) => updateTicket({ assignedUserId: val ? Number(val) : null })}
                 avatarUrl={allUsers.find(u => u.id === ticket.assignedUserId)?.avatarUrl}
               />
@@ -383,11 +473,12 @@ export default function TicketDetail() {
               <SidebarSelect
                 icon={Building2}
                 label="Firma"
-                value={ticket.firmId || ''}
+                value={sidebarForm?.firmId || ''}
                 options={[
                   { value: '', label: 'Belirtilmedi' },
                   ...allFirms.map((f) => ({ value: f.id, label: f.name })),
                 ]}
+                onChange={(val) => updateSidebarField('firmId', val)}
                 onChange={(val) => updateTicket({ firmId: val ? Number(val) : null })}
                 avatarUrl={allFirms.find(f => f.id === ticket.firmId)?.avatarUrl}
               />
@@ -395,24 +486,24 @@ export default function TicketDetail() {
               <SidebarSelect
                 icon={Package}
                 label="Ürün"
-                value={ticket.productId || ''}
+                value={sidebarForm?.productId || ''}
                 options={[
-                  { value: '', label: ticket.firmId ? 'Belirtilmedi' : 'Firma seçin' },
-                  ...(ticket.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
+                  { value: '', label: sidebarForm?.firmId ? 'Belirtilmedi' : 'Firma seçin' },
+                  ...(sidebarForm?.firmId ? firmProducts : []).map((p) => ({ value: p.id, label: p.name })),
                 ]}
-                onChange={(val) => updateTicket({ productId: val ? Number(val) : null })}
+                onChange={(val) => updateSidebarField('productId', val)}
               />
               
               <SidebarSelect
                 icon={Globe}
                 label="Kapsam"
-                value={ticket.scope || ''}
+                value={sidebarForm?.scope || ''}
                 options={[
                   { value: '', label: 'Belirtilmedi' },
                   { value: 'Yerel', label: 'Yerel' },
                   { value: 'Genel', label: 'Genel' },
                 ]}
-                onChange={(val) => updateTicket({ scope: val || null })}
+                onChange={(val) => updateSidebarField('scope', val)}
               />
               
               <SidebarItem
@@ -437,6 +528,28 @@ export default function TicketDetail() {
               />
             </div>
 
+            {/* Save / Discard buttons for sidebar */}
+            {hasSidebarChanges && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveSidebar}
+                  disabled={savingSidebar}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingSidebar ? 'Kaydediliyor...' : 'Kaydet'}
+                </button>
+                <button
+                  onClick={handleDiscardSidebar}
+                  disabled={savingSidebar}
+                  className="px-3 py-2 text-sm font-medium text-surface-600 bg-surface-0 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+              </div>
+            )}
+
+            {/* Labels */}
             <div className="bg-surface-0 rounded-xl border border-surface-200 p-4">
               <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5" />

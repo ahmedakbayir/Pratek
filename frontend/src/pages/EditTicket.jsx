@@ -63,6 +63,7 @@ export default function EditTicket() {
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const initialFirmIdRef = useRef(null);
+  const ticketContentRef = useRef(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -127,8 +128,9 @@ export default function EditTicket() {
             : [],
         });
 
-        if (editor && ticket.content) {
-          editor.commands.setContent(ticket.content);
+        ticketContentRef.current = ticket.content || '';
+        if (editor) {
+          editor.commands.setContent(ticket.content || '');
         }
 
         // Load firm products if firm is set
@@ -145,8 +147,8 @@ export default function EditTicket() {
 
   // Set editor content when editor becomes available after data loaded
   useEffect(() => {
-    if (editor && !loading && form.title) {
-      // editor content is set in the load handler
+    if (editor && !loading && ticketContentRef.current !== null) {
+      editor.commands.setContent(ticketContentRef.current);
     }
   }, [editor, loading]);
 
