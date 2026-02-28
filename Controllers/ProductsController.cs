@@ -63,6 +63,7 @@ namespace Pratek.Controllers
             product.Name = model.Name;
             product.ManagerId = model.ManagerId;
             product.OrderNo = model.OrderNo;
+            product.AvatarUrl = model.AvatarUrl;
 
             await _context.SaveChangesAsync();
 

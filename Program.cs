@@ -33,6 +33,7 @@ using (var scope = app.Services.CreateScope())
         "ALTER TABLE Privilege ADD COLUMN ColorHex TEXT",
         // EKLENEN KISIM:
         "ALTER TABLE Firm ADD COLUMN AvatarUrl TEXT",
+        "ALTER TABLE Product ADD COLUMN AvatarUrl TEXT",
     };
     foreach (var sql in migrations)
     {
