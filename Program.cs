@@ -80,22 +80,48 @@ app.MapControllers();
 
 app.MapPost("/api/upload", async (HttpContext context) =>
 {
+    var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "Uploads");
+
+    // JSON base64 upload (avatar crop'tan geliyor)
+    if (context.Request.ContentType?.Contains("application/json") == true)
+    {
+        var body = await context.Request.ReadFromJsonAsync<Dictionary<string, string>>();
+        if (body == null || !body.ContainsKey("data") || !body.ContainsKey("fileName"))
+            return Results.BadRequest(new { error = "fileName ve data alanları gerekli" });
+
+        var bytes = Convert.FromBase64String(body["data"]);
+        var ext = Path.GetExtension(body["fileName"]);
+        if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+        var fileName = $"{Guid.NewGuid()}{ext}";
+        var filePath = Path.Combine(uploadsDir, fileName);
+
+        await File.WriteAllBytesAsync(filePath, bytes);
+
+        return Results.Ok(new
+        {
+            url = $"/uploads/{fileName}",
+            name = body["fileName"],
+            size = bytes.Length,
+            contentType = $"image/{ext.TrimStart('.')}"
+        });
+    }
+
+    // Multipart form-data upload
     var file = context.Request.Form.Files.FirstOrDefault();
     if (file == null || file.Length == 0)
         return Results.BadRequest(new { error = "Dosya seçilmedi" });
 
-    var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "Uploads");
-    var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-    var filePath = Path.Combine(uploadsDir, fileName);
+    var fName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+    var fPath = Path.Combine(uploadsDir, fName);
 
-    using (var stream = new FileStream(filePath, FileMode.Create))
+    using (var stream = new FileStream(fPath, FileMode.Create))
     {
         await file.CopyToAsync(stream);
     }
 
     return Results.Ok(new
     {
-        url = $"/uploads/{fileName}",
+        url = $"/uploads/{fName}",
         name = file.FileName,
         size = file.Length,
         contentType = file.ContentType
