@@ -483,11 +483,7 @@ export default function TicketDetail() {
                   { value: '', label: 'Atanmadı' },
                   ...allUsers.map((u) => ({ value: u.id, label: u.name })),
                 ]}
-                onChange={(val) => {
-                  // Her iki fonksiyonu da aynı anda çalıştırıyoruz
-                  updateSidebarField('assignedUserId', val);
-                  updateTicket({ assignedUserId: val ? Number(val) : null });
-                }}
+                onChange={(val) => updateSidebarField('assignedUserId', val)}
                 avatarUrl={allUsers.find(u => u.id === Number(sidebarForm?.assignedUserId || ticket?.assignedUserId))?.avatarUrl}
               />
 
@@ -499,11 +495,7 @@ export default function TicketDetail() {
                   { value: '', label: 'Belirtilmedi' },
                   ...allFirms.map((f) => ({ value: f.id, label: f.name })),
                 ]}
-                onChange={(val) => {
-                  // Her iki fonksiyonu da aynı anda çalıştırıyoruz
-                  updateSidebarField('firmId', val);
-                  updateTicket({ firmId: val ? Number(val) : null });
-                }}
+                onChange={(val) => updateSidebarField('firmId', val)}
                 avatarUrl={allFirms.find(f => f.id === Number(sidebarForm?.firmId || ticket?.firmId))?.avatarUrl}
               />
 

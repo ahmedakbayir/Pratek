@@ -6,8 +6,9 @@ import {
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { productsApi, usersApi } from '../services/api';
+import AvatarUpload from '../components/AvatarUpload';
 
-const emptyForm = { name: '', managerId: '', orderNo: '' };
+const emptyForm = { name: '', managerId: '', orderNo: '', avatarUrl: '' };
 
 export default function ProductList() {
   const [products, setProducts] = useState([]);
@@ -65,7 +66,7 @@ export default function ProductList() {
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
   const openEdit = (product) => {
     setEditing(product);
-    setForm({ name: product.name, managerId: product.managerId || '', orderNo: product.orderNo ?? '' });
+    setForm({ name: product.name, managerId: product.managerId || '', orderNo: product.orderNo ?? '', avatarUrl: product.avatarUrl || '' });
     setShowModal(true);
   };
 
@@ -77,6 +78,7 @@ export default function ProductList() {
         name: form.name,
         managerId: form.managerId ? Number(form.managerId) : null,
         orderNo: form.orderNo !== '' ? Number(form.orderNo) : null,
+        avatarUrl: form.avatarUrl,
       };
       if (editing) await productsApi.update(editing.id, payload);
       else await productsApi.create(payload);
@@ -122,8 +124,12 @@ export default function ProductList() {
                   <span className="text-xs font-mono text-surface-400">#{product.id}</span>
                   <span className="text-xs font-mono text-surface-400">{product.orderNo ?? '-'}</span>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                      <Package className="w-4 h-4 text-primary-600" />
+                    <div className="w-9 h-9 rounded-lg bg-primary-50 overflow-hidden flex items-center justify-center shrink-0 border border-surface-200">
+                      {product.avatarUrl ? (
+                        <img src={product.avatarUrl} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-4.5 h-4.5 text-primary-600" />
+                      )}
                     </div>
                     <span className="text-sm font-medium text-surface-900 truncate">{product.name}</span>
                   </div>
@@ -157,6 +163,9 @@ export default function ProductList() {
               <button onClick={() => setShowModal(false)} className="p-1 text-surface-400 hover:text-surface-600 rounded cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
+
+              <AvatarUpload label="Ürün Logosu" value={form.avatarUrl} onChange={(url) => setForm(f => ({ ...f, avatarUrl: url }))} />
+
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1.5">Ürün Adı <span className="text-danger">*</span></label>
                 <input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ürün adını girin..." className="input-field" />
@@ -209,7 +218,7 @@ function LoadingRows() {
         <div key={i} className="grid grid-cols-[0.4fr_0.4fr_1.5fr_1.5fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="h-4 bg-surface-200 rounded w-6" />
           <div className="h-4 bg-surface-100 rounded w-6" />
-          <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-surface-200" /><div className="h-4 bg-surface-200 rounded w-40" /></div>
+          <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-lg bg-surface-200" /><div className="h-4 bg-surface-200 rounded w-40" /></div>
           <div className="h-4 bg-surface-100 rounded w-28" />
           <div />
         </div>

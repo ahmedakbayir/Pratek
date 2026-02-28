@@ -10,6 +10,8 @@ namespace Pratek.Models
 
         public int? OrderNo { get; set; }
 
+        public string? AvatarUrl { get; set; }
+
         // Navigation
         public User? Manager { get; set; }
         public ICollection<FirmProduct>? FirmProducts { get; set; }
