@@ -12,6 +12,7 @@ import Header from '../components/Header';
 import StatsCard from '../components/StatsCard';
 import Badge from '../components/Badge';
 import { ticketsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 function hexToRgb(hex) {
   if (!hex) return null;
@@ -20,16 +21,22 @@ function hexToRgb(hex) {
 }
 
 export default function Dashboard() {
-  const [tickets, setTickets] = useState([]);
+  const [allTickets, setAllTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { isAdmin, authorizedFirmIds } = useAuth();
 
   useEffect(() => {
     ticketsApi
       .getAll()
-      .then(setTickets)
-      .catch(() => setTickets([]))
+      .then(setAllTickets)
+      .catch(() => setAllTickets([]))
       .finally(() => setLoading(false));
   }, []);
+
+  // Filter tickets based on user's authorized firms
+  const tickets = isAdmin
+    ? allTickets
+    : allTickets.filter(t => t.firmId && authorizedFirmIds.includes(t.firmId));
 
   const openCount = tickets.filter((t) => !t.status?.isClosed).length;
   const closedCount = tickets.filter((t) => t.status?.isClosed).length;

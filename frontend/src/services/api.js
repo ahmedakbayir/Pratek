@@ -1,5 +1,14 @@
 const API_BASE = '/api';
 
+export const authApi = {
+  login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+};
+
+export const userFirmsApi = {
+  get: (userId) => request(`/users/${userId}/firms`),
+  update: (userId, firmIds) => request(`/users/${userId}/firms`, { method: 'PUT', body: JSON.stringify({ firmIds }) }),
+};
+
 async function request(url, options = {}) {
   let res;
   try {

@@ -24,6 +24,7 @@ import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import { ticketsApi, firmsApi, productsApi, labelsApi, statusesApi, usersApi, prioritiesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 function hexToRgb(hex) {
   if (!hex) return null;
@@ -160,6 +161,7 @@ export default function TicketList() {
 
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
+  const { isAdmin, authorizedFirmIds } = useAuth();
 
   useEffect(() => {
     setLoading(true);
@@ -173,7 +175,11 @@ export default function TicketList() {
       prioritiesApi.getAll().catch(() => []),
     ])
       .then(([t, f, p, lb, s, u, pr]) => {
-        setTickets(t || []);
+        // Filter tickets based on user's authorized firms
+        const filteredTickets = isAdmin
+          ? (t || [])
+          : (t || []).filter(ticket => ticket.firmId && authorizedFirmIds.includes(ticket.firmId));
+        setTickets(filteredTickets);
         setFirms(f || []);
         setProducts(p || []);
         setLabels(lb || []);

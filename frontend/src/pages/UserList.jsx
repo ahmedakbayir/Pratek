@@ -1,16 +1,17 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Plus, Edit3, Trash2, X, Users as UsersIcon, Mail, Phone,
-  Building2, Check, ChevronDown, Search, ChevronUp,
+  Building2, Check, ChevronDown, Search, ChevronUp, MoreHorizontal, Eye,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { usersApi, privilegesApi, firmsApi } from '../services/api';
+import { usersApi, privilegesApi, firmsApi, userFirmsApi } from '../services/api';
 import AvatarUpload from '../components/AvatarUpload';
+import { useAuth } from '../context/AuthContext';
 
 const roleVariants = ['default', 'danger', 'info', 'default', 'warning', 'success', 'primary'];
-const emptyForm = { name: '', mail: '', password: '', gsm: '', privilegeId: '', firmId: '', orderNo: '' };
+const emptyForm = { name: '', mail: '', password: '', gsm: '', privilegeId: '', firmId: '', orderNo: '', authorizedFirmIds: [] };
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
@@ -25,6 +26,9 @@ export default function UserList() {
   const [privilegeFilter, setPrivilegeFilter] = useState([]);
   const [search, setSearch] = useState('');
   const [sortStack, setSortStack] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  const { isAdmin: currentUserIsAdmin, impersonate, user: currentUser } = useAuth();
 
   const load = () => {
     setLoading(true);
@@ -110,7 +114,17 @@ export default function UserList() {
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
   const openEdit = (user) => {
     setEditing(user);
-    setForm({ name: user.name, mail: user.mail, password: '', gsm: user.gsm || '', privilegeId: user.privilegeId || '', firmId: user.firmId || '', orderNo: user.orderNo ?? '' });
+    setForm({
+      name: user.name,
+      mail: user.mail,
+      password: '',
+      gsm: user.gsm || '',
+      privilegeId: user.privilegeId || '',
+      firmId: user.firmId || '',
+      orderNo: user.orderNo ?? '',
+      avatarUrl: user.avatarUrl || '',
+      authorizedFirmIds: user.authorizedFirmIds || [],
+    });
     setShowModal(true);
   };
 
@@ -119,8 +133,18 @@ export default function UserList() {
     setSaving(true);
     try {
       const payload = { ...form, avatarUrl: form.avatarUrl, privilegeId: form.privilegeId ? Number(form.privilegeId) : null, firmId: form.firmId ? Number(form.firmId) : null, orderNo: form.orderNo !== '' ? Number(form.orderNo) : null };
-      if (editing) await usersApi.update(editing.id, payload);
-      else await usersApi.create(payload);
+      let userId;
+      if (editing) {
+        await usersApi.update(editing.id, payload);
+        userId = editing.id;
+      } else {
+        const created = await usersApi.create(payload);
+        userId = created.id;
+      }
+      // Save authorized firms
+      if (userId && form.authorizedFirmIds) {
+        await userFirmsApi.update(userId, form.authorizedFirmIds);
+      }
       setShowModal(false); load();
     } catch (err) { alert('Hata: ' + err.message); }
     finally { setSaving(false); }
@@ -129,6 +153,21 @@ export default function UserList() {
   const handleDelete = async (id) => {
     if (!confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) return;
     try { await usersApi.delete(id); load(); } catch (err) { alert('Silme hatası: ' + err.message); }
+  };
+
+  const handleImpersonate = async (user) => {
+    setOpenMenuId(null);
+    await impersonate(user);
+    window.location.href = '/';
+  };
+
+  const toggleAuthorizedFirm = (firmId) => {
+    setForm(f => ({
+      ...f,
+      authorizedFirmIds: f.authorizedFirmIds.includes(firmId)
+        ? f.authorizedFirmIds.filter(id => id !== firmId)
+        : [...f.authorizedFirmIds, firmId]
+    }));
   };
 
   return (
@@ -205,6 +244,14 @@ export default function UserList() {
                     <div className="flex items-center gap-1 justify-end">
                       <button onClick={() => openEdit(user)} className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
                       <button onClick={() => handleDelete(user.id)} className="p-1.5 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      {currentUserIsAdmin && user.id !== currentUser?.id && (
+                        <UserActionMenu
+                          isOpen={openMenuId === user.id}
+                          onToggle={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                          onClose={() => setOpenMenuId(null)}
+                          onImpersonate={() => handleImpersonate(user)}
+                        />
+                      )}
                     </div>
                   </div>
                 );
@@ -225,12 +272,73 @@ export default function UserList() {
             <Field label="Firma"><select value={form.firmId} onChange={(e) => setForm((f) => ({ ...f, firmId: e.target.value }))} className="input-field"><option value="">Seçiniz...</option>{firms.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}</select></Field>
             <Field label="Yetki"><select value={form.privilegeId} onChange={(e) => setForm((f) => ({ ...f, privilegeId: e.target.value }))} className="input-field"><option value="">Seçiniz...</option>{roles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}</select></Field>
             <Field label="Sıra No"><input type="number" value={form.orderNo} onChange={(e) => setForm((f) => ({ ...f, orderNo: e.target.value }))} placeholder="Sıralama numarası" className="input-field" /></Field>
+
+            {/* Authorized Firms */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1.5">Yetkili Firmalar</label>
+              <p className="text-xs text-surface-500 mb-2">Kullanıcının ticket'larını görebileceği firmalar</p>
+              <div className="border border-surface-200 rounded-lg max-h-40 overflow-y-auto">
+                {firms.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-surface-400">Firma bulunamadı</div>
+                ) : (
+                  firms.map((firm) => {
+                    const isSelected = form.authorizedFirmIds.includes(firm.id);
+                    return (
+                      <button
+                        key={firm.id}
+                        type="button"
+                        onClick={() => toggleAuthorizedFirm(firm.id)}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary-600 border-primary-600' : 'border-surface-300'}`}>
+                          {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                        </div>
+                        <span className="truncate">{firm.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">İptal</button>
               <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Kaydediliyor...' : editing ? 'Güncelle' : 'Oluştur'}</button>
             </div>
           </form>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+function UserActionMenu({ isOpen, onToggle, onClose, onImpersonate }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen, onClose]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={onToggle}
+        className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="w-3.5 h-3.5" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-surface-0 border border-surface-200 rounded-lg shadow-lg z-30 py-1">
+          <button
+            onClick={onImpersonate}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors cursor-pointer"
+          >
+            <Eye className="w-4 h-4 text-primary-500" />
+            <span>Kullanıcının Gözünden Gör</span>
+          </button>
+        </div>
       )}
     </div>
   );
@@ -299,8 +407,8 @@ function Modal({ title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-surface-0 rounded-xl border border-surface-200 shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
+      <div className="relative bg-surface-0 rounded-xl border border-surface-200 shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 sticky top-0 bg-surface-0 z-10">
           <h3 className="text-base font-semibold text-surface-900">{title}</h3>
           <button onClick={onClose} className="p-1 text-surface-400 hover:text-surface-600 rounded cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
