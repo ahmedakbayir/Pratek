@@ -175,21 +175,57 @@ export default function TicketDetail() {
     );
   }, [ticket, sidebarForm]);
 
-  // Update local sidebar form (no API call)
+  // 1. Sadece yerel state'i güncelleyen fonksiyon (API çağrısı yapmaz)
   const updateSidebarField = (field, value) => {
     setSidebarForm((prev) => {
       const next = { ...prev, [field]: value };
-      // If firm changed, clear product and reload firm products
+
+      // Eğer firma değiştiyse ürünü temizle ve yeni firmanın ürünlerini yükle
       if (field === 'firmId' && value !== prev.firmId) {
-        next.productId = '';
+        next.productId = ''; // Ürün seçimini sıfırla
         if (value) {
           firmsApi.getProducts(value).then(setFirmProducts).catch(() => setFirmProducts([]));
+        } else {
+          setFirmProducts([]); // Firma seçimi kaldırıldıysa ürün listesini de boşalt
+        }
+      }
+
+      return next;
+    });
+  };
+
+  // 2. Ticket'ı doğrudan API üzerinden güncelleyen fonksiyon
+  const updateTicket = async (patch) => {
+    try {
+      const payload = {
+        title: ticket.title,
+        content: ticket.content,
+        priorityId: ticket.priorityId,
+        statusId: ticket.statusId,
+        firmId: ticket.firmId,
+        assignedUserId: ticket.assignedUserId,
+        productId: ticket.productId,
+        scope: ticket.scope,
+        ...patch,
+      };
+
+      // Eğer güncellenen alan firmId ise ürün mantığını ayarla
+      if ('firmId' in patch && patch.firmId !== ticket.firmId) {
+        payload.productId = null;
+        if (patch.firmId) {
+          firmsApi.getProducts(patch.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
         } else {
           setFirmProducts([]);
         }
       }
-      return next;
-    });
+
+      // API çağrısı ve state güncellemeleri
+      const updated = await ticketsApi.update(id, payload);
+      setTicket(updated);
+      loadActivity();
+    } catch (err) {
+      alert('Güncelleme hatası:\n' + err.message);
+    }
   };
 
   // Save sidebar changes to API
@@ -298,7 +334,7 @@ export default function TicketDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            
+
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-5 border-b border-surface-200">
                 <div className="flex items-start justify-between">
@@ -412,7 +448,7 @@ export default function TicketDetail() {
           {/* Sidebar */}
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
-              
+
               <SidebarSelect
                 icon={CheckCircle2}
                 label="Durum"
@@ -425,7 +461,7 @@ export default function TicketDetail() {
                 colorDot={getColorDot(sidebarStatus)}
                 selectStyle={getSelectStyle(sidebarStatus)}
               />
-              
+
               <SidebarSelect
                 icon={AlertCircle}
                 label="Öncelik"
@@ -438,7 +474,7 @@ export default function TicketDetail() {
                 colorDot={getColorDot(sidebarPriority)}
                 selectStyle={getSelectStyle(sidebarPriority)}
               />
-              
+
               <SidebarSelect
                 icon={UserPlus}
                 label="Atanan Kişi"
@@ -447,11 +483,14 @@ export default function TicketDetail() {
                   { value: '', label: 'Atanmadı' },
                   ...allUsers.map((u) => ({ value: u.id, label: u.name })),
                 ]}
-                onChange={(val) => updateSidebarField('assignedUserId', val)}
-                onChange={(val) => updateTicket({ assignedUserId: val ? Number(val) : null })}
-                avatarUrl={allUsers.find(u => u.id === ticket.assignedUserId)?.avatarUrl}
+                onChange={(val) => {
+                  // Her iki fonksiyonu da aynı anda çalıştırıyoruz
+                  updateSidebarField('assignedUserId', val);
+                  updateTicket({ assignedUserId: val ? Number(val) : null });
+                }}
+                avatarUrl={allUsers.find(u => u.id === Number(sidebarForm?.assignedUserId || ticket?.assignedUserId))?.avatarUrl}
               />
-              
+
               <SidebarSelect
                 icon={Building2}
                 label="Firma"
@@ -460,11 +499,14 @@ export default function TicketDetail() {
                   { value: '', label: 'Belirtilmedi' },
                   ...allFirms.map((f) => ({ value: f.id, label: f.name })),
                 ]}
-                onChange={(val) => updateSidebarField('firmId', val)}
-                onChange={(val) => updateTicket({ firmId: val ? Number(val) : null })}
-                avatarUrl={allFirms.find(f => f.id === ticket.firmId)?.avatarUrl}
+                onChange={(val) => {
+                  // Her iki fonksiyonu da aynı anda çalıştırıyoruz
+                  updateSidebarField('firmId', val);
+                  updateTicket({ firmId: val ? Number(val) : null });
+                }}
+                avatarUrl={allFirms.find(f => f.id === Number(sidebarForm?.firmId || ticket?.firmId))?.avatarUrl}
               />
-              
+
               <SidebarSelect
                 icon={Package}
                 label="Ürün"
@@ -475,7 +517,7 @@ export default function TicketDetail() {
                 ]}
                 onChange={(val) => updateSidebarField('productId', val)}
               />
-              
+
               <SidebarSelect
                 icon={Globe}
                 label="Kapsam"
@@ -487,7 +529,7 @@ export default function TicketDetail() {
                 ]}
                 onChange={(val) => updateSidebarField('scope', val)}
               />
-              
+
               <SidebarItem
                 icon={User}
                 label="Olusturan"
@@ -621,7 +663,7 @@ function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, 
         ) : colorDot ? (
           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorDot }} />
         ) : null}
-        
+
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
