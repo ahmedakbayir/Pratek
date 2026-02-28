@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   UserPlus,
   Globe,
   Save,
+  Ticket as TicketIcon,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -62,7 +63,15 @@ export default function TicketDetail() {
   const [allPriorities, setAllPriorities] = useState([]);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [firmProducts, setFirmProducts] = useState([]);
+  const [allTickets, setAllTickets] = useState([]);
+  const [mentionSuggestions, setMentionSuggestions] = useState([]);
+  const [showMentionPopup, setShowMentionPopup] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionCaretPos, setMentionCaretPos] = useState(null);
   const labelPickerRef = useRef(null);
+  const commentInputRef = useRef(null);
+  const mentionPopupRef = useRef(null);
 
   // Local sidebar state for deferred save
   const [sidebarForm, setSidebarForm] = useState(null);
@@ -81,8 +90,9 @@ export default function TicketDetail() {
       productsApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
       prioritiesApi.getAll().catch(() => []),
+      ticketsApi.search('').catch(() => []),
     ])
-      .then(([t, act, labels, users, firms, products, statuses, priorities]) => {
+      .then(([t, act, labels, users, firms, products, statuses, priorities, tickets]) => {
         setTicket(t);
         setActivity(act || []);
         setAllLabels(labels || []);
@@ -91,6 +101,7 @@ export default function TicketDetail() {
         setAllProducts(products || []);
         setAllStatuses(statuses || []);
         setAllPriorities(priorities || []);
+        setAllTickets(tickets || []);
         // Initialize sidebar form from ticket data
         setSidebarForm({
           statusId: t.statusId || '',
@@ -159,6 +170,109 @@ export default function TicketDetail() {
       await Promise.all([loadTicket(), loadActivity()]);
     } catch (err) {
       alert('Etiket kaldirilamadi:\n' + err.message);
+    }
+  };
+
+  // --- Comment # mention autocomplete ---
+  const getHashtagSuggestions = useCallback((query) => {
+    const q = query.toLowerCase().trim();
+    const results = [];
+    allTickets.forEach((t) => {
+      if (String(t.id) === String(id)) return; // skip current ticket
+      const idMatch = String(t.id).includes(q);
+      const titleMatch = (t.title || '').toLowerCase().includes(q);
+      if (!q || idMatch || titleMatch) {
+        results.push({ id: t.id, label: t.title, type: 'ticket' });
+      }
+    });
+    allUsers.forEach((u) => {
+      const nameMatch = (u.name || '').toLowerCase().includes(q);
+      if (!q || nameMatch) {
+        results.push({ id: u.id, label: u.name, type: 'user', avatarUrl: u.avatarUrl });
+      }
+    });
+    return results.slice(0, 8);
+  }, [allTickets, allUsers, id]);
+
+  const handleCommentChange = (e) => {
+    const value = e.target.value;
+    setNewComment(value);
+
+    const cursorPos = e.target.selectionStart;
+    const textBefore = value.slice(0, cursorPos);
+    const hashMatch = textBefore.match(/#(\w*)$/);
+
+    if (hashMatch) {
+      const query = hashMatch[1];
+      setMentionQuery(query);
+      const suggestions = getHashtagSuggestions(query);
+      setMentionSuggestions(suggestions);
+      setShowMentionPopup(suggestions.length > 0);
+      setMentionIndex(0);
+      setMentionCaretPos(cursorPos);
+    } else {
+      setShowMentionPopup(false);
+    }
+  };
+
+  const insertMention = (item) => {
+    const textarea = commentInputRef.current;
+    if (!textarea) return;
+
+    const textBefore = newComment.slice(0, mentionCaretPos);
+    const hashStart = textBefore.lastIndexOf('#');
+    const textAfter = newComment.slice(mentionCaretPos);
+
+    let insertText;
+    if (item.type === 'ticket') {
+      insertText = `#${item.id} `;
+    } else {
+      insertText = `#${item.label} `;
+    }
+
+    const newText = newComment.slice(0, hashStart) + insertText + textAfter;
+    setNewComment(newText);
+    setShowMentionPopup(false);
+
+    setTimeout(() => {
+      const newPos = hashStart + insertText.length;
+      textarea.focus();
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const handleCommentKeyDown = (e) => {
+    if (showMentionPopup) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + mentionSuggestions.length - 1) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        insertMention(mentionSuggestions[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowMentionPopup(false);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendComment();
+  };
+
+  // Handle click on mention links in ticket content
+  const handleContentClick = (e) => {
+    const link = e.target.closest('a[data-mention-type="ticket"]');
+    if (link) {
+      e.preventDefault();
+      const href = link.getAttribute('href');
+      if (href) navigate(href);
     }
   };
 
@@ -366,6 +480,7 @@ export default function TicketDetail() {
                   <div
                     className="tiptap-editor text-sm text-surface-700 leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: ticket.content }}
+                    onClick={handleContentClick}
                   />
                 ) : (
                   <p className="text-sm text-surface-400">Aciklama eklenmemis.</p>
@@ -391,7 +506,7 @@ export default function TicketDetail() {
                       <div className="flex items-center gap-2 text-xs text-surface-500">
                         <Edit3 className="w-3.5 h-3.5 text-primary-500" />
                         <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
-                        <span>{item.description}</span>
+                        <span>{renderWithHashtags(item.description, navigate)}</span>
                         {item.oldValue && (
                           <span className="line-through text-surface-400">{item.oldValue}</span>
                         )}
@@ -417,19 +532,49 @@ export default function TicketDetail() {
                   <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs font-medium text-white shrink-0">
                     A
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 relative">
                     <textarea
-                      placeholder="Yorum ekle..."
+                      ref={commentInputRef}
+                      placeholder="Yorum ekle... (# ile referans verin)"
                       rows={2}
                       value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendComment();
-                      }}
+                      onChange={handleCommentChange}
+                      onKeyDown={handleCommentKeyDown}
+                      onBlur={() => setTimeout(() => setShowMentionPopup(false), 200)}
                       className="w-full px-3 py-2 text-sm bg-surface-50 border border-surface-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
                     />
+                    {showMentionPopup && mentionSuggestions.length > 0 && (
+                      <div ref={mentionPopupRef} className="mention-dropdown" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '4px' }}>
+                        {mentionSuggestions.map((item, idx) => (
+                          <button
+                            key={`${item.type}-${item.id}`}
+                            className={`mention-dropdown-item ${idx === mentionIndex ? 'is-selected' : ''}`}
+                            onMouseDown={(e) => { e.preventDefault(); insertMention(item); }}
+                          >
+                            {item.type === 'ticket' ? (
+                              <>
+                                <TicketIcon className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                                <span className="font-mono text-primary-600">#{item.id}</span>
+                                <span className="truncate text-surface-700">{item.label}</span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-5 h-5 rounded-full bg-surface-200 flex items-center justify-center text-[10px] font-medium text-surface-600 shrink-0 overflow-hidden border border-surface-200">
+                                  {item.avatarUrl ? (
+                                    <img src={item.avatarUrl} alt={item.label} className="w-full h-full object-cover" />
+                                  ) : (
+                                    item.label?.charAt(0)
+                                  )}
+                                </div>
+                                <span className="truncate text-surface-700">{item.label}</span>
+                              </>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-surface-400">Ctrl+Enter ile gonder</span>
+                      <span className="text-xs text-surface-400">Ctrl+Enter ile gonder | # ile referans</span>
                       <button
                         onClick={handleSendComment}
                         disabled={!newComment.trim() || sendingComment}
@@ -718,6 +863,28 @@ function SidebarItem({ icon: Icon, label, value }) {
       <span className="text-sm text-surface-900 font-medium">{value}</span>
     </div>
   );
+}
+
+function renderWithHashtags(text, navigate) {
+  if (!text) return text;
+  const parts = text.split(/(#\d+)/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^#(\d+)$/);
+    if (match) {
+      const ticketId = match[1];
+      return (
+        <a
+          key={i}
+          href={`/tickets/${ticketId}`}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/tickets/${ticketId}`); }}
+          className="hashtag-mention hashtag-ticket inline"
+        >
+          #{ticketId}
+        </a>
+      );
+    }
+    return part;
+  });
 }
 
 function formatDateTime(dateStr) {

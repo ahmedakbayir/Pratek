@@ -43,6 +43,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
+import TicketMention, { setMentionData } from '../extensions/ticketMention';
 
 export default function EditTicket() {
   const { id } = useParams();
@@ -80,13 +81,14 @@ export default function EditTicket() {
     extensions: [
       StarterKit,
       Image.configure({ inline: true, allowBase64: true }),
-      Placeholder.configure({ placeholder: 'Detayli aciklama yazin...' }),
+      Placeholder.configure({ placeholder: 'Detayli aciklama yazin... (# ile ticket veya kullanici referansi ekleyin)' }),
       Underline,
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Color,
       TextStyle,
       Highlight.configure({ multicolor: true }),
+      TicketMention,
     ],
     content: '',
     editorProps: {
@@ -104,13 +106,16 @@ export default function EditTicket() {
       prioritiesApi.getAll().catch(() => []),
       statusesApi.getAll().catch(() => []),
       labelsApi.getAll().catch(() => []),
+      ticketsApi.search('').catch(() => []),
     ])
-      .then(([ticket, u, f, p, s, lb]) => {
+      .then(([ticket, u, f, p, s, lb, allTickets]) => {
         setUsers(u || []);
         setFirms(f || []);
         setPriorities(p || []);
         setStatuses(s || []);
         setAllLabels(lb || []);
+        // Set mention data for # autocomplete
+        setMentionData(allTickets || [], u || []);
 
         const firmId = ticket.firmId ? String(ticket.firmId) : '';
         initialFirmIdRef.current = firmId;

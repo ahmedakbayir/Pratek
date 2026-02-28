@@ -261,6 +261,19 @@ app.get('/api/tickets', (req, res) => {
   const ids = db.prepare('SELECT "Id" FROM "Ticket" ORDER BY "Id" DESC').all();
   res.json(ids.map(row => getFullTicket(row.Id)));
 });
+
+// --- TICKET SEARCH (for #hashtag mention autocomplete) ---
+app.get('/api/tickets/search', (req, res) => {
+  const q = (req.query.q || '').trim();
+  let rows;
+  if (q) {
+    rows = db.prepare('SELECT "Id", "Title" FROM "Ticket" WHERE CAST("Id" AS TEXT) LIKE ? OR "Title" LIKE ? ORDER BY "Id" DESC LIMIT 15')
+      .all(`%${q}%`, `%${q}%`);
+  } else {
+    rows = db.prepare('SELECT "Id", "Title" FROM "Ticket" ORDER BY "Id" DESC LIMIT 15').all();
+  }
+  res.json(rows.map(r => ({ id: r.Id, title: r.Title })));
+});
 app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
 app.post('/api/tickets', (req, res) => {
   const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate, scope } = req.body;
