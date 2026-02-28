@@ -184,24 +184,6 @@ export default function TicketDetail() {
         next.productId = '';
         if (value) {
           firmsApi.getProducts(value).then(setFirmProducts).catch(() => setFirmProducts([]));
-  const updateTicket = async (patch) => {
-    try {
-      const payload = {
-        title: ticket.title,
-        content: ticket.content,
-        priorityId: ticket.priorityId,
-        statusId: ticket.statusId,
-        firmId: ticket.firmId,
-        assignedUserId: ticket.assignedUserId,
-        productId: ticket.productId,
-        scope: ticket.scope,
-        ...patch,
-      };
-      
-      if ('firmId' in patch && patch.firmId !== ticket.firmId) {
-        payload.productId = null;
-        if (patch.firmId) {
-          firmsApi.getProducts(patch.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
         } else {
           setFirmProducts([]);
         }
