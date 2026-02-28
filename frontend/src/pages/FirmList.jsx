@@ -6,6 +6,8 @@ import {
   X,
   Building2,
   Search,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
@@ -20,6 +22,7 @@ export default function FirmList() {
   const [form, setForm] = useState({ name: '', orderNo: '', parentId: '', version: '', avatarUrl: '' });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [sortStack, setSortStack] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -34,20 +37,56 @@ export default function FirmList() {
     return parent?.name || '-';
   };
 
-  const filteredFirms = useMemo(() => {
-    if (!search.trim()) return firms;
-    const q = search.toLowerCase();
-    return firms.filter((f) => {
-      const parentName = getFirmParentName(f).toLowerCase();
-      return (
-        String(f.id).includes(q) ||
-        (f.name || '').toLowerCase().includes(q) ||
-        parentName.includes(q) ||
-        String(f.orderNo ?? '').includes(q) ||
-        String(f.version ?? '').includes(q)
-      );
+  const handleSort = (key) => {
+    setSortStack((prev) => {
+      const idx = prev.findIndex((s) => s.key === key);
+      if (idx !== -1 && idx === prev.length - 1) {
+        const next = [...prev];
+        next[idx] = { key, dir: prev[idx].dir === 'asc' ? 'desc' : 'asc' };
+        return next;
+      }
+      return [...prev.filter((s) => s.key !== key), { key, dir: 'asc' }];
     });
-  }, [firms, search]);
+  };
+
+  const filteredAndSorted = useMemo(() => {
+    let result = firms;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((f) => {
+        const parentName = getFirmParentName(f).toLowerCase();
+        return (
+          String(f.id).includes(q) ||
+          (f.name || '').toLowerCase().includes(q) ||
+          parentName.includes(q) ||
+          String(f.orderNo ?? '').includes(q) ||
+          String(f.version ?? '').includes(q)
+        );
+      });
+    }
+    if (sortStack.length > 0) {
+      result = [...result].sort((a, b) => {
+        for (let i = sortStack.length - 1; i >= 0; i--) {
+          const { key, dir } = sortStack[i];
+          let aVal, bVal;
+          switch (key) {
+            case 'id': aVal = a.id; bVal = b.id; break;
+            case 'orderNo': aVal = a.orderNo ?? Infinity; bVal = b.orderNo ?? Infinity; break;
+            case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
+            case 'parent': aVal = getFirmParentName(a).toLowerCase(); bVal = getFirmParentName(b).toLowerCase(); break;
+            case 'version': aVal = a.version ?? -1; bVal = b.version ?? -1; break;
+            default: continue;
+          }
+          let cmp;
+          if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
+          else cmp = String(aVal).localeCompare(String(bVal), 'tr');
+          if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+        }
+        return 0;
+      });
+    }
+    return result;
+  }, [firms, search, sortStack]);
 
   const openCreate = () => {
     setEditing(null);
@@ -99,7 +138,7 @@ export default function FirmList() {
 
   return (
     <div>
-      <Header title="Firmalar" subtitle={`${filteredFirms.length} firma`} />
+      <Header title="Firmalar" subtitle={`${filteredAndSorted.length} firma`} />
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-surface-200">
@@ -121,23 +160,24 @@ export default function FirmList() {
             </div>
           </div>
 
-          <div className="grid grid-cols-[0.4fr_0.4fr_2fr_2fr_0.6fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
-            <span>ID</span>
-            <span>Sıra</span>
-            <span>Firma Adı</span>
-            <span>Üst Firma</span>
-            <span>Versiyon</span>
+          {/* Table Header */}
+          <div className="grid grid-cols-[0.4fr_0.4fr_2fr_1.5fr_0.8fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
+            <SortableHeader sortKey="id" sortStack={sortStack} onSort={handleSort}>ID</SortableHeader>
+            <SortableHeader sortKey="orderNo" sortStack={sortStack} onSort={handleSort}>Sıra</SortableHeader>
+            <SortableHeader sortKey="name" sortStack={sortStack} onSort={handleSort}>Firma Adı</SortableHeader>
+            <SortableHeader sortKey="parent" sortStack={sortStack} onSort={handleSort}>Üst Firma</SortableHeader>
+            <SortableHeader sortKey="version" sortStack={sortStack} onSort={handleSort}>Versiyon</SortableHeader>
             <span />
           </div>
 
-          {loading ? <LoadingRows /> : filteredFirms.length === 0 ? (
+          {loading ? <LoadingRows /> : filteredAndSorted.length === 0 ? (
             <EmptyState icon={Building2} title="Firma bulunamadı" description={search ? 'Arama kriterine uygun firma bulunamadı.' : 'Henüz bir firma eklenmemiş.'}
               action={!search && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Firma Ekle</button>}
             />
           ) : (
             <div className="divide-y divide-surface-100">
-              {filteredFirms.map((firm) => (
-                <div key={firm.id} className="grid grid-cols-[0.4fr_0.4fr_2fr_2fr_0.6fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
+              {filteredAndSorted.map((firm) => (
+                <div key={firm.id} className="grid grid-cols-[0.4fr_0.4fr_2fr_1.5fr_0.8fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-surface-50 transition-colors">
                   <div className="text-xs text-surface-400 font-mono">#{firm.id}</div>
                   <div className="text-xs text-surface-400 font-mono">{firm.orderNo ?? '-'}</div>
                   <div className="flex items-center gap-3 min-w-0">
@@ -208,11 +248,29 @@ export default function FirmList() {
   );
 }
 
+function SortableHeader({ children, sortKey, sortStack, onSort }) {
+  const current = sortStack.find((s) => s.key === sortKey);
+  const isPrimary = sortStack.length > 0 && sortStack[sortStack.length - 1].key === sortKey;
+  return (
+    <span
+      onClick={() => onSort(sortKey)}
+      className="flex items-center gap-0.5 cursor-pointer hover:text-surface-700 select-none transition-colors"
+    >
+      {children}
+      {current ? (
+        current.dir === 'asc'
+          ? <ChevronUp className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+          : <ChevronDown className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+      ) : null}
+    </span>
+  );
+}
+
 function LoadingRows() {
   return (
     <div className="divide-y divide-surface-100">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[0.4fr_0.4fr_2fr_2fr_0.6fr_auto] gap-3 px-5 py-3.5 animate-pulse">
+        <div key={i} className="grid grid-cols-[0.4fr_0.4fr_2fr_1.5fr_0.8fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="h-4 bg-surface-100 rounded w-6" />
           <div className="h-4 bg-surface-100 rounded w-6" />
           <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-lg bg-surface-200" /><div className="h-4 bg-surface-200 rounded w-24" /></div>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Plus, Edit3, Trash2, X, Users as UsersIcon, Mail, Phone,
-  Building2, Check, ChevronDown, Search,
+  Building2, Check, ChevronDown, Search, ChevronUp,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -24,6 +24,7 @@ export default function UserList() {
   const [firmFilter, setFirmFilter] = useState([]);
   const [privilegeFilter, setPrivilegeFilter] = useState([]);
   const [search, setSearch] = useState('');
+  const [sortStack, setSortStack] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -38,8 +39,20 @@ export default function UserList() {
   const anyFilterActive = firmFilter.length > 0 || privilegeFilter.length > 0;
   const clearAllFilters = () => { setFirmFilter([]); setPrivilegeFilter([]); };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+  const handleSort = (key) => {
+    setSortStack((prev) => {
+      const idx = prev.findIndex((s) => s.key === key);
+      if (idx !== -1 && idx === prev.length - 1) {
+        const next = [...prev];
+        next[idx] = { key, dir: prev[idx].dir === 'asc' ? 'desc' : 'asc' };
+        return next;
+      }
+      return [...prev.filter((s) => s.key !== key), { key, dir: 'asc' }];
+    });
+  };
+
+  const filteredAndSorted = useMemo(() => {
+    let result = users.filter((u) => {
       if (firmFilter.length > 0 && !firmFilter.includes(u.firmId)) return false;
       if (privilegeFilter.length > 0 && !privilegeFilter.includes(u.privilegeId)) return false;
       if (search.trim()) {
@@ -58,7 +71,41 @@ export default function UserList() {
       }
       return true;
     });
-  }, [users, firmFilter, privilegeFilter, search, firms, roles]);
+
+    if (sortStack.length > 0) {
+      result = [...result].sort((a, b) => {
+        for (let i = sortStack.length - 1; i >= 0; i--) {
+          const { key, dir } = sortStack[i];
+          let aVal, bVal;
+          switch (key) {
+            case 'id': aVal = a.id; bVal = b.id; break;
+            case 'orderNo': aVal = a.orderNo ?? Infinity; bVal = b.orderNo ?? Infinity; break;
+            case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
+            case 'mail': aVal = (a.mail || '').toLowerCase(); bVal = (b.mail || '').toLowerCase(); break;
+            case 'gsm': aVal = (a.gsm || '').toLowerCase(); bVal = (b.gsm || '').toLowerCase(); break;
+            case 'firm': {
+              aVal = (a.firm?.name || firms.find((f) => f.id === a.firmId)?.name || '').toLowerCase();
+              bVal = (b.firm?.name || firms.find((f) => f.id === b.firmId)?.name || '').toLowerCase();
+              break;
+            }
+            case 'privilege': {
+              aVal = (roles.find((r) => r.id === a.privilegeId)?.name || '').toLowerCase();
+              bVal = (roles.find((r) => r.id === b.privilegeId)?.name || '').toLowerCase();
+              break;
+            }
+            default: continue;
+          }
+          let cmp;
+          if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
+          else cmp = String(aVal).localeCompare(String(bVal), 'tr');
+          if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+        }
+        return 0;
+      });
+    }
+
+    return result;
+  }, [users, firmFilter, privilegeFilter, search, firms, roles, sortStack]);
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
   const openEdit = (user) => {
@@ -86,7 +133,7 @@ export default function UserList() {
 
   return (
     <div>
-      <Header title="Kullanıcılar" subtitle={`${filteredUsers.length} kullanıcı`} />
+      <Header title="Kullanıcılar" subtitle={`${filteredAndSorted.length} kullanıcı`} />
       <div className="p-6">
         <div className="bg-surface-0 rounded-xl border border-surface-200">
           {/* Toolbar */}
@@ -113,17 +160,17 @@ export default function UserList() {
 
           {/* Table Header */}
           <div className="grid grid-cols-[0.4fr_0.4fr_1.5fr_2fr_1fr_1fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-100 bg-surface-50/50">
-            <span>ID</span>
-            <span>Sıra</span>
-            <span>Ad</span>
-            <span>E-posta</span>
-            <span>Telefon</span>
-            <span>Firma</span>
-            <span>Yetki</span>
+            <SortableHeader sortKey="id" sortStack={sortStack} onSort={handleSort}>ID</SortableHeader>
+            <SortableHeader sortKey="orderNo" sortStack={sortStack} onSort={handleSort}>Sıra</SortableHeader>
+            <SortableHeader sortKey="name" sortStack={sortStack} onSort={handleSort}>Ad</SortableHeader>
+            <SortableHeader sortKey="mail" sortStack={sortStack} onSort={handleSort}>E-posta</SortableHeader>
+            <SortableHeader sortKey="gsm" sortStack={sortStack} onSort={handleSort}>Telefon</SortableHeader>
+            <SortableHeader sortKey="firm" sortStack={sortStack} onSort={handleSort}>Firma</SortableHeader>
+            <SortableHeader sortKey="privilege" sortStack={sortStack} onSort={handleSort}>Yetki</SortableHeader>
             <span />
           </div>
 
-          {loading ? <LoadingRows /> : filteredUsers.length === 0 ? (
+          {loading ? <LoadingRows /> : filteredAndSorted.length === 0 ? (
             <EmptyState icon={UsersIcon} title="Kullanıcı bulunamadı" description={anyFilterActive || search ? 'Filtrelere uygun kullanıcı bulunamadı.' : 'Henüz bir kullanıcı eklenmemiş.'}
               action={anyFilterActive ? (
                 <button onClick={clearAllFilters} className="inline-flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"><X className="w-3 h-3" />Filtreleri Temizle</button>
@@ -133,7 +180,7 @@ export default function UserList() {
             />
           ) : (
             <div className="divide-y divide-surface-100">
-              {filteredUsers.map((user) => {
+              {filteredAndSorted.map((user) => {
                 const roleName = roles.find((r) => r.id === user.privilegeId)?.name || '-';
                 const firmName = user.firm?.name || firms.find((f) => f.id === user.firmId)?.name || '-';
                 const variant = roleVariants[user.privilegeId] || 'default';
@@ -142,13 +189,14 @@ export default function UserList() {
                     <div className="text-xs text-surface-400 font-mono">#{user.id}</div>
                     <div className="text-xs text-surface-400 font-mono">{user.orderNo ?? '-'}</div>
                     <div className="flex items-center gap-3 min-w-0">
-<div className="w-8 h-8 rounded-full bg-primary-100 overflow-hidden flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">
-  {user.avatarUrl ? (
-    <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-  ) : (
-    user.name?.charAt(0) || '?'
-  )}
-</div>                      <span className="text-sm font-medium text-surface-900 truncate">{user.name}</span>
+                      <div className="w-8 h-8 rounded-full bg-primary-100 overflow-hidden flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                        ) : (
+                          user.name?.charAt(0) || '?'
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-surface-900 truncate">{user.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-surface-600 truncate"><Mail className="w-3.5 h-3.5 shrink-0 text-surface-400" />{user.mail}</div>
                     <div className="flex items-center gap-1.5 text-sm text-surface-600"><Phone className="w-3.5 h-3.5 shrink-0 text-surface-400" />{user.gsm || '-'}</div>
@@ -185,6 +233,24 @@ export default function UserList() {
         </Modal>
       )}
     </div>
+  );
+}
+
+function SortableHeader({ children, sortKey, sortStack, onSort }) {
+  const current = sortStack.find((s) => s.key === sortKey);
+  const isPrimary = sortStack.length > 0 && sortStack[sortStack.length - 1].key === sortKey;
+  return (
+    <span
+      onClick={() => onSort(sortKey)}
+      className="flex items-center gap-0.5 cursor-pointer hover:text-surface-700 select-none transition-colors"
+    >
+      {children}
+      {current ? (
+        current.dir === 'asc'
+          ? <ChevronUp className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+          : <ChevronDown className={`w-3 h-3 ${isPrimary ? 'text-primary-600' : 'text-surface-400'}`} />
+      ) : null}
+    </span>
   );
 }
 
