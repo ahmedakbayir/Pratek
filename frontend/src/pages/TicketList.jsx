@@ -230,30 +230,52 @@ export default function TicketList() {
     [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy]
   );
 
-  // Build dynamic filter options: only values present in tickets, with counts
+  // Build dynamic filter options: cross-filtered counts (each dimension excludes its own filter)
   const dynamicFilterOptions = useMemo(() => {
-    const firmCounts = {};
-    const productCounts = {};
-    const priorityCounts = {};
-    const statusCounts = {};
-    const labelCounts = {};
-    const assignedUserCounts = {};
-    const productOwnerCounts = {};
-    const createdByCounts = {};
-
-    tickets.forEach((t) => {
-      if (t.firmId) firmCounts[t.firmId] = (firmCounts[t.firmId] || 0) + 1;
-      if (t.productId) productCounts[t.productId] = (productCounts[t.productId] || 0) + 1;
-      if (t.priorityId) priorityCounts[t.priorityId] = (priorityCounts[t.priorityId] || 0) + 1;
-      if (t.statusId) statusCounts[t.statusId] = (statusCounts[t.statusId] || 0) + 1;
-      if (t.assignedUserId) assignedUserCounts[t.assignedUserId] = (assignedUserCounts[t.assignedUserId] || 0) + 1;
-      if (t.createdUserId) createdByCounts[t.createdUserId] = (createdByCounts[t.createdUserId] || 0) + 1;
-      if (t.product?.manager?.id) productOwnerCounts[t.product.manager.id] = (productOwnerCounts[t.product.manager.id] || 0) + 1;
-      if (t.ticketLabels) t.ticketLabels.forEach((tl) => {
-        const lid = tl.labelId || tl.label?.id;
-        if (lid) labelCounts[lid] = (labelCounts[lid] || 0) + 1;
+    const matchSearch = (t) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return t.title?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q) ||
+             t.firm?.name?.toLowerCase().includes(q) || t.assignedUser?.name?.toLowerCase().includes(q) ||
+             String(t.id).includes(q);
+    };
+    const matchTab = (t) => {
+      if (activeTab === 'open') return !t.status?.isClosed;
+      if (activeTab === 'closed') return t.status?.isClosed;
+      return true;
+    };
+    const filterExcluding = (exclude) => {
+      return tickets.filter((t) => {
+        if (!matchSearch(t) || !matchTab(t)) return false;
+        if (exclude !== 'firm' && firmFilter.length && !firmFilter.includes(t.firmId)) return false;
+        if (exclude !== 'product' && productFilter.length && !productFilter.includes(t.productId)) return false;
+        if (exclude !== 'status' && statusFilter.length && !statusFilter.includes(t.statusId)) return false;
+        if (exclude !== 'label' && labelFilter.length && !t.ticketLabels?.some((tl) => labelFilter.includes(tl.labelId))) return false;
+        if (exclude !== 'priority' && priorityFilter.length && !priorityFilter.includes(t.priorityId)) return false;
+        if (exclude !== 'assignedUser' && assignedUserFilter.length && !assignedUserFilter.includes(t.assignedUserId)) return false;
+        if (exclude !== 'productOwner' && productOwnerFilter.length && !productOwnerFilter.includes(t.product?.manager?.id)) return false;
+        if (exclude !== 'createdBy' && createdByFilter.length && !createdByFilter.includes(t.createdUserId)) return false;
+        return true;
       });
-    });
+    };
+    const countBy = (filtered, keyFn) => {
+      const counts = {};
+      filtered.forEach((t) => {
+        const keys = keyFn(t);
+        if (Array.isArray(keys)) keys.forEach((k) => { if (k) counts[k] = (counts[k] || 0) + 1; });
+        else if (keys) counts[keys] = (counts[keys] || 0) + 1;
+      });
+      return counts;
+    };
+
+    const firmCounts = countBy(filterExcluding('firm'), (t) => t.firmId);
+    const productCounts = countBy(filterExcluding('product'), (t) => t.productId);
+    const priorityCounts = countBy(filterExcluding('priority'), (t) => t.priorityId);
+    const statusCounts = countBy(filterExcluding('status'), (t) => t.statusId);
+    const assignedUserCounts = countBy(filterExcluding('assignedUser'), (t) => t.assignedUserId);
+    const createdByCounts = countBy(filterExcluding('createdBy'), (t) => t.createdUserId);
+    const productOwnerCounts = countBy(filterExcluding('productOwner'), (t) => t.product?.manager?.id);
+    const labelCounts = countBy(filterExcluding('label'), (t) => t.ticketLabels?.map((tl) => tl.labelId || tl.label?.id) || []);
 
     return {
       firms: firms.filter((f) => firmCounts[f.id]).map((f) => ({ id: f.id, name: f.name, count: firmCounts[f.id] })),
@@ -265,7 +287,7 @@ export default function TicketList() {
       productOwners: users.filter((u) => productOwnerCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: productOwnerCounts[u.id] })),
       createdBy: users.filter((u) => createdByCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: createdByCounts[u.id] })),
     };
-  }, [tickets, firms, products, priorities, statuses, labels, users]);
+  }, [tickets, firms, products, priorities, statuses, labels, users, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter]);
 
   const handleSetViewMode = (mode) => {
     setViewMode(mode);
