@@ -58,6 +58,37 @@ safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
 safeAddColumn('Product', 'AvatarUrl', 'TEXT');
 safeAddColumn('Privilege', 'IsAdmin', 'INTEGER DEFAULT 0');
 
+// --- ADMIN BOOTSTRAP ---
+// Sunucu başladığında: Admin privilege yoksa oluştur, ahmet@t.com varsa admin yap
+(() => {
+  // 1. IsAdmin=1 olan privilege var mı?
+  let adminPriv = db.prepare('SELECT * FROM "Privilege" WHERE "IsAdmin" = 1').get();
+  if (!adminPriv) {
+    // "Admin" adında privilege oluştur
+    const info = db.prepare('INSERT INTO "Privilege" ("Name", "OrderNo", "IsAdmin") VALUES (?, ?, ?)').run('Admin', 1, 1);
+    adminPriv = db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(info.lastInsertRowid);
+    console.log(`[BOOTSTRAP] "Admin" yetkisi oluşturuldu (ID: ${adminPriv.Id})`);
+  }
+
+  // 2. ahmet@t.com kullanıcısını admin yap
+  const adminUser = db.prepare('SELECT * FROM "User" WHERE "Mail" = ?').get('ahmet@t.com');
+  if (adminUser) {
+    if (adminUser.PrivilegeId !== adminPriv.Id) {
+      db.prepare('UPDATE "User" SET "PrivilegeId" = ? WHERE "Id" = ?').run(adminPriv.Id, adminUser.Id);
+      console.log(`[BOOTSTRAP] "${adminUser.Name}" (ahmet@t.com) admin yetkisi atandı`);
+    }
+    // 3. Tüm firmaları admin'in yetkili firmalarına ekle
+    const allFirms = db.prepare('SELECT "Id" FROM "Firm"').all();
+    const insertUF = db.prepare('INSERT OR IGNORE INTO "User_Firm" ("UserId", "FirmId") VALUES (?, ?)');
+    allFirms.forEach(f => insertUF.run(adminUser.Id, f.Id));
+    if (allFirms.length > 0) {
+      console.log(`[BOOTSTRAP] "${adminUser.Name}" için ${allFirms.length} firma yetkisi eklendi`);
+    }
+  } else {
+    console.log('[BOOTSTRAP] ahmet@t.com kullanıcısı bulunamadı — sunucuyu yeniden başlattığınızda bu kullanıcı varsa otomatik admin yapılacak');
+  }
+})();
+
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
