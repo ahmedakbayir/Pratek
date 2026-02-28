@@ -28,7 +28,7 @@ export default function UserList() {
   const [sortStack, setSortStack] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  const { isAdmin: currentUserIsAdmin, impersonate, user: currentUser } = useAuth();
+  const { isAdmin: currentUserIsAdmin, impersonate, user: currentUser, canEditAdminPages } = useAuth();
 
   const load = () => {
     setLoading(true);

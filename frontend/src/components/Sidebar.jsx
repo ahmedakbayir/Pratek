@@ -16,17 +16,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+// access: 'all' = everyone, 'nonRestricted' = admin + TKL Ürün Yönetim, 'viewable' = admin + TKL Ürün Yönetim (view-only)
 const allNavItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
-  { to: '/tickets', icon: Ticket, label: 'Ticket\'lar', adminOnly: false },
-  { to: '/users', icon: Users, label: 'Kullanıcılar', adminOnly: true },
-  { to: '/firms', icon: Building2, label: 'Firmalar', adminOnly: true },
-  { to: '/products', icon: Package, label: 'Ürünler', adminOnly: true },
-  { to: '/labels', icon: Tags, label: 'Etiketler', adminOnly: true },
-  { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler', adminOnly: true },
-  { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar', adminOnly: true },
-  { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler', adminOnly: true },
-  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi', adminOnly: true },
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', access: 'nonRestricted' },
+  { to: '/tickets', icon: Ticket, label: 'Ticket\'lar', access: 'all' },
+  { to: '/users', icon: Users, label: 'Kullanıcılar', access: 'viewable' },
+  { to: '/firms', icon: Building2, label: 'Firmalar', access: 'viewable' },
+  { to: '/products', icon: Package, label: 'Ürünler', access: 'viewable' },
+  { to: '/labels', icon: Tags, label: 'Etiketler', access: 'viewable' },
+  { to: '/ticket-priorities', icon: AlertTriangle, label: 'Öncelikler', access: 'viewable' },
+  { to: '/ticket-statuses', icon: CircleDot, label: 'Durumlar', access: 'viewable' },
+  { to: '/privileges', icon: ShieldCheck, label: 'Yetkiler', access: 'viewable' },
+  { to: '/product-firm-matrix', icon: Grid3x3, label: 'Ürün-Firma Matrisi', access: 'viewable' },
 ];
 
 const bottomItems = [
@@ -34,10 +35,15 @@ const bottomItems = [
 ];
 
 export default function Sidebar() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, isRestrictedUser, canViewAdminPages, logout } = useAuth();
   const navigate = useNavigate();
 
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+  const navItems = allNavItems.filter(item => {
+    if (item.access === 'all') return true;
+    if (item.access === 'nonRestricted') return !isRestrictedUser;
+    if (item.access === 'viewable') return canViewAdminPages;
+    return true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -75,7 +81,7 @@ export default function Sidebar() {
 
       {/* Bottom */}
       <div className="px-3 pb-2 border-t border-white/10 pt-3 space-y-1">
-        {bottomItems.map(({ to, icon: Icon, label }) => (
+        {!isRestrictedUser && bottomItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}

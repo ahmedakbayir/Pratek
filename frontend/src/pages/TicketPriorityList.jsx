@@ -3,10 +3,12 @@ import { Plus, Edit3, Trash2, X, AlertTriangle } from 'lucide-react';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { prioritiesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const defaultColors = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#6B7280'];
 
 export default function TicketPriorityList() {
+  const { canEditAdminPages } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -48,12 +50,12 @@ export default function TicketPriorityList() {
         <div className="bg-surface-0 rounded-xl border border-surface-200">
           <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
             <h2 className="text-sm font-semibold text-surface-900">Öncelik Listesi</h2>
-            <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-3.5 h-3.5" /> Yeni Öncelik</button>
+            {canEditAdminPages && <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-3.5 h-3.5" /> Yeni Öncelik</button>}
           </div>
 
           {loading ? <LoadingRows /> : items.length === 0 ? (
             <EmptyState icon={AlertTriangle} title="Öncelik bulunamadı" description="Henüz bir öncelik seviyesi eklenmemiş."
-              action={<button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Öncelik Ekle</button>} />
+              action={canEditAdminPages && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Öncelik Ekle</button>} />
           ) : (
             <table className="w-full text-sm">
               <thead><tr className="border-b border-surface-100 text-left text-surface-500">
@@ -75,12 +77,14 @@ export default function TicketPriorityList() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-surface-400 font-mono text-xs">{item.colorHex || '-'}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDelete(item.id)} className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </td>
+                    {canEditAdminPages && (
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(item.id)} className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

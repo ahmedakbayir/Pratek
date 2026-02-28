@@ -3,8 +3,10 @@ import { Plus, Edit3, Trash2, X, ShieldCheck } from 'lucide-react';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import { privilegesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function PrivilegeList() {
+  const { canEditAdminPages } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -48,16 +50,18 @@ export default function PrivilegeList() {
         <div className="bg-surface-0 rounded-xl border border-surface-200">
           <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200">
             <h2 className="text-sm font-semibold text-surface-900">Yetki Listesi</h2>
-            <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
-              <Plus className="w-3.5 h-3.5" /> Yeni Yetki
-            </button>
+            {canEditAdminPages && (
+              <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> Yeni Yetki
+              </button>
+            )}
           </div>
 
           {loading ? (
             <LoadingRows />
           ) : items.length === 0 ? (
             <EmptyState icon={ShieldCheck} title="Yetki bulunamadı" description="Henüz bir yetki tanımı eklenmemiş."
-              action={<button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Yetki Ekle</button>}
+              action={canEditAdminPages && <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"><Plus className="w-4 h-4" />Yeni Yetki Ekle</button>}
             />
           ) : (
             <table className="w-full text-sm">
@@ -81,12 +85,14 @@ export default function PrivilegeList() {
                         <span className="text-surface-400 text-xs">-</span>
                       )}
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDelete(item.id)} className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </td>
+                    {canEditAdminPages && (
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(item)} className="p-1 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded transition-colors cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(item.id)} className="p-1 text-surface-400 hover:text-danger hover:bg-danger/5 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

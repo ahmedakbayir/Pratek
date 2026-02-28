@@ -24,11 +24,39 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Admin-only route (full access)
 function AdminRoute({ children }) {
   const { user, loading, isAdmin } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   if (!isAdmin) return <Navigate to="/" replace />;
+  return children;
+}
+
+// Admin + TKL Ürün Yönetim (view-only for TKL Ürün Yönetim, full for admin)
+function ViewableRoute({ children }) {
+  const { user, loading, canViewAdminPages } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!canViewAdminPages) return <Navigate to="/tickets" replace />;
+  return children;
+}
+
+// Route for ticket editing (admin + TKL Ürün Yönetim only)
+function TicketEditRoute({ children }) {
+  const { user, loading, canEditTickets } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!canEditTickets) return <Navigate to="/tickets" replace />;
+  return children;
+}
+
+// Route accessible by non-restricted users (admin, TKL Ürün Yönetim) — restricted users go to /tickets
+function NonRestrictedRoute({ children }) {
+  const { user, loading, isRestrictedUser } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (isRestrictedUser) return <Navigate to="/tickets" replace />;
   return children;
 }
 
@@ -39,25 +67,33 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginGuard />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<RestrictedRedirect><Dashboard /></RestrictedRedirect>} />
             <Route path="tickets" element={<TicketList />} />
-            <Route path="tickets/new" element={<CreateTicket />} />
+            <Route path="tickets/new" element={<TicketEditRoute><CreateTicket /></TicketEditRoute>} />
             <Route path="tickets/:id" element={<TicketDetail />} />
-            <Route path="tickets/:id/edit" element={<EditTicket />} />
-            <Route path="users" element={<AdminRoute><UserList /></AdminRoute>} />
-            <Route path="firms" element={<AdminRoute><FirmList /></AdminRoute>} />
-            <Route path="products" element={<AdminRoute><ProductList /></AdminRoute>} />
-            <Route path="product-firm-matrix" element={<AdminRoute><ProductFirmMatrix /></AdminRoute>} />
-            <Route path="labels" element={<AdminRoute><TagList /></AdminRoute>} />
-            <Route path="ticket-priorities" element={<AdminRoute><TicketPriorityList /></AdminRoute>} />
-            <Route path="ticket-statuses" element={<AdminRoute><TicketStatusList /></AdminRoute>} />
-            <Route path="privileges" element={<AdminRoute><PrivilegeList /></AdminRoute>} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="tickets/:id/edit" element={<TicketEditRoute><EditTicket /></TicketEditRoute>} />
+            <Route path="users" element={<ViewableRoute><UserList /></ViewableRoute>} />
+            <Route path="firms" element={<ViewableRoute><FirmList /></ViewableRoute>} />
+            <Route path="products" element={<ViewableRoute><ProductList /></ViewableRoute>} />
+            <Route path="product-firm-matrix" element={<ViewableRoute><ProductFirmMatrix /></ViewableRoute>} />
+            <Route path="labels" element={<ViewableRoute><TagList /></ViewableRoute>} />
+            <Route path="ticket-priorities" element={<ViewableRoute><TicketPriorityList /></ViewableRoute>} />
+            <Route path="ticket-statuses" element={<ViewableRoute><TicketStatusList /></ViewableRoute>} />
+            <Route path="privileges" element={<ViewableRoute><PrivilegeList /></ViewableRoute>} />
+            <Route path="settings" element={<NonRestrictedRoute><Settings /></NonRestrictedRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
+}
+
+// Restricted users (GDF/TKL Kullanıcı) get redirected to /tickets from dashboard
+function RestrictedRedirect({ children }) {
+  const { isRestrictedUser, loading } = useAuth();
+  if (loading) return null;
+  if (isRestrictedUser) return <Navigate to="/tickets" replace />;
+  return children;
 }
 
 function LoginGuard() {

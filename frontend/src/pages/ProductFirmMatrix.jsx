@@ -2,8 +2,10 @@ import { useEffect, useState, useMemo } from 'react';
 import { Check, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import { productsApi, firmsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProductFirmMatrix() {
+  const { canEditAdminPages } = useAuth();
   const [products, setProducts] = useState([]);
   const [firms, setFirms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -172,8 +174,8 @@ export default function ProductFirmMatrix() {
                             className="px-3 py-2.5 text-center border-surface-100"
                           >
                             <button
-                              onClick={() => handleToggle(product.id, firm.id)}
-                              disabled={!!saving}
+                              onClick={() => canEditAdminPages && handleToggle(product.id, firm.id)}
+                              disabled={!!saving || !canEditAdminPages}
                               className={`
                                 inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all cursor-pointer
                                 ${isSaving
