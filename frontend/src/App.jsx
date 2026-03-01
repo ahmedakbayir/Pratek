@@ -69,7 +69,7 @@ export default function App() {
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<RestrictedRedirect><Dashboard /></RestrictedRedirect>} />
             <Route path="tickets" element={<TicketList />} />
-            <Route path="tickets/new" element={<TicketEditRoute><CreateTicket /></TicketEditRoute>} />
+            <Route path="tickets/new" element={<CreateTicket />} />
             <Route path="tickets/:id" element={<TicketDetail />} />
             <Route path="tickets/:id/edit" element={<TicketEditRoute><EditTicket /></TicketEditRoute>} />
             <Route path="users" element={<ViewableRoute><UserList /></ViewableRoute>} />

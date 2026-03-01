@@ -61,7 +61,7 @@ safeAddColumn('Privilege', 'IsAdmin', 'INTEGER DEFAULT 0');
 // --- ADMIN BOOTSTRAP ---
 // Sunucu başladığında: Admin privilege yoksa oluştur, admin email'lerini admin yap
 (() => {
-  const ADMIN_EMAILS = ['ahmet@t.com', 'ahmet.akbayir@tekhnelogos', 'ahmedakbayir@gmail.com'];
+  const ADMIN_EMAILS = ['ahmet@t.com', 'ahmet.akbayir@tekhnelogos.com', 'ahmedakbayir@gmail.com'];
 
   // 1. IsAdmin=1 olan privilege var mı?
   let adminPriv = db.prepare('SELECT * FROM "Privilege" WHERE "IsAdmin" = 1').get();
@@ -352,7 +352,15 @@ app.get('/api/tickets/search', (req, res) => {
 app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
 app.post('/api/tickets', (req, res) => {
   const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate, scope } = req.body;
-  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate", "Scope") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, assignedUserId||null, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null, scope||null);
+  // Ürün seçiliyse ve atanan kişi belirtilmemişse, ürün sahibine otomatik ata
+  let effectiveAssignedUserId = assignedUserId || null;
+  if (!effectiveAssignedUserId && productId) {
+    const product = db.prepare('SELECT "ManagerId" FROM "Product" WHERE "Id" = ?').get(productId);
+    if (product && product.ManagerId) {
+      effectiveAssignedUserId = product.ManagerId;
+    }
+  }
+  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate", "Scope") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, effectiveAssignedUserId, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null, scope||null);
   // TicketEventHistory kaydı sadece TicketEventType tablosunda kayıt varsa oluştur
   const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType" WHERE "Id" = 1').get().c > 0;
   if (hasEventType) {
