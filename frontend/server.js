@@ -92,6 +92,56 @@ safeAddColumn('Privilege', 'IsAdmin', 'INTEGER DEFAULT 0');
   }
 })();
 
+// --- ORPHAN TICKET ASSIGNMENT ---
+// CreatedUserId olmayan ticketlara GDF yetkili/kullanıcı ata
+(() => {
+  const orphanTickets = db.prepare('SELECT * FROM "Ticket" WHERE "CreatedUserId" IS NULL').all();
+  if (orphanTickets.length === 0) return;
+
+  console.log(`[BOOTSTRAP] ${orphanTickets.length} adet oluşturan bilgisi olmayan ticket bulundu`);
+
+  // Fallback kullanıcı isimleri
+  const FALLBACK_NAMES = ['ercan kaya', 'burcu hamza', 'mert akyıldız'];
+
+  for (const ticket of orphanTickets) {
+    let assignedCreator = null;
+
+    if (ticket.FirmId) {
+      // Önce bu firmanın User_Firm ile yetkili GDF kullanıcılarını bul
+      const firmUsers = db.prepare(`
+        SELECT u.* FROM "User" u
+        JOIN "User_Firm" uf ON u."Id" = uf."UserId"
+        JOIN "Privilege" p ON u."PrivilegeId" = p."Id"
+        WHERE uf."FirmId" = ?
+          AND (p."IsAdmin" IS NULL OR p."IsAdmin" = 0)
+          AND p."Name" NOT LIKE '%ürün%yönetim%'
+        ORDER BY u."Id" ASC
+      `).all(ticket.FirmId);
+
+      if (firmUsers.length > 0) {
+        // Round-robin: ticket ID'ye göre dağıt
+        assignedCreator = firmUsers[ticket.Id % firmUsers.length];
+      }
+    }
+
+    if (!assignedCreator) {
+      // Fallback: belirtilen kullanıcılardan birine ata
+      for (const name of FALLBACK_NAMES) {
+        const user = db.prepare('SELECT * FROM "User" WHERE LOWER("Name") = ?').get(name.toLowerCase());
+        if (user) {
+          assignedCreator = user;
+          break;
+        }
+      }
+    }
+
+    if (assignedCreator) {
+      db.prepare('UPDATE "Ticket" SET "CreatedUserId" = ? WHERE "Id" = ?').run(assignedCreator.Id, ticket.Id);
+      console.log(`[BOOTSTRAP] Ticket #${ticket.Id} → oluşturan: "${assignedCreator.Name}" atandı`);
+    }
+  }
+})();
+
 // --- Uploads directory ---
 const uploadsDir = join(__dirname, 'uploads');
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });

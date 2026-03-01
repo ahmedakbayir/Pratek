@@ -79,9 +79,8 @@ export default function TicketDetail() {
 
   const { user: currentUser, isRestrictedUser, canEditTickets, canUseMentions } = useAuth();
 
-  // Restricted users can edit their own tickets (where they are the creator)
+  // Restricted users can edit title+content of their own tickets (where they are the creator)
   const isOwnTicket = ticket && currentUser && ticket.createdUserId === currentUser.id;
-  const canEditThisTicket = canEditTickets || isOwnTicket;
 
   const loadTicket = () => ticketsApi.get(id).then(setTicket).catch((err) => {
     if (err.message?.includes('403') || err.message?.includes('erişim')) {
@@ -471,7 +470,7 @@ export default function TicketDetail() {
                     </div>
                     <h2 className="text-xl font-semibold text-surface-900">{ticket.title}</h2>
                   </div>
-                  {canEditThisTicket && (
+                  {(canEditTickets || isOwnTicket) && (
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => navigate(`/tickets/${ticket.id}/edit`)}
@@ -479,12 +478,14 @@ export default function TicketDetail() {
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={handleDelete}
-                        className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canEditTickets && (
+                        <button
+                          onClick={handleDelete}
+                          className="p-2 text-surface-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -608,8 +609,8 @@ export default function TicketDetail() {
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
 
-              {/* Restricted users see read-only text (unless it's their own ticket), others see dropdowns */}
-              {isRestrictedUser && !isOwnTicket ? (
+              {/* Restricted users always see read-only sidebar (even for own tickets — they only edit title+content) */}
+              {isRestrictedUser ? (
                 <>
                   <SidebarItem icon={CheckCircle2} label="Durum" colorDot={ticket.status?.colorHex} value={ticket.status?.name || <span className="text-surface-400">Belirtilmedi</span>} />
                   <SidebarItem icon={AlertCircle} label="Öncelik" colorDot={ticket.priority?.colorHex} value={ticket.priority?.name || <span className="text-surface-400">Belirtilmedi</span>} />
@@ -706,8 +707,8 @@ export default function TicketDetail() {
               />
             </div>
 
-            {/* Save / Discard buttons for sidebar */}
-            {(!isRestrictedUser || isOwnTicket) && hasSidebarChanges && (
+            {/* Save / Discard buttons for sidebar - only for non-restricted users */}
+            {!isRestrictedUser && hasSidebarChanges && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSaveSidebar}
@@ -745,7 +746,7 @@ export default function TicketDetail() {
                         style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
                       />
                       {tl.label?.name}
-                      {canEditThisTicket && (
+                      {canEditTickets && (
                         <button
                           onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
                           className="p-0.5 hover:text-danger transition-colors cursor-pointer"
@@ -758,7 +759,7 @@ export default function TicketDetail() {
                 ) : (
                   <span className="text-xs text-surface-400">Etiket yok</span>
                 )}
-                {canEditThisTicket && (
+                {canEditTickets && (
                   <div className="relative" ref={labelPickerRef}>
                     <button
                       onClick={() => setShowLabelPicker(!showLabelPicker)}
