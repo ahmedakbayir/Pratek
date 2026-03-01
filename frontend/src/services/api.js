@@ -10,12 +10,16 @@ export const userFirmsApi = {
 };
 
 async function request(url, options = {}) {
+  // Attach logged-in user ID for backend authorization
+  const stored = localStorage.getItem('user');
+  const userId = stored ? JSON.parse(stored)?.id : null;
   let res;
   try {
     res = await fetch(`${API_BASE}${url}`, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(userId ? { 'x-user-id': String(userId) } : {}),
         ...options.headers,
       },
       ...options,

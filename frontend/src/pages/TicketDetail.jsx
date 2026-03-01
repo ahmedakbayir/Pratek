@@ -17,7 +17,6 @@ import {
   Plus,
   Minus,
   UserPlus,
-  Globe,
   Save,
   Ticket as TicketIcon,
 } from 'lucide-react';
@@ -112,7 +111,6 @@ export default function TicketDetail() {
           assignedUserId: t.assignedUserId || '',
           firmId: t.firmId || '',
           productId: t.productId || '',
-          scope: t.scope || '',
         });
         // Load firm-specific products
         if (t.firmId) {
@@ -287,8 +285,7 @@ export default function TicketDetail() {
       String(sidebarForm.priorityId || '') !== String(ticket.priorityId || '') ||
       String(sidebarForm.assignedUserId || '') !== String(ticket.assignedUserId || '') ||
       String(sidebarForm.firmId || '') !== String(ticket.firmId || '') ||
-      String(sidebarForm.productId || '') !== String(ticket.productId || '') ||
-      String(sidebarForm.scope || '') !== String(ticket.scope || '')
+      String(sidebarForm.productId || '') !== String(ticket.productId || '')
     );
   }, [ticket, sidebarForm]);
 
@@ -322,7 +319,6 @@ export default function TicketDetail() {
         firmId: ticket.firmId,
         assignedUserId: ticket.assignedUserId,
         productId: ticket.productId,
-        scope: ticket.scope,
         ...patch,
       };
 
@@ -358,7 +354,6 @@ export default function TicketDetail() {
         assignedUserId: sidebarForm.assignedUserId ? Number(sidebarForm.assignedUserId) : null,
         firmId: sidebarForm.firmId ? Number(sidebarForm.firmId) : null,
         productId: sidebarForm.productId ? Number(sidebarForm.productId) : null,
-        scope: sidebarForm.scope || null,
       };
       const updated = await ticketsApi.update(id, payload);
       setTicket(updated);
@@ -369,7 +364,6 @@ export default function TicketDetail() {
         assignedUserId: updated.assignedUserId || '',
         firmId: updated.firmId || '',
         productId: updated.productId || '',
-        scope: updated.scope || '',
       });
       loadActivity();
     } catch (err) {
@@ -388,7 +382,6 @@ export default function TicketDetail() {
       assignedUserId: ticket.assignedUserId || '',
       firmId: ticket.firmId || '',
       productId: ticket.productId || '',
-      scope: ticket.scope || '',
     });
     // Reload firm products for original firm
     if (ticket.firmId) {
@@ -607,7 +600,6 @@ export default function TicketDetail() {
                   <SidebarItem icon={UserPlus} label="Atanan Kişi" value={ticket.assignedUser?.name || <span className="text-surface-400">Atanmadı</span>} />
                   <SidebarItem icon={Building2} label="Firma" value={ticket.firm?.name || <span className="text-surface-400">Belirtilmedi</span>} />
                   <SidebarItem icon={Package} label="Ürün" value={ticket.product?.name || <span className="text-surface-400">Belirtilmedi</span>} />
-                  <SidebarItem icon={Globe} label="Kapsam" value={ticket.scope || <span className="text-surface-400">Belirtilmedi</span>} />
                 </>
               ) : (
                 <>
@@ -673,17 +665,6 @@ export default function TicketDetail() {
                     avatarUrl={firmProducts.find(p => p.id === Number(sidebarForm?.productId || ticket?.productId))?.avatarUrl}
                   />
 
-                  <SidebarSelect
-                    icon={Globe}
-                    label="Kapsam"
-                    value={sidebarForm?.scope || ''}
-                    options={[
-                      { value: '', label: 'Belirtilmedi' },
-                      { value: 'Yerel', label: 'Yerel' },
-                      { value: 'Genel', label: 'Genel' },
-                    ]}
-                    onChange={(val) => updateSidebarField('scope', val)}
-                  />
                 </>
               )}
 

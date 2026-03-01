@@ -114,6 +114,23 @@ app.use((err, req, res, next) => {
 
 // 4. API ROUTE'LARI
 
+// --- AUTH MIDDLEWARE ---
+// Her istekte x-user-id header'ından kullanıcı bilgilerini çöz
+function getUserFromRequest(req) {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return null;
+  const user = db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(Number(userId));
+  if (!user) return null;
+  const privilege = db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(user.PrivilegeId);
+  const authorizedFirmIds = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(user.Id).map(r => r.FirmId);
+  const isAdmin = !!(privilege && privilege.IsAdmin);
+  const privilegeName = (privilege && privilege.Name) || '';
+  const isTklProductManager = !isAdmin && /ürün\s*yönetim/i.test(privilegeName);
+  const isRestrictedUser = !isAdmin && !isTklProductManager;
+  const canUseMentions = isAdmin || isTklProductManager;
+  return { ...toCamel(user), isAdmin, isTklProductManager, isRestrictedUser, canUseMentions, authorizedFirmIds };
+}
+
 // --- AUTH ---
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
@@ -333,12 +350,23 @@ const getFullTicket = (id) => {
 };
 
 app.get('/api/tickets', (req, res) => {
+  const reqUser = getUserFromRequest(req);
   const ids = db.prepare('SELECT "Id" FROM "Ticket" ORDER BY "Id" DESC').all();
-  res.json(ids.map(row => getFullTicket(row.Id)));
+  let tickets = ids.map(row => getFullTicket(row.Id));
+  // Yetkisiz kullanıcılar sadece kendi firma ticketlarını görebilir
+  if (reqUser && !reqUser.isAdmin) {
+    tickets = tickets.filter(t => t.firmId && reqUser.authorizedFirmIds.includes(t.firmId));
+  }
+  res.json(tickets);
 });
 
 // --- TICKET SEARCH (for #hashtag mention autocomplete) ---
 app.get('/api/tickets/search', (req, res) => {
+  const reqUser = getUserFromRequest(req);
+  // Kısıtlı kullanıcılar # mention verisine erişemez
+  if (reqUser && reqUser.isRestrictedUser) {
+    return res.json([]);
+  }
   const q = (req.query.q || '').trim();
   let rows;
   if (q) {
@@ -349,9 +377,18 @@ app.get('/api/tickets/search', (req, res) => {
   }
   res.json(rows.map(r => ({ id: r.Id, title: r.Title })));
 });
-app.get('/api/tickets/:id', (req, res) => res.json(getFullTicket(req.params.id)));
+app.get('/api/tickets/:id', (req, res) => {
+  const ticket = getFullTicket(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });
+  // Yetkisiz kullanıcılar sadece kendi firmalarının ticketlarına erişebilir
+  const reqUser = getUserFromRequest(req);
+  if (reqUser && !reqUser.isAdmin && ticket.firmId && !reqUser.authorizedFirmIds.includes(ticket.firmId)) {
+    return res.status(403).json({ error: 'Bu ticket\'a erişim yetkiniz yok' });
+  }
+  res.json(ticket);
+});
 app.post('/api/tickets', (req, res) => {
-  const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate, scope } = req.body;
+  const { title, content, firmId, assignedUserId, statusId, priorityId, createdUserId, productId, dueDate } = req.body;
   // Ürün seçiliyse ve atanan kişi belirtilmemişse, ürün sahibine otomatik ata
   let effectiveAssignedUserId = assignedUserId || null;
   if (!effectiveAssignedUserId && productId) {
@@ -360,7 +397,7 @@ app.post('/api/tickets', (req, res) => {
       effectiveAssignedUserId = product.ManagerId;
     }
   }
-  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate", "Scope") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, effectiveAssignedUserId, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null, scope||null);
+  const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, effectiveAssignedUserId, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null);
   // TicketEventHistory kaydı sadece TicketEventType tablosunda kayıt varsa oluştur
   const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType" WHERE "Id" = 1').get().c > 0;
   if (hasEventType) {
@@ -369,11 +406,19 @@ app.post('/api/tickets', (req, res) => {
   res.json(getFullTicket(info.lastInsertRowid));
 });
 app.put('/api/tickets/:id', (req, res) => {
-  const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate, scope } = req.body;
-  db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=?, "Scope"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, scope||null, req.params.id);
+  const reqUser = getUserFromRequest(req);
+  if (reqUser && reqUser.isRestrictedUser) {
+    return res.status(403).json({ error: 'Ticket düzenleme yetkiniz yok' });
+  }
+  const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate } = req.body;
+  db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, req.params.id);
   res.json(getFullTicket(req.params.id));
 });
 app.delete('/api/tickets/:id', (req, res) => {
+  const reqUser = getUserFromRequest(req);
+  if (reqUser && reqUser.isRestrictedUser) {
+    return res.status(403).json({ error: 'Ticket silme yetkiniz yok' });
+  }
   db.prepare('DELETE FROM "TicketComments" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "TicketLabelHistory" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "TicketEventHistory" WHERE "TicketId" = ?').run(req.params.id);
@@ -383,6 +428,10 @@ app.delete('/api/tickets/:id', (req, res) => {
 
 // --- TICKET STATUS CHANGE ---
 app.post('/api/tickets/:id/status/:statusId', (req, res) => {
+  const reqUser = getUserFromRequest(req);
+  if (reqUser && reqUser.isRestrictedUser) {
+    return res.status(403).json({ error: 'Ticket durumu değiştirme yetkiniz yok' });
+  }
   const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });
   const oldStatusId = ticket.StatusId;

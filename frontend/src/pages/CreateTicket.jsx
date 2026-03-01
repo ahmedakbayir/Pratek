@@ -5,7 +5,6 @@ import {
   AlertCircle,
   Building2,
   Package,
-  Globe,
   Tag,
   Bold,
   Italic,
@@ -31,6 +30,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import { ticketsApi, usersApi, firmsApi, prioritiesApi, labelsApi, statusesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -45,8 +45,9 @@ import TicketMention, { setMentionData } from '../extensions/ticketMention';
 
 export default function CreateTicket() {
   const navigate = useNavigate();
+  const { user, isAdmin, authorizedFirmIds } = useAuth();
   const [saving, setSaving] = useState(false);
-  const [firms, setFirms] = useState([]);
+  const [allFirms, setAllFirms] = useState([]);
   const [priorities, setPriorities] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [firmProducts, setFirmProducts] = useState([]);
@@ -65,7 +66,6 @@ export default function CreateTicket() {
     statusId: '',
     firmId: '',
     productId: '',
-    scope: '',
     selectedLabels: [],
   });
 
@@ -115,7 +115,7 @@ export default function CreateTicket() {
   }, [statuses]);
 
   useEffect(() => {
-    firmsApi.getAll().then(setFirms).catch(() => {});
+    firmsApi.getAll().then(setAllFirms).catch(() => {});
     prioritiesApi.getAll().then(setPriorities).catch(() => {});
     statusesApi.getAll().then(setStatuses).catch(() => {});
     labelsApi.getAll().then(setAllLabels).catch(() => {});
@@ -127,6 +127,16 @@ export default function CreateTicket() {
       setMentionData(tickets, users);
     });
   }, []);
+
+  // Filter firms to only show user's authorized firms
+  const firms = isAdmin ? allFirms : allFirms.filter(f => authorizedFirmIds.includes(f.id));
+
+  // Auto-select firm if user has only one authorized firm
+  useEffect(() => {
+    if (firms.length === 1 && !form.firmId) {
+      setForm(prev => ({ ...prev, firmId: String(firms[0].id) }));
+    }
+  }, [firms.length]);
 
   // When firm changes, fetch products for that firm
   useEffect(() => {
@@ -269,8 +279,8 @@ export default function CreateTicket() {
         statusId: form.statusId ? Number(form.statusId) : null,
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: null,
+        createdUserId: user?.id || null,
         productId: form.productId ? Number(form.productId) : null,
-        scope: form.scope || null,
       };
       const created = await ticketsApi.create(payload);
 
@@ -622,6 +632,7 @@ export default function CreateTicket() {
                   <select
                     value={form.firmId}
                     onChange={handleFirmChange}
+                    required
                     className="text-sm font-semibold bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none"
                     style={{
                       backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -672,28 +683,6 @@ export default function CreateTicket() {
                         {p.name}
                       </option>
                     ))}
-                  </select>
-                </div>
-
-                {/* Scope (Kapsam) */}
-                <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50/60 transition-colors">
-                  <span className="flex items-center gap-2 text-sm text-surface-500">
-                    <Globe className="w-4 h-4" />
-                    Kapsam
-                  </span>
-                  <select
-                    value={form.scope}
-                    onChange={update('scope')}
-                    className="text-sm font-semibold bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 8px center',
-                    }}
-                  >
-                    <option value="">Seciniz...</option>
-                    <option value="Yerel">Yerel</option>
-                    <option value="Genel">Genel</option>
                   </select>
                 </div>
               </div>
