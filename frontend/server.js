@@ -128,7 +128,13 @@ function getUserFromRequest(req) {
   const isTklProductManager = !isAdmin && /ürün\s*yönetim/i.test(privilegeName);
   const isRestrictedUser = !isAdmin && !isTklProductManager;
   const canUseMentions = isAdmin || isTklProductManager;
-  return { ...toCamel(user), isAdmin, isTklProductManager, isRestrictedUser, canUseMentions, authorizedFirmIds };
+  // Check if user's firm is Tekhnelogos — if so, they can see all firms' tickets
+  const userFirm = db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(user.FirmId);
+  const isTekhnelogosFirm = userFirm && /tekhnelogos/i.test(userFirm.Name);
+  const effectiveAuthorizedFirmIds = isTekhnelogosFirm
+    ? db.prepare('SELECT "Id" FROM "Firm"').all().map(r => r.Id)
+    : authorizedFirmIds;
+  return { ...toCamel(user), isAdmin, isTklProductManager, isRestrictedUser, canUseMentions, authorizedFirmIds: effectiveAuthorizedFirmIds };
 }
 
 // --- AUTH ---
@@ -141,7 +147,11 @@ app.post('/api/auth/login', (req, res) => {
   u.firm = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(u.firmId));
   u.privilege = toCamel(db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(u.privilegeId));
   const authorizedFirms = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(u.id).map(r => r.FirmId);
-  u.authorizedFirmIds = authorizedFirms;
+  // Check if user's firm is Tekhnelogos — if so, they can see all firms' tickets
+  const isTekhnelogosFirm = u.firm && /tekhnelogos/i.test(u.firm.name);
+  u.authorizedFirmIds = isTekhnelogosFirm
+    ? db.prepare('SELECT "Id" FROM "Firm"').all().map(r => r.Id)
+    : authorizedFirms;
   u.isAdmin = !!(u.privilege && u.privilege.isAdmin);
   res.json(u);
 });
@@ -224,7 +234,11 @@ app.get('/api/users', (req, res) => {
     u.firm = toCamel(db.prepare('SELECT * FROM "Firm" WHERE "Id" = ?').get(u.firmId));
     u.privilege = toCamel(db.prepare('SELECT * FROM "Privilege" WHERE "Id" = ?').get(u.privilegeId));
     if (u.privilege) u.privilege.isAdmin = !!u.privilege.isAdmin;
-    u.authorizedFirmIds = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(u.id).map(r => r.FirmId);
+    const rawFirmIds = db.prepare('SELECT "FirmId" FROM "User_Firm" WHERE "UserId" = ?').all(u.id).map(r => r.FirmId);
+    const isTekhnelogos = u.firm && /tekhnelogos/i.test(u.firm.name);
+    u.authorizedFirmIds = isTekhnelogos
+      ? db.prepare('SELECT "Id" FROM "Firm"').all().map(r => r.Id)
+      : rawFirmIds;
     u.isAdmin = !!(u.privilege && u.privilege.isAdmin);
   });
   res.json(users);
@@ -408,7 +422,11 @@ app.post('/api/tickets', (req, res) => {
 app.put('/api/tickets/:id', (req, res) => {
   const reqUser = getUserFromRequest(req);
   if (reqUser && reqUser.isRestrictedUser) {
-    return res.status(403).json({ error: 'Ticket düzenleme yetkiniz yok' });
+    // Restricted users can only edit their own tickets
+    const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+    if (!ticket || ticket.CreatedUserId !== reqUser.id) {
+      return res.status(403).json({ error: 'Ticket düzenleme yetkiniz yok' });
+    }
   }
   const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate } = req.body;
   db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, req.params.id);
@@ -417,7 +435,10 @@ app.put('/api/tickets/:id', (req, res) => {
 app.delete('/api/tickets/:id', (req, res) => {
   const reqUser = getUserFromRequest(req);
   if (reqUser && reqUser.isRestrictedUser) {
-    return res.status(403).json({ error: 'Ticket silme yetkiniz yok' });
+    const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+    if (!ticket || ticket.CreatedUserId !== reqUser.id) {
+      return res.status(403).json({ error: 'Ticket silme yetkiniz yok' });
+    }
   }
   db.prepare('DELETE FROM "TicketComments" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "TicketLabelHistory" WHERE "TicketId" = ?').run(req.params.id);
@@ -430,7 +451,10 @@ app.delete('/api/tickets/:id', (req, res) => {
 app.post('/api/tickets/:id/status/:statusId', (req, res) => {
   const reqUser = getUserFromRequest(req);
   if (reqUser && reqUser.isRestrictedUser) {
-    return res.status(403).json({ error: 'Ticket durumu değiştirme yetkiniz yok' });
+    const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+    if (!ticket || ticket.CreatedUserId !== reqUser.id) {
+      return res.status(403).json({ error: 'Ticket durumu değiştirme yetkiniz yok' });
+    }
   }
   const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });

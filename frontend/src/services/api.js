@@ -11,7 +11,7 @@ export const userFirmsApi = {
 
 async function request(url, options = {}) {
   // Attach logged-in user ID for backend authorization
-  const stored = localStorage.getItem('user');
+  const stored = localStorage.getItem('pratek_auth');
   const userId = stored ? JSON.parse(stored)?.id : null;
   let res;
   try {
