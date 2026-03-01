@@ -31,6 +31,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import Header from '../components/Header';
+import { useAuth } from '../context/AuthContext';
 import { ticketsApi, usersApi, firmsApi, prioritiesApi, labelsApi, statusesApi } from '../services/api';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -47,6 +48,7 @@ import TicketMention, { setMentionData } from '../extensions/ticketMention';
 export default function EditTicket() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isRestrictedUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [firms, setFirms] = useState([]);
@@ -364,9 +366,9 @@ export default function EditTicket() {
         </button>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className={`grid grid-cols-1 ${isRestrictedUser ? '' : 'lg:grid-cols-3'} gap-6`}>
             {/* Left: Title + Rich Text Content */}
-            <div className="lg:col-span-2 space-y-5">
+            <div className={`${isRestrictedUser ? '' : 'lg:col-span-2'} space-y-5`}
               <div className="bg-surface-0 rounded-xl border border-surface-200">
                 <div className="p-5">
                   <label className="block text-sm font-medium text-surface-700 mb-1.5">
@@ -446,8 +448,8 @@ export default function EditTicket() {
               </div>
             </div>
 
-            {/* Right Sidebar */}
-            <div className="space-y-4">
+            {/* Right Sidebar - hidden for restricted users (they can only edit title+content) */}
+            {!isRestrictedUser && <div className="space-y-4">
               <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
                 <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50/60 transition-colors">
                   <span className="flex items-center gap-2 text-sm text-surface-500"><CheckCircle2 className="w-4 h-4" />Durum</span>
@@ -524,7 +526,7 @@ export default function EditTicket() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </form>
       </div>
