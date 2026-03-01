@@ -85,7 +85,7 @@ function toggleFilter(setter, id) {
   setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 }
 
-function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy }) {
+function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilter, statusFilter, tagFilter, priorityFilter, assignedUserFilter, createdByFilter, sortBy }) {
   let result = [...tickets];
 
   if (searchQuery) {
@@ -109,7 +109,6 @@ function applyFilters(tickets, { searchQuery, activeTab, firmFilter, productFilt
   if (tagFilter.length) result = result.filter((t) => t.ticketLabels?.some((tl) => tagFilter.includes(tl.labelId)));
   if (priorityFilter.length) result = result.filter((t) => priorityFilter.includes(t.priorityId));
   if (assignedUserFilter && assignedUserFilter.length) result = result.filter((t) => assignedUserFilter.includes(t.assignedUserId));
-  if (productOwnerFilter && productOwnerFilter.length) result = result.filter((t) => productOwnerFilter.includes(t.product?.manager?.id));
   if (createdByFilter && createdByFilter.length) result = result.filter((t) => createdByFilter.includes(t.createdUserId));
 
   result.sort((a, b) => {
@@ -156,7 +155,6 @@ export default function TicketList() {
   const [labelFilter, setLabelFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [assignedUserFilter, setAssignedUserFilter] = useState([]);
-  const [productOwnerFilter, setProductOwnerFilter] = useState([]);
   const [createdByFilter, setCreatedByFilter] = useState([]);
 
   const [searchParams] = useSearchParams();
@@ -197,7 +195,6 @@ export default function TicketList() {
     setLabelFilter([]);
     setPriorityFilter([]);
     setAssignedUserFilter([]);
-    setProductOwnerFilter([]);
     setCreatedByFilter([]);
   };
 
@@ -216,15 +213,14 @@ export default function TicketList() {
     labelFilter.length ||
     priorityFilter.length ||
     assignedUserFilter.length ||
-    productOwnerFilter.length ||
     createdByFilter.length;
 
-  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter: labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy };
+  const sharedFilterParams = { searchQuery, activeTab, firmFilter, productFilter, tagFilter: labelFilter, priorityFilter, assignedUserFilter, createdByFilter, sortBy };
 
   const processed = useMemo(
     () => applyFilters(tickets, { ...sharedFilterParams, statusFilter }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy]
+    [tickets, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, createdByFilter, sortBy]
   );
 
   const kanbanTickets = useMemo(
@@ -233,7 +229,7 @@ export default function TicketList() {
         ? applyFilters(tickets, { ...sharedFilterParams, statusFilter: [] })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter, sortBy]
+    [viewMode, tickets, searchQuery, activeTab, firmFilter, productFilter, labelFilter, priorityFilter, assignedUserFilter, createdByFilter, sortBy]
   );
 
   // Build dynamic filter options: cross-filtered counts (each dimension excludes its own filter)
@@ -259,7 +255,6 @@ export default function TicketList() {
         if (exclude !== 'label' && labelFilter.length && !t.ticketLabels?.some((tl) => labelFilter.includes(tl.labelId))) return false;
         if (exclude !== 'priority' && priorityFilter.length && !priorityFilter.includes(t.priorityId)) return false;
         if (exclude !== 'assignedUser' && assignedUserFilter.length && !assignedUserFilter.includes(t.assignedUserId)) return false;
-        if (exclude !== 'productOwner' && productOwnerFilter.length && !productOwnerFilter.includes(t.product?.manager?.id)) return false;
         if (exclude !== 'createdBy' && createdByFilter.length && !createdByFilter.includes(t.createdUserId)) return false;
         return true;
       });
@@ -280,7 +275,6 @@ export default function TicketList() {
     const statusCounts = countBy(filterExcluding('status'), (t) => t.statusId);
     const assignedUserCounts = countBy(filterExcluding('assignedUser'), (t) => t.assignedUserId);
     const createdByCounts = countBy(filterExcluding('createdBy'), (t) => t.createdUserId);
-    const productOwnerCounts = countBy(filterExcluding('productOwner'), (t) => t.product?.manager?.id);
     const labelCounts = countBy(filterExcluding('label'), (t) => t.ticketLabels?.map((tl) => tl.labelId || tl.label?.id) || []);
 
     return {
@@ -290,10 +284,9 @@ export default function TicketList() {
       statuses: statuses.filter((s) => statusCounts[s.id]).map((s) => ({ id: s.id, name: s.name, colorHex: s.colorHex, count: statusCounts[s.id] })),
       labels: labels.filter((l) => labelCounts[l.id]).map((l) => ({ id: l.id, name: l.name, colorHex: l.colorHex, count: labelCounts[l.id] })),
       assignedUsers: users.filter((u) => assignedUserCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: assignedUserCounts[u.id] })),
-      productOwners: users.filter((u) => productOwnerCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: productOwnerCounts[u.id] })),
       createdBy: users.filter((u) => createdByCounts[u.id]).map((u) => ({ id: u.id, name: u.name, count: createdByCounts[u.id] })),
     };
-  }, [tickets, firms, products, priorities, statuses, labels, users, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, productOwnerFilter, createdByFilter]);
+  }, [tickets, firms, products, priorities, statuses, labels, users, searchQuery, activeTab, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, createdByFilter]);
 
   const handleSetViewMode = (mode) => {
     setViewMode(mode);
@@ -384,81 +377,70 @@ export default function TicketList() {
               ))}
             </div>
 
-            {/* Filters - hidden for restricted users (GDF/TKL Kullanıcı) */}
-            {!isRestrictedUser && (
-              <>
-                <div className="w-px h-6 bg-surface-200 mx-1" />
+            <div className="w-px h-6 bg-surface-200 mx-1" />
 
-                <FilterDropdown
-                  label="Firma"
-                  options={dynamicFilterOptions.firms}
-                  selected={firmFilter}
-                  onToggle={(id) => toggleFilter(setFirmFilter, id)}
-                  onClear={() => setFirmFilter([])}
-                />
-                <FilterDropdown
-                  label="Ürün"
-                  options={dynamicFilterOptions.products}
-                  selected={productFilter}
-                  onToggle={(id) => toggleFilter(setProductFilter, id)}
-                  onClear={() => setProductFilter([])}
-                />
-                {viewMode === 'list' && (
-                  <FilterDropdown
-                    label="Durum"
-                    options={dynamicFilterOptions.statuses}
-                    selected={statusFilter}
-                    onToggle={(id) => toggleFilter(setStatusFilter, id)}
-                    onClear={() => setStatusFilter([])}
-                  />
-                )}
-                <FilterDropdown
-                  label="Etiket"
-                  options={dynamicFilterOptions.labels}
-                  selected={labelFilter}
-                  onToggle={(id) => toggleFilter(setLabelFilter, id)}
-                  onClear={() => setLabelFilter([])}
-                  hideTagsOption={{ value: hideLabelsInList, onToggle: toggleHideLabels }}
-                />
-                <FilterDropdown
-                  label="Öncelik"
-                  options={dynamicFilterOptions.priorities}
-                  selected={priorityFilter}
-                  onToggle={(id) => toggleFilter(setPriorityFilter, id)}
-                  onClear={() => setPriorityFilter([])}
-                />
-                <FilterDropdown
-                  label="Atanan"
-                  options={dynamicFilterOptions.assignedUsers}
-                  selected={assignedUserFilter}
-                  onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
-                  onClear={() => setAssignedUserFilter([])}
-                />
-                <FilterDropdown
-                  label="Ürün Sahibi"
-                  options={dynamicFilterOptions.productOwners}
-                  selected={productOwnerFilter}
-                  onToggle={(id) => toggleFilter(setProductOwnerFilter, id)}
-                  onClear={() => setProductOwnerFilter([])}
-                />
-                <FilterDropdown
-                  label="Oluşturan"
-                  options={dynamicFilterOptions.createdBy}
-                  selected={createdByFilter}
-                  onToggle={(id) => toggleFilter(setCreatedByFilter, id)}
-                  onClear={() => setCreatedByFilter([])}
-                />
-                {anyFilterActive ? (
-                  <button
-                    onClick={clearAllFilters}
-                    className="flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                    Temizle
-                  </button>
-                ) : null}
-              </>
+            {/* Filters */}
+            <FilterDropdown
+              label="Firma"
+              options={dynamicFilterOptions.firms}
+              selected={firmFilter}
+              onToggle={(id) => toggleFilter(setFirmFilter, id)}
+              onClear={() => setFirmFilter([])}
+            />
+            <FilterDropdown
+              label="Ürün"
+              options={dynamicFilterOptions.products}
+              selected={productFilter}
+              onToggle={(id) => toggleFilter(setProductFilter, id)}
+              onClear={() => setProductFilter([])}
+            />
+            {viewMode === 'list' && (
+              <FilterDropdown
+                label="Durum"
+                options={dynamicFilterOptions.statuses}
+                selected={statusFilter}
+                onToggle={(id) => toggleFilter(setStatusFilter, id)}
+                onClear={() => setStatusFilter([])}
+              />
             )}
+            <FilterDropdown
+              label="Etiket"
+              options={dynamicFilterOptions.labels}
+              selected={labelFilter}
+              onToggle={(id) => toggleFilter(setLabelFilter, id)}
+              onClear={() => setLabelFilter([])}
+              hideTagsOption={{ value: hideLabelsInList, onToggle: toggleHideLabels }}
+            />
+            <FilterDropdown
+              label="Öncelik"
+              options={dynamicFilterOptions.priorities}
+              selected={priorityFilter}
+              onToggle={(id) => toggleFilter(setPriorityFilter, id)}
+              onClear={() => setPriorityFilter([])}
+            />
+            <FilterDropdown
+              label="Atanan"
+              options={dynamicFilterOptions.assignedUsers}
+              selected={assignedUserFilter}
+              onToggle={(id) => toggleFilter(setAssignedUserFilter, id)}
+              onClear={() => setAssignedUserFilter([])}
+            />
+            <FilterDropdown
+              label="Oluşturan"
+              options={dynamicFilterOptions.createdBy}
+              selected={createdByFilter}
+              onToggle={(id) => toggleFilter(setCreatedByFilter, id)}
+              onClear={() => setCreatedByFilter([])}
+            />
+            {anyFilterActive ? (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                Temizle
+              </button>
+            ) : null}
 
             {/* Right: View Toggle + Sort */}
             <div className="ml-auto flex items-center gap-2">
@@ -557,7 +539,7 @@ export default function TicketList() {
                         <X className="w-4 h-4" />
                         Filtreleri temizle
                       </button>
-                    ) : canEditTickets ? (
+                    ) : (
                       <Link
                         to="/tickets/new"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
@@ -565,7 +547,7 @@ export default function TicketList() {
                         <Plus className="w-4 h-4" />
                         Yeni Ticket Oluştur
                       </Link>
-                    ) : null
+                    )
                   }
                 />
               ) : (
