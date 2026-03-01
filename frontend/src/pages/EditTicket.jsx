@@ -368,7 +368,7 @@ export default function EditTicket() {
         <form onSubmit={handleSubmit}>
           <div className={`grid grid-cols-1 ${isRestrictedUser ? '' : 'lg:grid-cols-3'} gap-6`}>
             {/* Left: Title + Rich Text Content */}
-            <div className={`${isRestrictedUser ? '' : 'lg:col-span-2'} space-y-5`}
+            <div className={`${isRestrictedUser ? '' : 'lg:col-span-2'} space-y-5`}>
               <div className="bg-surface-0 rounded-xl border border-surface-200">
                 <div className="p-5">
                   <label className="block text-sm font-medium text-surface-700 mb-1.5">
