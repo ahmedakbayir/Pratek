@@ -13,6 +13,30 @@ import { useAuth } from '../context/AuthContext';
 const roleVariants = ['default', 'danger', 'info', 'default', 'warning', 'success', 'primary'];
 const emptyForm = { name: '', mail: '', password: '', gsm: '', privilegeId: '', firmId: '', orderNo: '', authorizedFirmIds: [] };
 
+// Get visible firms for authorized firm selection:
+// If selected firm is "Tekhnelogos" (root), show all firms
+// Otherwise show selected firm + its child firms (descendants)
+function getVisibleFirms(firms, selectedFirmId) {
+  if (!selectedFirmId) return [];
+  const firmId = Number(selectedFirmId);
+  const selectedFirm = firms.find(f => f.id === firmId);
+  if (!selectedFirm) return [];
+  // If firm name is "Tekhnelogos" (case-insensitive), show all firms
+  if (/tekhnelogos/i.test(selectedFirm.name)) return firms;
+  // Otherwise collect selected firm + all descendants
+  const result = new Set([firmId]);
+  const collectChildren = (parentId) => {
+    firms.forEach(f => {
+      if (f.parentId === parentId && !result.has(f.id)) {
+        result.add(f.id);
+        collectChildren(f.id);
+      }
+    });
+  };
+  collectChildren(firmId);
+  return firms.filter(f => result.has(f.id));
+}
+
 export default function UserList() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -269,7 +293,15 @@ export default function UserList() {
             <Field label="E-posta" required><input type="email" required value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} className="input-field" /></Field>
             {!editing && <Field label="Şifre" required><input type="password" required value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="input-field" /></Field>}
             <Field label="Telefon"><input type="text" value={form.gsm} onChange={(e) => setForm((f) => ({ ...f, gsm: e.target.value }))} className="input-field" /></Field>
-            <Field label="Firma"><select value={form.firmId} onChange={(e) => setForm((f) => ({ ...f, firmId: e.target.value }))} className="input-field"><option value="">Seçiniz...</option>{firms.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}</select></Field>
+            <Field label="Firma"><select value={form.firmId} onChange={(e) => {
+              const newFirmId = e.target.value;
+              const visibleIds = newFirmId ? getVisibleFirms(firms, newFirmId).map(f => f.id) : [];
+              setForm((f) => ({
+                ...f,
+                firmId: newFirmId,
+                authorizedFirmIds: f.authorizedFirmIds.filter(id => visibleIds.includes(id)),
+              }));
+            }} className="input-field"><option value="">Seçiniz...</option>{firms.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}</select></Field>
             <Field label="Yetki"><select value={form.privilegeId} onChange={(e) => setForm((f) => ({ ...f, privilegeId: e.target.value }))} className="input-field"><option value="">Seçiniz...</option>{roles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}</select></Field>
             <Field label="Sıra No"><input type="number" value={form.orderNo} onChange={(e) => setForm((f) => ({ ...f, orderNo: e.target.value }))} placeholder="Sıralama numarası" className="input-field" /></Field>
 
@@ -278,10 +310,12 @@ export default function UserList() {
               <label className="block text-sm font-medium text-surface-700 mb-1.5">Yetkili Firmalar</label>
               <p className="text-xs text-surface-500 mb-2">Kullanıcının ticket'larını görebileceği firmalar</p>
               <div className="border border-surface-200 rounded-lg max-h-40 overflow-y-auto">
-                {firms.length === 0 ? (
+                {!form.firmId ? (
+                  <div className="px-3 py-2 text-xs text-surface-400">Önce firma seçiniz</div>
+                ) : getVisibleFirms(firms, form.firmId).length === 0 ? (
                   <div className="px-3 py-2 text-xs text-surface-400">Firma bulunamadı</div>
                 ) : (
-                  firms.map((firm) => {
+                  getVisibleFirms(firms, form.firmId).map((firm) => {
                     const isSelected = form.authorizedFirmIds.includes(firm.id);
                     return (
                       <button
