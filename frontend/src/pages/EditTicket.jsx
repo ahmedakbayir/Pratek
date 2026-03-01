@@ -5,7 +5,6 @@ import {
   AlertCircle,
   Building2,
   Package,
-  Globe,
   Tag,
   Bold,
   Italic,
@@ -73,7 +72,6 @@ export default function EditTicket() {
     firmId: '',
     assignedUserId: '',
     productId: '',
-    scope: '',
     selectedLabels: [],
   });
 
@@ -127,7 +125,6 @@ export default function EditTicket() {
           firmId,
           assignedUserId: ticket.assignedUserId ? String(ticket.assignedUserId) : '',
           productId: ticket.productId ? String(ticket.productId) : '',
-          scope: ticket.scope || '',
           selectedLabels: ticket.ticketLabels
             ? ticket.ticketLabels.map((tl) => tl.label || { id: tl.labelId, name: '' })
             : [],
@@ -300,7 +297,6 @@ export default function EditTicket() {
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
         productId: form.productId ? Number(form.productId) : null,
-        scope: form.scope || null,
       };
       await ticketsApi.update(id, payload);
 
@@ -489,14 +485,6 @@ export default function EditTicket() {
                   <select value={form.productId} onChange={update('productId')} disabled={productDisabled} className={`text-sm font-semibold bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none ${productDisabled ? 'opacity-50 cursor-not-allowed' : ''}`} style={selectArrowStyle}>
                     <option value="">{loadingProducts ? 'Yukleniyor...' : productDisabled ? 'Firma secin' : 'Seciniz...'}</option>
                     {firmProducts.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                  </select>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50/60 transition-colors">
-                  <span className="flex items-center gap-2 text-sm text-surface-500"><Globe className="w-4 h-4" />Kapsam</span>
-                  <select value={form.scope} onChange={update('scope')} className="text-sm font-semibold bg-surface-50 border border-surface-200 rounded-lg px-2.5 py-1 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 cursor-pointer max-w-[150px] truncate appearance-none" style={selectArrowStyle}>
-                    <option value="">Seciniz...</option>
-                    <option value="Yerel">Yerel</option>
-                    <option value="Genel">Genel</option>
                   </select>
                 </div>
               </div>
