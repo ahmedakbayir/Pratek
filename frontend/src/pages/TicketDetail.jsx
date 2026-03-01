@@ -77,9 +77,19 @@ export default function TicketDetail() {
   const [sidebarForm, setSidebarForm] = useState(null);
   const [savingSidebar, setSavingSidebar] = useState(false);
 
-  const { isRestrictedUser, canEditTickets, canUseMentions } = useAuth();
+  const { user: currentUser, isRestrictedUser, canEditTickets, canUseMentions } = useAuth();
 
-  const loadTicket = () => ticketsApi.get(id).then(setTicket).catch(() => setError(true));
+  // Restricted users can edit their own tickets (where they are the creator)
+  const isOwnTicket = ticket && currentUser && ticket.createdUserId === currentUser.id;
+  const canEditThisTicket = canEditTickets || isOwnTicket;
+
+  const loadTicket = () => ticketsApi.get(id).then(setTicket).catch((err) => {
+    if (err.message?.includes('403') || err.message?.includes('erişim')) {
+      navigate('/tickets');
+    } else {
+      setError(true);
+    }
+  });
   const loadActivity = () => ticketsApi.getActivity(id).then(setActivity).catch(() => setActivity([]));
 
   useEffect(() => {
@@ -117,7 +127,13 @@ export default function TicketDetail() {
           firmsApi.getProducts(t.firmId).then(setFirmProducts).catch(() => setFirmProducts([]));
         }
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        if (err.message?.includes('403') || err.message?.includes('erişim')) {
+          navigate('/tickets');
+          return;
+        }
+        setError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -455,7 +471,7 @@ export default function TicketDetail() {
                     </div>
                     <h2 className="text-xl font-semibold text-surface-900">{ticket.title}</h2>
                   </div>
-                  {canEditTickets && (
+                  {canEditThisTicket && (
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => navigate(`/tickets/${ticket.id}/edit`)}
@@ -592,14 +608,14 @@ export default function TicketDetail() {
           <div className="space-y-4">
             <div className="bg-surface-0 rounded-xl border border-surface-200 divide-y divide-surface-100">
 
-              {/* Restricted users see read-only text, others see dropdowns */}
-              {isRestrictedUser ? (
+              {/* Restricted users see read-only text (unless it's their own ticket), others see dropdowns */}
+              {isRestrictedUser && !isOwnTicket ? (
                 <>
-                  <SidebarItem icon={CheckCircle2} label="Durum" value={ticket.status?.name || <span className="text-surface-400">Belirtilmedi</span>} />
-                  <SidebarItem icon={AlertCircle} label="Öncelik" value={ticket.priority?.name || <span className="text-surface-400">Belirtilmedi</span>} />
-                  <SidebarItem icon={UserPlus} label="Atanan Kişi" value={ticket.assignedUser?.name || <span className="text-surface-400">Atanmadı</span>} />
-                  <SidebarItem icon={Building2} label="Firma" value={ticket.firm?.name || <span className="text-surface-400">Belirtilmedi</span>} />
-                  <SidebarItem icon={Package} label="Ürün" value={ticket.product?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={CheckCircle2} label="Durum" colorDot={ticket.status?.colorHex} value={ticket.status?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={AlertCircle} label="Öncelik" colorDot={ticket.priority?.colorHex} value={ticket.priority?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={UserPlus} label="Atanan Kişi" avatarUrl={ticket.assignedUser?.avatarUrl} avatarFallback={ticket.assignedUser?.name?.charAt(0)} value={ticket.assignedUser?.name || <span className="text-surface-400">Atanmadı</span>} />
+                  <SidebarItem icon={Building2} label="Firma" avatarUrl={ticket.firm?.avatarUrl} avatarFallback={ticket.firm?.name?.charAt(0)} value={ticket.firm?.name || <span className="text-surface-400">Belirtilmedi</span>} />
+                  <SidebarItem icon={Package} label="Ürün" avatarUrl={ticket.product?.avatarUrl} avatarFallback={ticket.product?.name?.charAt(0)} value={ticket.product?.name || <span className="text-surface-400">Belirtilmedi</span>} />
                 </>
               ) : (
                 <>
@@ -690,8 +706,8 @@ export default function TicketDetail() {
               />
             </div>
 
-            {/* Save / Discard buttons for sidebar - only for non-restricted users */}
-            {!isRestrictedUser && hasSidebarChanges && (
+            {/* Save / Discard buttons for sidebar */}
+            {(!isRestrictedUser || isOwnTicket) && hasSidebarChanges && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSaveSidebar}
@@ -729,7 +745,7 @@ export default function TicketDetail() {
                         style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
                       />
                       {tl.label?.name}
-                      {canEditTickets && (
+                      {canEditThisTicket && (
                         <button
                           onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
                           className="p-0.5 hover:text-danger transition-colors cursor-pointer"
@@ -742,7 +758,7 @@ export default function TicketDetail() {
                 ) : (
                   <span className="text-xs text-surface-400">Etiket yok</span>
                 )}
-                {canEditTickets && (
+                {canEditThisTicket && (
                   <div className="relative" ref={labelPickerRef}>
                     <button
                       onClick={() => setShowLabelPicker(!showLabelPicker)}
@@ -857,14 +873,25 @@ function StatusBadge({ status }) {
   );
 }
 
-function SidebarItem({ icon: Icon, label, value }) {
+function SidebarItem({ icon: Icon, label, value, colorDot, avatarUrl, avatarFallback }) {
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <span className="flex items-center gap-2 text-sm text-surface-500">
         <Icon className="w-4 h-4" />
         {label}
       </span>
-      <span className="text-sm text-surface-900 font-medium">{value}</span>
+      <div className="flex items-center gap-2">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0 border border-surface-200" />
+        ) : avatarFallback ? (
+          <div className="w-5 h-5 rounded-full bg-surface-200 flex items-center justify-center text-[10px] font-medium text-surface-600 shrink-0 border border-surface-200">
+            {avatarFallback}
+          </div>
+        ) : colorDot ? (
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorDot }} />
+        ) : null}
+        <span className="text-sm text-surface-900 font-medium">{value}</span>
+      </div>
     </div>
   );
 }

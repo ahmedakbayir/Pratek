@@ -135,8 +135,16 @@ export default function TicketList() {
   const [priorities, setPriorities] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('all');
-  const [sortBy, setSortBy] = useState('date-desc');
+  // Restore filter state from sessionStorage on mount
+  const savedFilters = useMemo(() => {
+    try {
+      const stored = sessionStorage.getItem('ticket_filters');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  }, []);
+
+  const [activeTab, setActiveTab] = useState(savedFilters?.activeTab || 'all');
+  const [sortBy, setSortBy] = useState(savedFilters?.sortBy || 'date-desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
 
   const [viewMode, setViewMode] = useState(() => {
@@ -149,17 +157,25 @@ export default function TicketList() {
 
   const [collapsedColumns, setCollapsedColumns] = useState(new Set());
 
-  const [firmFilter, setFirmFilter] = useState([]);
-  const [productFilter, setProductFilter] = useState([]);
-  const [statusFilter, setStatusFilter] = useState([]);
-  const [labelFilter, setLabelFilter] = useState([]);
-  const [priorityFilter, setPriorityFilter] = useState([]);
-  const [assignedUserFilter, setAssignedUserFilter] = useState([]);
-  const [createdByFilter, setCreatedByFilter] = useState([]);
+  const [firmFilter, setFirmFilter] = useState(savedFilters?.firmFilter || []);
+  const [productFilter, setProductFilter] = useState(savedFilters?.productFilter || []);
+  const [statusFilter, setStatusFilter] = useState(savedFilters?.statusFilter || []);
+  const [labelFilter, setLabelFilter] = useState(savedFilters?.labelFilter || []);
+  const [priorityFilter, setPriorityFilter] = useState(savedFilters?.priorityFilter || []);
+  const [assignedUserFilter, setAssignedUserFilter] = useState(savedFilters?.assignedUserFilter || []);
+  const [createdByFilter, setCreatedByFilter] = useState(savedFilters?.createdByFilter || []);
 
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
   const { isAdmin, authorizedFirmIds, isRestrictedUser, canEditTickets } = useAuth();
+
+  // Persist filter state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('ticket_filters', JSON.stringify({
+      activeTab, sortBy, firmFilter, productFilter, statusFilter,
+      labelFilter, priorityFilter, assignedUserFilter, createdByFilter,
+    }));
+  }, [activeTab, sortBy, firmFilter, productFilter, statusFilter, labelFilter, priorityFilter, assignedUserFilter, createdByFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -573,7 +589,7 @@ export default function TicketList() {
               tickets={kanbanTickets}
               collapsedColumns={collapsedColumns}
               onToggleColumn={toggleColumn}
-              onStatusChange={isRestrictedUser ? undefined : handleStatusChange}
+              onStatusChange={handleStatusChange}
               loading={loading}
               hideLabels={hideLabelsInList}
             />

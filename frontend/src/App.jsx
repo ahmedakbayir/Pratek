@@ -71,7 +71,7 @@ export default function App() {
             <Route path="tickets" element={<TicketList />} />
             <Route path="tickets/new" element={<CreateTicket />} />
             <Route path="tickets/:id" element={<TicketDetail />} />
-            <Route path="tickets/:id/edit" element={<TicketEditRoute><EditTicket /></TicketEditRoute>} />
+            <Route path="tickets/:id/edit" element={<EditTicket />} />
             <Route path="users" element={<ViewableRoute><UserList /></ViewableRoute>} />
             <Route path="firms" element={<ViewableRoute><FirmList /></ViewableRoute>} />
             <Route path="products" element={<ViewableRoute><ProductList /></ViewableRoute>} />
