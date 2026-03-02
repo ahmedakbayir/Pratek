@@ -9,7 +9,8 @@
     "dev:api": "node server.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "demo": "concurrently -n api,vite,tunnel -c blue,green,magenta \"node server.js\" \"vite\" \"npx -y cloudflared tunnel --url http://localhost:5173\""
   },
   "dependencies": {
     "@tiptap/extension-color": "^3.20.0",
