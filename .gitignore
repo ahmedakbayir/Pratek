@@ -32,3 +32,6 @@ publish/
 
 # Node modules
 node_modules/
+
+# Cloudflare Tunnel binary
+.bin/
