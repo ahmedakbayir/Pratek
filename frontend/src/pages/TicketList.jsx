@@ -525,11 +525,11 @@ export default function TicketList() {
           {/* LIST VIEW */}
           {viewMode === 'list' ? (
             <>
-              <div className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-200 bg-surface-50/50">
+              <div className="grid grid-cols-[2.5fr_1fr_1.2fr_1.2fr_auto] gap-3 px-5 py-2.5 text-xs font-medium text-surface-500 uppercase tracking-wider border-b border-surface-200 bg-surface-50/50">
                 <span>Ticket</span>
                 <span>Durum</span>
                 <span>Atanan</span>
-                <span>Tarih</span>
+                <span>Oluşturan</span>
                 <span />
               </div>
 
@@ -725,7 +725,7 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
   return (
     <Link
       to={`/tickets/${ticket.id}`}
-      className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 items-start hover:bg-surface-50 transition-colors"
+      className="grid grid-cols-[2.5fr_1fr_1.2fr_1.2fr_auto] gap-3 px-5 py-3.5 items-start hover:bg-surface-50 transition-colors"
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -822,8 +822,21 @@ function TicketRow({ ticket, onFilterFirm, onFilterProduct, onFilterStatus, onFi
         )}
       </div>
 
-      <div className="flex items-center gap-1 text-xs text-surface-500">
-        <span className="font-mono">#{ticket.id}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        {ticket.createdUser ? (
+          <>
+            <div className="w-6 h-6 rounded-full bg-emerald-100 overflow-hidden flex items-center justify-center text-[10px] font-medium text-emerald-700 shrink-0">
+              {ticket.createdUser?.avatarUrl ? (
+                <img src={ticket.createdUser.avatarUrl} alt={ticket.createdUser.name} className="w-full h-full object-cover" />
+              ) : (
+                ticket.createdUser?.name?.charAt(0) || '?'
+              )}
+            </div>
+            <span className="text-sm text-surface-700 truncate">{ticket.createdUser.name}</span>
+          </>
+        ) : (
+          <span className="text-xs text-surface-400">Bilinmiyor</span>
+        )}
       </div>
 
       <div className="flex justify-end">
@@ -1282,7 +1295,7 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-surface-200">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[2.5fr_1fr_1.5fr_1fr_auto] gap-3 px-5 py-3.5 animate-pulse">
+        <div key={i} className="grid grid-cols-[2.5fr_1fr_1.2fr_1.2fr_auto] gap-3 px-5 py-3.5 animate-pulse">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <div className="h-4 bg-surface-200 rounded w-48" />
@@ -1292,7 +1305,7 @@ function LoadingRows() {
           </div>
           <div className="h-5 bg-surface-100 rounded-full w-16" />
           <div className="h-5 bg-surface-100 rounded w-24" />
-          <div className="h-4 bg-surface-100 rounded w-16" />
+          <div className="h-5 bg-surface-100 rounded w-24" />
           <div />
         </div>
       ))}
