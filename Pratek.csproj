@@ -15,5 +15,9 @@
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
-
+  <Target Name="BuildClient" BeforeTargets="Publish">
+    <Exec Command="npm install" WorkingDirectory="../client" />
+    <Exec Command="npm run build" WorkingDirectory="../client" />
+    <Exec Command="xcopy /E /I /Y ../client/build wwwroot" />
+  </Target>
 </Project>
