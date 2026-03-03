@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    allowedHosts: true, // Bu ayar, farklı arkadaşlarınızın farklı cihazlardan girmesine izin verir.
     watch: {
       usePolling: true,
     },

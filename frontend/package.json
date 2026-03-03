@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n api,vite -c blue,green \"node server.js\" \"vite\"",
+    "tunnel": "ssh -R 80:localhost:5173 nokey@localhost.run",
     "dev:frontend": "vite",
     "dev:api": "node server.js",
     "build": "vite build",
