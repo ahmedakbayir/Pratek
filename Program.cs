@@ -31,7 +31,6 @@ using (var scope = app.Services.CreateScope())
         "ALTER TABLE TicketPriority ADD COLUMN ColorHex TEXT",
         "ALTER TABLE TicketStatus ADD COLUMN ColorHex TEXT",
         "ALTER TABLE Privilege ADD COLUMN ColorHex TEXT",
-        // EKLENEN KISIM:
         "ALTER TABLE Firm ADD COLUMN AvatarUrl TEXT",
         "ALTER TABLE Product ADD COLUMN AvatarUrl TEXT",
     };
@@ -40,6 +39,37 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw(sql); }
         catch { /* Column already exists */ }
     }
+
+    // Seed TicketEventTypes
+    var eventTypes = new Dictionary<int, string>
+    {
+        { 1, "TicketCreated" },
+        { 2, "TicketUpdated" },
+        { 3, "TicketAssigned" },
+        { 4, "TicketClosed" },
+        { 5, "TicketStatusChanged" },
+        { 6, "TicketPriorityChanged" },
+        { 7, "TicketLabelAdded" },
+        { 8, "TicketLabelRemoved" },
+        { 9, "TicketCommentAdded" },
+        { 10, "TicketCommentRemoved" },
+        { 11, "TicketUnassigned" },
+        { 12, "TicketReopened" },
+        { 13, "TicketDeleted" },
+    };
+    foreach (var (etId, etName) in eventTypes)
+    {
+        var exists = db.TicketEventTypes.Find(etId);
+        if (exists == null)
+        {
+            db.TicketEventTypes.Add(new Pratek.Models.TicketEventType { Id = etId, Name = etName });
+        }
+        else if (exists.Name != etName)
+        {
+            exists.Name = etName;
+        }
+    }
+    db.SaveChanges();
 }
 
 var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "Uploads");
