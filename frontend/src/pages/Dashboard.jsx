@@ -8,16 +8,9 @@ import {
   Users,
   ArrowRight,
   Plus,
-  Globe,
-  Cpu,
-  AlertTriangle,
-  Shield,
-  Zap,
   MoreVertical,
   RefreshCw,
   Building2,
-  Package,
-  ShieldCheck,
 } from 'lucide-react';
 import Header from '../components/Header';
 import StatsCard from '../components/StatsCard';
@@ -140,55 +133,52 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Users Card */}
+          <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
+              <h3 className="text-sm font-semibold text-surface-900">Kullanıcılar</h3>
+              <Link to="/users" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
+                <Plus className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="p-6 flex flex-col items-center text-center">
+              <div className="w-20 h-20 mb-4 bg-blue-50 rounded-2xl flex items-center justify-center">
+                <Users className="w-10 h-10 text-blue-500" />
+              </div>
+              <h4 className="text-sm font-semibold text-surface-900 mb-1">Kullanıcıları yönetin</h4>
+              <p className="text-xs text-surface-500 mb-4 max-w-[220px]">
+                Ekip üyelerini ekleyin, rollerini belirleyin ve erişimlerini düzenleyin
+              </p>
+              <Link
+                to="/users"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
+              >
+                Kullanıcılara Git
+              </Link>
+            </div>
+          </div>
+
           {/* Firms Card */}
           <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
-              <h3 className="text-sm font-semibold text-surface-900">Firmalar & Ürünler</h3>
+              <h3 className="text-sm font-semibold text-surface-900">Firmalar</h3>
               <Link to="/firms" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
                 <Plus className="w-4 h-4" />
               </Link>
             </div>
             <div className="p-6 flex flex-col items-center text-center">
-              <div className="w-20 h-20 mb-4 bg-orange-50 rounded-2xl flex items-center justify-center relative">
-                <Building2 className="w-8 h-8 text-primary-500" />
-                <div className="absolute -right-1 -bottom-1 w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                  <Package className="w-4 h-4 text-primary-600" />
-                </div>
+              <div className="w-20 h-20 mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                <Building2 className="w-10 h-10 text-emerald-500" />
               </div>
-              <h4 className="text-sm font-semibold text-surface-900 mb-1">Firma ve ürün yönetimi</h4>
+              <h4 className="text-sm font-semibold text-surface-900 mb-1">Firmaları yönetin</h4>
               <p className="text-xs text-surface-500 mb-4 max-w-[220px]">
-                Firmaları ve ürünleri ekleyin, düzenleyin ve ilişkilendirin
+                Firmaları ekleyin, düzenleyin ve ürünlerle ilişkilendirin
               </p>
               <Link
                 to="/firms"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
               >
-                Yönetimi Başlat
-              </Link>
-            </div>
-          </div>
-
-          {/* Security Card */}
-          <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
-              <h3 className="text-sm font-semibold text-surface-900">Yetki & Güvenlik</h3>
-              <Link to="/privileges" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
-                <Plus className="w-4 h-4" />
-              </Link>
-            </div>
-            <div className="p-6 flex flex-col items-center text-center">
-              <div className="w-20 h-20 mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center relative">
-                <ShieldCheck className="w-10 h-10 text-emerald-500" />
-              </div>
-              <h4 className="text-sm font-semibold text-surface-900 mb-1">Kullanıcı yetkilendirme</h4>
-              <p className="text-xs text-surface-500 mb-4 max-w-[220px]">
-                Kullanıcı ve cihaz erişimlerini yönetin ve güvenliği sağlayın
-              </p>
-              <Link
-                to="/privileges"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
-              >
-                Başlayın
+                Firmalara Git
               </Link>
             </div>
           </div>
