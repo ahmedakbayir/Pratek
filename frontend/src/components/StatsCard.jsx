@@ -1,22 +1,27 @@
-export default function StatsCard({ icon: Icon, label, value, trend, trendUp }) {
+export default function StatsCard({ icon: Icon, label, value, change, subtitle, highlighted }) {
   return (
-    <div className="bg-surface-0 rounded-xl border border-surface-200 p-5">
-      <div className="flex items-center justify-between">
-        <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
-          <Icon className="w-5 h-5 text-primary-600" />
+    <div
+      className={`rounded-lg border p-4 transition-colors ${
+        highlighted
+          ? 'bg-gradient-to-br from-primary-50 to-orange-50 border-primary-200'
+          : 'bg-white border-surface-200 hover:border-surface-300'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${highlighted ? 'text-primary-600' : 'text-surface-400'}`} />
+          <span className="text-xs font-medium text-surface-600">{label}</span>
         </div>
-        {trend && (
-          <span
-            className={`text-xs font-medium ${trendUp ? 'text-success' : 'text-danger'}`}
-          >
-            {trend}
-          </span>
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xl font-semibold text-surface-900">{value}</span>
+        {change && (
+          <span className="text-[11px] text-surface-400">{change}</span>
         )}
       </div>
-      <div className="mt-3">
-        <p className="text-2xl font-semibold text-surface-900">{value}</p>
-        <p className="text-sm text-surface-500 mt-0.5">{label}</p>
-      </div>
+      {subtitle && (
+        <p className="text-[11px] text-surface-400 mt-1">{subtitle}</p>
+      )}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export default function Layout() {
         </div>
       )}
       <Sidebar />
-      <main className={`ml-60 ${isImpersonating ? '' : ''}`}>
+      <main className="ml-60 min-h-screen">
         <Outlet />
       </main>
     </div>
