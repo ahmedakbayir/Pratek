@@ -17,8 +17,13 @@ import {
   Plus,
   Minus,
   UserPlus,
+  UserMinus,
   Save,
   Ticket as TicketIcon,
+  PlusCircle,
+  XCircle,
+  RotateCcw,
+  TagIcon,
 } from 'lucide-react';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
@@ -517,22 +522,38 @@ export default function TicketDetail() {
               {activity.length > 0 ? (
                 <div className="divide-y divide-surface-100">
                   {activity.map((item) => (
-                    <div key={item.id} className="px-6 py-3">
-                      <div className="flex items-center gap-2 text-xs text-surface-500">
-                        <Edit3 className="w-3.5 h-3.5 text-primary-500" />
-                        <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
-                        <span>{renderWithHashtags(item.description, navigate)}</span>
-                        {item.oldValue && (
-                          <span className="line-through text-surface-400">{item.oldValue}</span>
-                        )}
-                        {item.newValue && (
-                          <>
-                            <span className="text-surface-400">→</span>
-                            <span className="font-medium text-surface-800">{item.newValue}</span>
-                          </>
-                        )}
-                        <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
-                      </div>
+                    <div key={`${item.type}-${item.id}`} className="px-6 py-3">
+                      {item.type === 'comment' ? (
+                        <div className="flex gap-2">
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 text-xs text-surface-500 mb-1">
+                              <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
+                              <span>yorum ekledi</span>
+                              <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
+                            </div>
+                            <div className="text-sm text-surface-700 bg-surface-50 rounded-lg px-3 py-2">
+                              {renderWithHashtags(item.description, navigate)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-surface-500">
+                          <ActivityIcon eventTypeId={item.eventTypeId} />
+                          <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
+                          <span>{renderWithHashtags(item.description, navigate)}</span>
+                          {item.oldValue && (
+                            <span className="line-through text-surface-400">{item.oldValue}</span>
+                          )}
+                          {item.newValue && (
+                            <>
+                              <span className="text-surface-400">→</span>
+                              <span className="font-medium text-surface-800">{item.newValue}</span>
+                            </>
+                          )}
+                          <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -801,6 +822,25 @@ export default function TicketDetail() {
       </div>
     </div>
   );
+}
+
+function ActivityIcon({ eventTypeId }) {
+  switch (eventTypeId) {
+    case 1: return <PlusCircle className="w-3.5 h-3.5 text-emerald-500" />;       // TicketCreated
+    case 2: return <Edit3 className="w-3.5 h-3.5 text-primary-500" />;            // TicketUpdated
+    case 3: return <UserPlus className="w-3.5 h-3.5 text-blue-500" />;            // TicketAssigned
+    case 4: return <XCircle className="w-3.5 h-3.5 text-slate-500" />;            // TicketClosed
+    case 5: return <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />;       // TicketStatusChanged
+    case 6: return <AlertCircle className="w-3.5 h-3.5 text-orange-500" />;       // TicketPriorityChanged
+    case 7: return <Tag className="w-3.5 h-3.5 text-violet-500" />;               // TicketLabelAdded
+    case 8: return <Tag className="w-3.5 h-3.5 text-rose-400" />;                 // TicketLabelRemoved
+    case 9: return <MessageSquare className="w-3.5 h-3.5 text-blue-500" />;       // TicketCommentAdded
+    case 10: return <MessageSquare className="w-3.5 h-3.5 text-rose-400" />;      // TicketCommentRemoved
+    case 11: return <UserMinus className="w-3.5 h-3.5 text-rose-400" />;          // TicketUnassigned
+    case 12: return <RotateCcw className="w-3.5 h-3.5 text-emerald-500" />;       // TicketReopened
+    case 13: return <Trash2 className="w-3.5 h-3.5 text-danger" />;               // TicketDeleted
+    default: return <Edit3 className="w-3.5 h-3.5 text-primary-500" />;
+  }
 }
 
 function SidebarSelect({ icon: Icon, label, value, options, onChange, colorDot, selectStyle, avatarUrl }) {

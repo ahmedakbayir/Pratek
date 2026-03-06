@@ -62,6 +62,8 @@ export const ticketsApi = {
   removeLabel: (id, labelId, userId) => request(`/tickets/${id}/label/${labelId}?userId=${userId}`, { method: 'DELETE' }),
   getComments: (id) => request(`/tickets/${id}/comments`),
   addComment: (id, data) => request(`/tickets/${id}/comments`, { method: 'POST', body: JSON.stringify(data) }),
+  removeComment: (ticketId, commentId) => request(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' }),
+  unassign: (id) => request(`/tickets/${id}/unassign`, { method: 'POST' }),
   getActivity: (id) => request(`/tickets/${id}/activity`),
 };
 
