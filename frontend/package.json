@@ -11,7 +11,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "demo": "npx kill-port 5173 && concurrently -n api,vite,tunnel -c blue,green,magenta \"node server.js\" \"vite\" \"npx -y cloudflared tunnel --url http://localhost:5173\""
+    "demo": "npx kill-port 5173 && concurrently -n api,vite,tunnel -c blue,green,magenta \"node server.js\" \"vite\" \"cloudflared tunnel --url http://localhost:5173\""
   },
   "dependencies": {
     "@tiptap/extension-color": "^3.20.0",
@@ -42,6 +42,7 @@
     "msnodesqlv8": "^4.2.1"
   },
   "devDependencies": {
+    "cloudflared": "^0.3.1",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.2.0",
     "@types/react": "^19.2.7",
