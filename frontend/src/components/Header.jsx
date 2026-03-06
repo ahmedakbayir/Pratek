@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, Plus } from 'lucide-react';
+import { Search, Bell, Plus, HelpCircle, User } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,48 +19,54 @@ export default function Header({ title, subtitle }) {
   };
 
   return (
-    <header className="h-16 bg-surface-0 border-b border-surface-200 flex items-center justify-between px-6 sticky top-0 z-20">
-      <div>
-        <h1 className="text-lg font-semibold text-surface-900">{title}</h1>
+    <header className="h-12 bg-white border-b border-surface-200 flex items-center justify-between px-5 sticky top-0 z-20">
+      <div className="flex items-center gap-3">
         {subtitle && (
-          <p className="text-sm text-surface-600">{subtitle}</p>
+          <span className="text-xs text-surface-400">{subtitle}</span>
         )}
+        <h1 className="text-sm font-semibold text-surface-900">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* Search */}
         <form onSubmit={handleSearch} className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
           <input
             type="text"
             placeholder="Ticket ara..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-9 pr-4 py-1.5 text-sm bg-surface-100 border border-surface-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+            className="pl-8 pr-3 py-1.5 text-xs bg-surface-50 border border-surface-200 rounded-md w-48 focus:outline-none focus:ring-1 focus:ring-primary-500/30 focus:border-primary-400 transition-colors"
           />
         </form>
 
         {/* New Ticket */}
         <button
           onClick={() => navigate('/tickets/new')}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors cursor-pointer"
         >
-          <Plus className="w-4 h-4" />
-          Yeni Ticket
+          <Plus className="w-3.5 h-3.5" />
+          Ekle
+        </button>
+
+        {/* Support */}
+        <button className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-surface-500 hover:text-surface-700 hover:bg-surface-50 rounded-md transition-colors cursor-pointer">
+          <HelpCircle className="w-3.5 h-3.5" />
+          Destek
         </button>
 
         {/* Notifications */}
-        <button className="relative p-2 text-surface-500 hover:text-surface-700 hover:bg-surface-100 rounded-lg transition-colors cursor-pointer">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
+        <button className="relative p-1.5 text-surface-500 hover:text-surface-700 hover:bg-surface-50 rounded-md transition-colors cursor-pointer">
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-primary-500 rounded-full" />
         </button>
 
         {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-primary-600 overflow-hidden flex items-center justify-center text-white text-sm font-medium">
+        <div className="w-7 h-7 rounded-full bg-surface-200 overflow-hidden flex items-center justify-center text-surface-600 text-xs font-medium cursor-pointer hover:ring-2 hover:ring-primary-300 transition-all">
           {user?.avatarUrl ? (
             <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
           ) : (
-            user?.name?.charAt(0) || 'A'
+            <User className="w-3.5 h-3.5" />
           )}
         </div>
       </div>
