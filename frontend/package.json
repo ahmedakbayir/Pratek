@@ -4,14 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n api,vite -c blue,green \"node server.js\" \"vite\"",
+    "dev": "npx kill-port 5173 && concurrently -n api,vite -c blue,green \"node server.js\" \"vite\"",
     "tunnel": "ssh -R 80:localhost:5173 nokey@localhost.run",
     "dev:frontend": "vite",
     "dev:api": "node server.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "demo": "concurrently -n api,vite,tunnel -c blue,green,magenta \"node server.js\" \"vite\" \"npx -y cloudflared tunnel --url http://localhost:5173\""
+    "demo": "npx kill-port 5173 && concurrently -n api,vite,tunnel -c blue,green,magenta \"node server.js\" \"vite\" \"npx -y cloudflared tunnel --url http://localhost:5173\""
   },
   "dependencies": {
     "@tiptap/extension-color": "^3.20.0",
@@ -54,4 +54,5 @@
     "tailwindcss": "^4.2.0",
     "vite": "^7.3.1"
   }
+
 }
