@@ -429,12 +429,29 @@ namespace Pratek.Controllers
         [HttpGet("{id}/activity")]
         public async Task<IActionResult> GetActivity(int id)
         {
-            // 1) TicketEventHistory
+            // Event types already covered by dedicated tables:
+            // 7=LabelAdded, 8=LabelRemoved (from TicketLabelHistory)
+            // 9=CommentAdded (from TicketComments)
+            var excludeTypes = new[] { 7, 8, 9 };
+
+            // 1) TicketEventHistory (excluding types shown from other tables)
             var events = await _context.TicketEventHistories
-                .Where(e => e.TicketId == id)
+                .Where(e => e.TicketId == id && !excludeTypes.Contains(e.TicketEventTypeId ?? 0))
                 .Include(e => e.TicketEventType)
                 .Include(e => e.User)
                 .OrderByDescending(e => e.ActionDate)
+                .Select(e => new
+                {
+                    type = "event",
+                    id = e.Id,
+                    actionDate = e.ActionDate ?? DateTime.MinValue,
+                    eventType = e.TicketEventType != null ? e.TicketEventType.Name : null,
+                    eventTypeId = e.TicketEventTypeId ?? 0,
+                    description = e.Description,
+                    oldValue = e.OldValue,
+                    newValue = e.NewValue,
+                    user = e.User != null ? new { e.User.Id, e.User.Name, e.User.AvatarUrl } : null,
+                })
                 .ToListAsync();
 
             // 2) TicketComments (active only)
@@ -442,38 +459,7 @@ namespace Pratek.Controllers
                 .Where(c => c.TicketId == id && c.Inactive != true)
                 .Include(c => c.User)
                 .OrderByDescending(c => c.ActionDate)
-                .ToListAsync();
-
-            // 3) TicketLabelHistory
-            var labelHistory = await _context.TicketLabelHistories
-                .Where(lh => lh.TicketId == id)
-                .Include(lh => lh.Label)
-                .Include(lh => lh.User)
-                .OrderByDescending(lh => lh.ActionDate)
-                .ToListAsync();
-
-            // Build unified timeline
-            var timeline = new List<object>();
-
-            foreach (var e in events)
-            {
-                timeline.Add(new
-                {
-                    type = "event",
-                    id = e.Id,
-                    actionDate = e.ActionDate,
-                    eventType = e.TicketEventType?.Name,
-                    eventTypeId = e.TicketEventTypeId,
-                    description = e.Description,
-                    oldValue = e.OldValue,
-                    newValue = e.NewValue,
-                    user = e.User != null ? new { e.User.Id, e.User.Name, e.User.AvatarUrl } : null,
-                });
-            }
-
-            foreach (var c in comments)
-            {
-                timeline.Add(new
+                .Select(c => new
                 {
                     type = "comment",
                     id = c.Id,
@@ -484,32 +470,45 @@ namespace Pratek.Controllers
                     oldValue = (string?)null,
                     newValue = (string?)null,
                     user = c.User != null ? new { c.User.Id, c.User.Name, c.User.AvatarUrl } : null,
-                });
-            }
+                })
+                .ToListAsync();
 
-            foreach (var lh in labelHistory)
-            {
-                timeline.Add(new
+            // 3) TicketLabelHistory
+            var labelHistory = await _context.TicketLabelHistories
+                .Where(lh => lh.TicketId == id)
+                .Include(lh => lh.Label)
+                .Include(lh => lh.User)
+                .OrderByDescending(lh => lh.ActionDate)
+                .Select(lh => new
                 {
                     type = "label",
                     id = lh.Id,
-                    actionDate = lh.ActionDate,
+                    actionDate = lh.ActionDate ?? DateTime.MinValue,
                     eventType = lh.ActionType == true ? "TicketLabelAdded" : "TicketLabelRemoved",
                     eventTypeId = lh.ActionType == true ? 7 : 8,
                     description = lh.ActionType == true
-                        ? $"Etiket eklendi: {lh.Label?.Name}"
-                        : $"Etiket kaldırıldı: {lh.Label?.Name}",
-                    oldValue = lh.ActionType == true ? (string?)null : lh.Label?.Name,
-                    newValue = lh.ActionType == true ? lh.Label?.Name : (string?)null,
+                        ? "Etiket eklendi: " + (lh.Label != null ? lh.Label.Name : "")
+                        : "Etiket kaldırıldı: " + (lh.Label != null ? lh.Label.Name : ""),
+                    oldValue = lh.ActionType == true ? (string?)null : (lh.Label != null ? lh.Label.Name : null),
+                    newValue = lh.ActionType == true ? (lh.Label != null ? lh.Label.Name : null) : (string?)null,
                     user = lh.User != null ? new { lh.User.Id, lh.User.Name, lh.User.AvatarUrl } : null,
-                });
-            }
+                })
+                .ToListAsync();
 
-            var sorted = timeline
-                .OrderByDescending(x => ((dynamic)x).actionDate)
+            // Merge and sort by date descending
+            var timeline = events.Cast<object>()
+                .Concat(comments.Cast<object>())
+                .Concat(labelHistory.Cast<object>())
                 .ToList();
 
-            return Ok(sorted);
+            timeline.Sort((a, b) =>
+            {
+                var dateA = (DateTime)a.GetType().GetProperty("actionDate")!.GetValue(a)!;
+                var dateB = (DateTime)b.GetType().GetProperty("actionDate")!.GetValue(b)!;
+                return dateB.CompareTo(dateA);
+            });
+
+            return Ok(timeline);
         }
 
         // --------------------------------------------------
