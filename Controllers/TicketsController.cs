@@ -5,6 +5,27 @@ using Pratek.Models;
 
 namespace Pratek.Controllers
 {
+    // DTO for unified activity timeline
+    public class ActivityItem
+    {
+        public string Type { get; set; } = "event";
+        public int Id { get; set; }
+        public DateTime ActionDate { get; set; }
+        public string? EventType { get; set; }
+        public int EventTypeId { get; set; }
+        public string? Description { get; set; }
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
+        public ActivityUser? User { get; set; }
+    }
+
+    public class ActivityUser
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+        public string? AvatarUrl { get; set; }
+    }
+
     [ApiController]
     [Route("api/[controller]")]
     public class TicketsController : ControllerBase
@@ -16,7 +37,6 @@ namespace Pratek.Controllers
             _context = context;
         }
 
-        // Helper: get userId from header
         private int? GetCurrentUserId()
         {
             if (Request.Headers.TryGetValue("x-user-id", out var val) && int.TryParse(val, out var uid))
@@ -24,7 +44,6 @@ namespace Pratek.Controllers
             return null;
         }
 
-        // Helper: log event
         private void LogEvent(int ticketId, int eventTypeId, int? userId, string? description = null, string? oldValue = null, string? newValue = null)
         {
             _context.TicketEventHistories.Add(new TicketEventHistory
@@ -53,6 +72,32 @@ namespace Pratek.Controllers
                 .Include(t => t.Priority)
                 .Include(t => t.Product)
                 .OrderByDescending(t => t.Id)
+                .ToListAsync();
+
+            return Ok(tickets);
+        }
+
+        // --------------------------------------------------
+        // SEARCH
+        // --------------------------------------------------
+        [HttpGet("search")]
+        public async Task<IActionResult> Search([FromQuery] string? q)
+        {
+            var query = _context.Tickets
+                .Include(t => t.Status)
+                .Include(t => t.Priority)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                query = query.Where(t =>
+                    (t.Title != null && t.Title.Contains(q)) ||
+                    t.Id.ToString() == q);
+            }
+
+            var tickets = await query
+                .OrderByDescending(t => t.Id)
+                .Take(50)
                 .ToListAsync();
 
             return Ok(tickets);
@@ -133,25 +178,15 @@ namespace Pratek.Controllers
                     : null;
                 var newStatusName = newStatus?.Name ?? model.StatusId?.ToString();
 
-                // Check for close/reopen
                 var oldIsClosed = ticket.Status?.IsClosed == true;
                 var newIsClosed = newStatus?.IsClosed == true;
 
                 if (!oldIsClosed && newIsClosed)
-                {
-                    // 4 = TicketClosed
                     LogEvent(ticket.Id, 4, userId, "Ticket kapatıldı", oldStatusName, newStatusName);
-                }
                 else if (oldIsClosed && !newIsClosed)
-                {
-                    // 12 = TicketReopened
                     LogEvent(ticket.Id, 12, userId, "Ticket yeniden açıldı", oldStatusName, newStatusName);
-                }
                 else
-                {
-                    // 5 = TicketStatusChanged
                     LogEvent(ticket.Id, 5, userId, "Durum değiştirildi", oldStatusName, newStatusName);
-                }
             }
 
             // --- Priority change ---
@@ -162,8 +197,6 @@ namespace Pratek.Controllers
                     ? await _context.TicketPriorities.FindAsync(model.PriorityId.Value)
                     : null;
                 var newPriorityName = newPriority?.Name ?? model.PriorityId?.ToString();
-
-                // 6 = TicketPriorityChanged
                 LogEvent(ticket.Id, 6, userId, "Öncelik değiştirildi", oldPriorityName, newPriorityName);
             }
 
@@ -175,19 +208,16 @@ namespace Pratek.Controllers
                     var oldUserName = ticket.AssignedUser?.Name ?? ticket.AssignedUserId?.ToString();
                     var newUser = await _context.Users.FindAsync(model.AssignedUserId.Value);
                     var newUserName = newUser?.Name ?? model.AssignedUserId?.ToString();
-
-                    // 3 = TicketAssigned
                     LogEvent(ticket.Id, 3, userId, "Ticket atandı", oldUserName, newUserName);
                 }
                 else if (ticket.AssignedUserId.HasValue)
                 {
                     var oldUserName = ticket.AssignedUser?.Name ?? ticket.AssignedUserId?.ToString();
-                    // 11 = TicketUnassigned
                     LogEvent(ticket.Id, 11, userId, "Atama kaldırıldı", oldUserName, null);
                 }
             }
 
-            // --- General field changes (title, content, firm, product, dueDate, scope) ---
+            // --- General field changes ---
             if (model.Title != ticket.Title) hasGeneralUpdate = true;
             if (model.Content != ticket.Content) hasGeneralUpdate = true;
             if (model.FirmId != ticket.FirmId) hasGeneralUpdate = true;
@@ -196,10 +226,7 @@ namespace Pratek.Controllers
             if (model.Scope != ticket.Scope) hasGeneralUpdate = true;
 
             if (hasGeneralUpdate)
-            {
-                // 2 = TicketUpdated
                 LogEvent(ticket.Id, 2, userId, "Ticket güncellendi");
-            }
 
             // Apply all field updates
             ticket.Title = model.Title;
@@ -251,7 +278,6 @@ namespace Pratek.Controllers
             model.ActionDate = DateTime.UtcNow;
 
             _context.TicketComments.Add(model);
-            await _context.SaveChangesAsync();
 
             // 9 = TicketCommentAdded
             LogEvent(id, 9, model.UserId, "Yorum eklendi");
@@ -300,7 +326,6 @@ namespace Pratek.Controllers
             var newUser = await _context.Users.FindAsync(userId);
             var newUserName = newUser?.Name ?? userId.ToString();
 
-            // 3 = TicketAssigned
             LogEvent(ticket.Id, 3, GetCurrentUserId() ?? userId, "Ticket atandı", oldUserName, newUserName);
             await _context.SaveChangesAsync();
 
@@ -322,7 +347,6 @@ namespace Pratek.Controllers
             var oldUserName = ticket.AssignedUser?.Name ?? ticket.AssignedUserId?.ToString();
             ticket.AssignedUserId = null;
 
-            // 11 = TicketUnassigned
             LogEvent(ticket.Id, 11, GetCurrentUserId(), "Atama kaldırıldı", oldUserName, null);
             await _context.SaveChangesAsync();
 
@@ -353,20 +377,11 @@ namespace Pratek.Controllers
             var currentUserId = GetCurrentUserId() ?? ticket.AssignedUserId;
 
             if (!oldIsClosed && newIsClosed)
-            {
-                // 4 = TicketClosed
                 LogEvent(ticket.Id, 4, currentUserId, "Ticket kapatıldı", oldStatusName, newStatusName);
-            }
             else if (oldIsClosed && !newIsClosed)
-            {
-                // 12 = TicketReopened
                 LogEvent(ticket.Id, 12, currentUserId, "Ticket yeniden açıldı", oldStatusName, newStatusName);
-            }
             else
-            {
-                // 5 = TicketStatusChanged
                 LogEvent(ticket.Id, 5, currentUserId, "Durum değiştirildi", oldStatusName, newStatusName);
-            }
 
             await _context.SaveChangesAsync();
 
@@ -424,89 +439,85 @@ namespace Pratek.Controllers
         }
 
         // --------------------------------------------------
-        // GET EVENT HISTORY (unified timeline)
+        // GET ACTIVITY (unified timeline)
         // --------------------------------------------------
         [HttpGet("{id}/activity")]
         public async Task<IActionResult> GetActivity(int id)
         {
-            // Event types already covered by dedicated tables:
-            // 7=LabelAdded, 8=LabelRemoved (from TicketLabelHistory)
-            // 9=CommentAdded (from TicketComments)
-            var excludeTypes = new[] { 7, 8, 9 };
+            var timeline = new List<ActivityItem>();
 
-            // 1) TicketEventHistory (excluding types shown from other tables)
+            // 1) TicketEventHistory - exclude types covered by dedicated tables
             var events = await _context.TicketEventHistories
-                .Where(e => e.TicketId == id && !excludeTypes.Contains(e.TicketEventTypeId ?? 0))
+                .Where(e => e.TicketId == id
+                    && e.TicketEventTypeId != 7
+                    && e.TicketEventTypeId != 8
+                    && e.TicketEventTypeId != 9)
                 .Include(e => e.TicketEventType)
                 .Include(e => e.User)
-                .OrderByDescending(e => e.ActionDate)
-                .Select(e => new
-                {
-                    type = "event",
-                    id = e.Id,
-                    actionDate = e.ActionDate ?? DateTime.MinValue,
-                    eventType = e.TicketEventType != null ? e.TicketEventType.Name : null,
-                    eventTypeId = e.TicketEventTypeId ?? 0,
-                    description = e.Description,
-                    oldValue = e.OldValue,
-                    newValue = e.NewValue,
-                    user = e.User != null ? new { e.User.Id, e.User.Name, e.User.AvatarUrl } : null,
-                })
                 .ToListAsync();
+
+            foreach (var e in events)
+            {
+                timeline.Add(new ActivityItem
+                {
+                    Type = "event",
+                    Id = e.Id,
+                    ActionDate = e.ActionDate ?? DateTime.MinValue,
+                    EventType = e.TicketEventType?.Name,
+                    EventTypeId = e.TicketEventTypeId ?? 0,
+                    Description = e.Description,
+                    OldValue = e.OldValue,
+                    NewValue = e.NewValue,
+                    User = e.User != null ? new ActivityUser { Id = e.User.Id, Name = e.User.Name, AvatarUrl = e.User.AvatarUrl } : null,
+                });
+            }
 
             // 2) TicketComments (active only)
             var comments = await _context.TicketComments
-                .Where(c => c.TicketId == id && c.Inactive != true)
+                .Where(c => c.TicketId == id && (c.Inactive == null || c.Inactive == false))
                 .Include(c => c.User)
-                .OrderByDescending(c => c.ActionDate)
-                .Select(c => new
-                {
-                    type = "comment",
-                    id = c.Id,
-                    actionDate = c.ActionDate,
-                    eventType = "TicketCommentAdded",
-                    eventTypeId = 9,
-                    description = c.Content,
-                    oldValue = (string?)null,
-                    newValue = (string?)null,
-                    user = c.User != null ? new { c.User.Id, c.User.Name, c.User.AvatarUrl } : null,
-                })
                 .ToListAsync();
+
+            foreach (var c in comments)
+            {
+                timeline.Add(new ActivityItem
+                {
+                    Type = "comment",
+                    Id = c.Id,
+                    ActionDate = c.ActionDate,
+                    EventType = "TicketCommentAdded",
+                    EventTypeId = 9,
+                    Description = c.Content,
+                    User = c.User != null ? new ActivityUser { Id = c.User.Id, Name = c.User.Name, AvatarUrl = c.User.AvatarUrl } : null,
+                });
+            }
 
             // 3) TicketLabelHistory
             var labelHistory = await _context.TicketLabelHistories
                 .Where(lh => lh.TicketId == id)
                 .Include(lh => lh.Label)
                 .Include(lh => lh.User)
-                .OrderByDescending(lh => lh.ActionDate)
-                .Select(lh => new
-                {
-                    type = "label",
-                    id = lh.Id,
-                    actionDate = lh.ActionDate ?? DateTime.MinValue,
-                    eventType = lh.ActionType == true ? "TicketLabelAdded" : "TicketLabelRemoved",
-                    eventTypeId = lh.ActionType == true ? 7 : 8,
-                    description = lh.ActionType == true
-                        ? "Etiket eklendi: " + (lh.Label != null ? lh.Label.Name : "")
-                        : "Etiket kaldırıldı: " + (lh.Label != null ? lh.Label.Name : ""),
-                    oldValue = lh.ActionType == true ? (string?)null : (lh.Label != null ? lh.Label.Name : null),
-                    newValue = lh.ActionType == true ? (lh.Label != null ? lh.Label.Name : null) : (string?)null,
-                    user = lh.User != null ? new { lh.User.Id, lh.User.Name, lh.User.AvatarUrl } : null,
-                })
                 .ToListAsync();
 
-            // Merge and sort by date descending
-            var timeline = events.Cast<object>()
-                .Concat(comments.Cast<object>())
-                .Concat(labelHistory.Cast<object>())
-                .ToList();
-
-            timeline.Sort((a, b) =>
+            foreach (var lh in labelHistory)
             {
-                var dateA = (DateTime)a.GetType().GetProperty("actionDate")!.GetValue(a)!;
-                var dateB = (DateTime)b.GetType().GetProperty("actionDate")!.GetValue(b)!;
-                return dateB.CompareTo(dateA);
-            });
+                var isAdded = lh.ActionType == true;
+                timeline.Add(new ActivityItem
+                {
+                    Type = "label",
+                    Id = lh.Id,
+                    ActionDate = lh.ActionDate ?? DateTime.MinValue,
+                    EventType = isAdded ? "TicketLabelAdded" : "TicketLabelRemoved",
+                    EventTypeId = isAdded ? 7 : 8,
+                    Description = isAdded ? $"Etiket eklendi: {lh.Label?.Name}" : $"Etiket kaldırıldı: {lh.Label?.Name}",
+                    OldValue = isAdded ? null : lh.Label?.Name,
+                    NewValue = isAdded ? lh.Label?.Name : null,
+                    User = lh.User != null ? new ActivityUser { Id = lh.User.Id, Name = lh.User.Name, AvatarUrl = lh.User.AvatarUrl } : null,
+                });
+            }
+
+            // Sort by date descending
+            timeline.Sort((a, b) => b.ActionDate.CompareTo(a.ActionDate));
 
             return Ok(timeline);
         }
@@ -523,10 +534,9 @@ namespace Pratek.Controllers
 
             var userId = GetCurrentUserId();
 
-            // 13 = TicketDeleted - log before deleting
+            // 13 = TicketDeleted
             LogEvent(ticket.Id, 13, userId, $"Ticket silindi: {ticket.Title}");
 
-            // Remove related records first to avoid FK constraint violations
             var ticketComments = _context.TicketComments.Where(c => c.TicketId == id);
             _context.TicketComments.RemoveRange(ticketComments);
 
