@@ -58,6 +58,30 @@ safeAddColumn('Firm', 'AvatarUrl', 'TEXT');
 safeAddColumn('Product', 'AvatarUrl', 'TEXT');
 safeAddColumn('Privilege', 'IsAdmin', 'INTEGER DEFAULT 0');
 
+// --- SEED TicketEventTypes ---
+const eventTypes = [
+  [1, 'TicketCreated'], [2, 'TicketUpdated'], [3, 'TicketAssigned'],
+  [4, 'TicketClosed'], [5, 'TicketStatusChanged'], [6, 'TicketPriorityChanged'],
+  [7, 'TicketLabelAdded'], [8, 'TicketLabelRemoved'], [9, 'TicketCommentAdded'],
+  [10, 'TicketCommentRemoved'], [11, 'TicketUnassigned'], [12, 'TicketReopened'],
+  [13, 'TicketDeleted'],
+];
+for (const [etId, etName] of eventTypes) {
+  const existing = db.prepare('SELECT * FROM "TicketEventType" WHERE "Id" = ?').get(etId);
+  if (!existing) {
+    db.prepare('INSERT INTO "TicketEventType" ("Id", "Name") VALUES (?, ?)').run(etId, etName);
+  } else if (existing.Name !== etName) {
+    db.prepare('UPDATE "TicketEventType" SET "Name" = ? WHERE "Id" = ?').run(etName, etId);
+  }
+}
+
+// Helper: log ticket event
+const logTicketEvent = (ticketId, eventTypeId, userId, description, oldValue, newValue) => {
+  db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "UserId", "Description", "OldValue", "NewValue", "ActionDate") VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    eventTypeId, ticketId, userId || null, description || null, oldValue || null, newValue || null, new Date().toISOString()
+  );
+};
+
 // --- ADMIN BOOTSTRAP ---
 // Sunucu başladığında: Admin privilege yoksa oluştur, admin email'lerini admin yap
 (() => {
@@ -462,11 +486,8 @@ app.post('/api/tickets', (req, res) => {
     }
   }
   const info = db.prepare('INSERT INTO "Ticket" ("Title", "Content", "FirmId", "AssignedUserId", "StatusId", "PriorityId", "CreatedUserId", "ProductId", "DueDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, content, firmId||null, effectiveAssignedUserId, statusId||null, priorityId||null, createdUserId||null, productId||null, dueDate||null);
-  // TicketEventHistory kaydı sadece TicketEventType tablosunda kayıt varsa oluştur
-  const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType" WHERE "Id" = 1').get().c > 0;
-  if (hasEventType) {
-    db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "Description", "UserId", "ActionDate") VALUES (1, ?, \'Ticket oluşturuldu\', ?, ?)').run(info.lastInsertRowid, createdUserId||null, new Date().toISOString());
-  }
+  // 1 = TicketCreated
+  logTicketEvent(info.lastInsertRowid, 1, createdUserId, `Ticket oluşturuldu: ${title}`);
   res.json(getFullTicket(info.lastInsertRowid));
 });
 app.put('/api/tickets/:id', (req, res) => {
@@ -479,6 +500,53 @@ app.put('/api/tickets/:id', (req, res) => {
     }
   }
   const { title, content, priorityId, statusId, firmId, assignedUserId, productId, dueDate } = req.body;
+  const oldTicket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+  const userId = reqUser?.id || null;
+
+  // --- Granular event detection ---
+  // Status change
+  if (String(statusId || '') !== String(oldTicket.StatusId || '')) {
+    const oldStatus = oldTicket.StatusId ? db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(oldTicket.StatusId) : null;
+    const newStatus = statusId ? db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(statusId) : null;
+    const oldName = oldStatus?.Name || String(oldTicket.StatusId || '');
+    const newName = newStatus?.Name || String(statusId || '');
+    const oldIsClosed = !!oldStatus?.IsClosed;
+    const newIsClosed = !!newStatus?.IsClosed;
+    if (!oldIsClosed && newIsClosed)
+      logTicketEvent(req.params.id, 4, userId, 'Ticket kapatıldı', oldName, newName);
+    else if (oldIsClosed && !newIsClosed)
+      logTicketEvent(req.params.id, 12, userId, 'Ticket yeniden açıldı', oldName, newName);
+    else
+      logTicketEvent(req.params.id, 5, userId, 'Durum değiştirildi', oldName, newName);
+  }
+
+  // Priority change
+  if (String(priorityId || '') !== String(oldTicket.PriorityId || '')) {
+    const oldPriority = oldTicket.PriorityId ? db.prepare('SELECT * FROM "TicketPriority" WHERE "Id" = ?').get(oldTicket.PriorityId) : null;
+    const newPriority = priorityId ? db.prepare('SELECT * FROM "TicketPriority" WHERE "Id" = ?').get(priorityId) : null;
+    logTicketEvent(req.params.id, 6, userId, 'Öncelik değiştirildi', oldPriority?.Name || '', newPriority?.Name || '');
+  }
+
+  // Assigned user change
+  if (String(assignedUserId || '') !== String(oldTicket.AssignedUserId || '')) {
+    if (assignedUserId) {
+      const oldUser = oldTicket.AssignedUserId ? db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(oldTicket.AssignedUserId) : null;
+      const newUser = db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(assignedUserId);
+      logTicketEvent(req.params.id, 3, userId, 'Ticket atandı', oldUser?.Name || '', newUser?.Name || '');
+    } else if (oldTicket.AssignedUserId) {
+      const oldUser = db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(oldTicket.AssignedUserId);
+      logTicketEvent(req.params.id, 11, userId, 'Atama kaldırıldı', oldUser?.Name || '', null);
+    }
+  }
+
+  // General field changes
+  const hasGeneralChange = (title !== oldTicket.Title) || (content !== oldTicket.Content) ||
+    (String(firmId || '') !== String(oldTicket.FirmId || '')) ||
+    (String(productId || '') !== String(oldTicket.ProductId || ''));
+  if (hasGeneralChange) {
+    logTicketEvent(req.params.id, 2, userId, 'Ticket güncellendi');
+  }
+
   db.prepare('UPDATE "Ticket" SET "Title"=?, "Content"=?, "PriorityId"=?, "StatusId"=?, "FirmId"=?, "AssignedUserId"=?, "ProductId"=?, "DueDate"=? WHERE "Id"=?').run(title, content, priorityId||null, statusId||null, firmId||null, assignedUserId||null, productId||null, dueDate||null, req.params.id);
   res.json(getFullTicket(req.params.id));
 });
@@ -490,6 +558,9 @@ app.delete('/api/tickets/:id', (req, res) => {
       return res.status(403).json({ error: 'Ticket silme yetkiniz yok' });
     }
   }
+  const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+  // 13 = TicketDeleted
+  logTicketEvent(req.params.id, 13, reqUser?.id, `Ticket silindi: ${ticket?.Title || ''}`);
   db.prepare('DELETE FROM "TicketComments" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "TicketLabelHistory" WHERE "TicketId" = ?').run(req.params.id);
   db.prepare('DELETE FROM "TicketEventHistory" WHERE "TicketId" = ?').run(req.params.id);
@@ -508,20 +579,33 @@ app.post('/api/tickets/:id/status/:statusId', (req, res) => {
   }
   const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });
-  const oldStatusId = ticket.StatusId;
+  const oldStatus = ticket.StatusId ? db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(ticket.StatusId) : null;
+  const newStatus = db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(req.params.statusId);
+  const oldName = oldStatus?.Name || '';
+  const newName = newStatus?.Name || '';
+  const oldIsClosed = !!oldStatus?.IsClosed;
+  const newIsClosed = !!newStatus?.IsClosed;
+  const currentUserId = reqUser?.id || ticket.AssignedUserId;
+
   db.prepare('UPDATE "Ticket" SET "StatusId" = ? WHERE "Id" = ?').run(req.params.statusId, req.params.id);
-  const hasEventType = db.prepare('SELECT COUNT(*) as c FROM "TicketEventType"').get().c > 0;
-  if (hasEventType) {
-    db.prepare('INSERT INTO "TicketEventHistory" ("TicketEventTypeId", "TicketId", "Description", "OldValue", "NewValue", "UserId", "ActionDate") VALUES (3, ?, ?, ?, ?, ?, ?)').run(
-      req.params.id, 'Durum değiştirildi', String(oldStatusId || ''), String(req.params.statusId), ticket.AssignedUserId || null, new Date().toISOString()
-    );
-  }
+
+  if (!oldIsClosed && newIsClosed)
+    logTicketEvent(req.params.id, 4, currentUserId, 'Ticket kapatıldı', oldName, newName);
+  else if (oldIsClosed && !newIsClosed)
+    logTicketEvent(req.params.id, 12, currentUserId, 'Ticket yeniden açıldı', oldName, newName);
+  else
+    logTicketEvent(req.params.id, 5, currentUserId, 'Durum değiştirildi', oldName, newName);
   res.json(getFullTicket(req.params.id));
 });
 
 // --- TICKET ASSIGN ---
 app.post('/api/tickets/:id/assign/:userId', (req, res) => {
+  const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
+  const oldUser = ticket?.AssignedUserId ? db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(ticket.AssignedUserId) : null;
+  const newUser = db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(req.params.userId);
+  const reqUser = getUserFromRequest(req);
   db.prepare('UPDATE "Ticket" SET "AssignedUserId" = ? WHERE "Id" = ?').run(req.params.userId, req.params.id);
+  logTicketEvent(req.params.id, 3, reqUser?.id || req.params.userId, 'Ticket atandı', oldUser?.Name || '', newUser?.Name || '');
   res.json(getFullTicket(req.params.id));
 });
 
@@ -533,27 +617,108 @@ app.get('/api/tickets/:id/comments', (req, res) => {
 });
 app.post('/api/tickets/:id/comments', (req, res) => {
   const { content, userId } = req.body;
-  const info = db.prepare('INSERT INTO "TicketComments" ("TicketId", "UserId", "Content", "ActionDate") VALUES (?, ?, ?, ?)').run(req.params.id, userId, content, new Date().toISOString());
-  res.json({ id: info.lastInsertRowid, ticketId: Number(req.params.id), userId, content, actionDate: new Date().toISOString() });
+  const reqUser = getUserFromRequest(req);
+  const effectiveUserId = reqUser?.id || userId;
+  const info = db.prepare('INSERT INTO "TicketComments" ("TicketId", "UserId", "Content", "ActionDate") VALUES (?, ?, ?, ?)').run(req.params.id, effectiveUserId, content, new Date().toISOString());
+  // 9 = TicketCommentAdded
+  logTicketEvent(req.params.id, 9, effectiveUserId, 'Yorum eklendi');
+  const comment = toCamel(db.prepare('SELECT * FROM "TicketComments" WHERE "Id" = ?').get(info.lastInsertRowid));
+  if (comment) comment.user = toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(comment.userId));
+  res.json(comment);
+});
+
+// DELETE comment
+app.delete('/api/tickets/:ticketId/comments/:commentId', (req, res) => {
+  const comment = db.prepare('SELECT * FROM "TicketComments" WHERE "Id" = ? AND "TicketId" = ?').get(req.params.commentId, req.params.ticketId);
+  if (!comment) return res.status(404).json({ error: 'Yorum bulunamadı' });
+  const reqUser = getUserFromRequest(req);
+  db.prepare('DELETE FROM "TicketComments" WHERE "Id" = ?').run(req.params.commentId);
+  // 10 = TicketCommentRemoved
+  logTicketEvent(req.params.ticketId, 10, reqUser?.id || comment.UserId, 'Yorum silindi');
+  res.json({ success: true });
 });
 
 // --- TICKET LABELS ---
 app.post('/api/tickets/:id/label/:labelId', (req, res) => {
-  const userId = req.query.userId || req.body?.userId || null;
+  const reqUser = getUserFromRequest(req);
+  const userId = reqUser?.id || req.query.userId || req.body?.userId || null;
+  const label = db.prepare('SELECT * FROM "Label" WHERE "Id" = ?').get(req.params.labelId);
   db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (1, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId);
+  // 7 = TicketLabelAdded
+  logTicketEvent(req.params.id, 7, userId, 'Etiket eklendi', null, label?.Name || '');
   res.json({ success: true });
 });
 app.delete('/api/tickets/:id/label/:labelId', (req, res) => {
-  const userId = req.query.userId || null;
+  const reqUser = getUserFromRequest(req);
+  const userId = reqUser?.id || req.query.userId || null;
+  const label = db.prepare('SELECT * FROM "Label" WHERE "Id" = ?').get(req.params.labelId);
   db.prepare('INSERT INTO "TicketLabelHistory" ("ActionType", "ActionDate", "LabelId", "TicketId", "UserId") VALUES (0, ?, ?, ?, ?)').run(new Date().toISOString(), req.params.labelId, req.params.id, userId);
+  // 8 = TicketLabelRemoved
+  logTicketEvent(req.params.id, 8, userId, 'Etiket kaldırıldı', label?.Name || '', null);
   res.json({ success: true });
 });
 
-// --- TICKET ACTIVITY ---
+// --- TICKET ACTIVITY (unified timeline) ---
 app.get('/api/tickets/:id/activity', (req, res) => {
-  const events = db.prepare('SELECT * FROM "TicketEventHistory" WHERE "TicketId" = ? ORDER BY "ActionDate" DESC').all(req.params.id).map(toCamel);
-  events.forEach(e => { e.user = toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(e.userId)); });
-  res.json(events);
+  const ticketId = req.params.id;
+  const timeline = [];
+
+  // 1) TicketEventHistory - exclude types covered by dedicated tables (7,8,9)
+  const events = db.prepare('SELECT eh.*, et."Name" as EventTypeName FROM "TicketEventHistory" eh LEFT JOIN "TicketEventType" et ON eh."TicketEventTypeId" = et."Id" WHERE eh."TicketId" = ? AND eh."TicketEventTypeId" NOT IN (7, 8, 9) ORDER BY eh."ActionDate" DESC').all(ticketId);
+  for (const e of events) {
+    const user = e.UserId ? toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(e.UserId)) : null;
+    timeline.push({
+      type: 'event',
+      id: e.Id,
+      actionDate: e.ActionDate,
+      eventType: e.EventTypeName,
+      eventTypeId: e.TicketEventTypeId,
+      description: e.Description,
+      oldValue: e.OldValue,
+      newValue: e.NewValue,
+      user: user ? { id: user.id, name: user.name, avatarUrl: user.avatarUrl } : null,
+    });
+  }
+
+  // 2) TicketComments (active only)
+  const comments = db.prepare('SELECT * FROM "TicketComments" WHERE "TicketId" = ? AND ("Inactive" IS NULL OR "Inactive" = 0) ORDER BY "ActionDate" DESC').all(ticketId);
+  for (const c of comments) {
+    const user = c.UserId ? toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(c.UserId)) : null;
+    timeline.push({
+      type: 'comment',
+      id: c.Id,
+      actionDate: c.ActionDate,
+      eventType: 'TicketCommentAdded',
+      eventTypeId: 9,
+      description: c.Content,
+      oldValue: null,
+      newValue: null,
+      user: user ? { id: user.id, name: user.name, avatarUrl: user.avatarUrl } : null,
+    });
+  }
+
+  // 3) TicketLabelHistory
+  const labelHistory = db.prepare('SELECT lh.*, l."Name" as LabelName FROM "TicketLabelHistory" lh LEFT JOIN "Label" l ON lh."LabelId" = l."Id" WHERE lh."TicketId" = ? ORDER BY lh."ActionDate" DESC').all(ticketId);
+  for (const lh of labelHistory) {
+    const isAdded = lh.ActionType === 1;
+    const user = lh.UserId ? toCamel(db.prepare('SELECT * FROM "User" WHERE "Id" = ?').get(lh.UserId)) : null;
+    timeline.push({
+      type: 'label',
+      id: lh.Id,
+      actionDate: lh.ActionDate,
+      eventType: isAdded ? 'TicketLabelAdded' : 'TicketLabelRemoved',
+      eventTypeId: isAdded ? 7 : 8,
+      description: isAdded ? `Etiket eklendi: ${lh.LabelName || ''}` : `Etiket kaldırıldı: ${lh.LabelName || ''}`,
+      oldValue: isAdded ? null : (lh.LabelName || null),
+      newValue: isAdded ? (lh.LabelName || null) : null,
+      user: user ? { id: user.id, name: user.name, avatarUrl: user.avatarUrl } : null,
+    });
+  }
+
+  // Sort by date descending
+  timeline.sort((a, b) => (b.actionDate || '').localeCompare(a.actionDate || ''));
+
+  res.json(timeline);
 });
 
 // --- LOOKUPS: TICKET STATUS (CRUD) ---
