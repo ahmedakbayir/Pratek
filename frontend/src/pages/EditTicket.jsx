@@ -48,7 +48,7 @@ import TicketMention, { setMentionData } from '../extensions/ticketMention';
 export default function EditTicket() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isRestrictedUser } = useAuth();
+  const { user: currentUser, isRestrictedUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [firms, setFirms] = useState([]);
@@ -74,6 +74,7 @@ export default function EditTicket() {
     firmId: '',
     assignedUserId: '',
     productId: '',
+    dueDate: '',
     selectedLabels: [],
   });
 
@@ -127,6 +128,7 @@ export default function EditTicket() {
           firmId,
           assignedUserId: ticket.assignedUserId ? String(ticket.assignedUserId) : '',
           productId: ticket.productId ? String(ticket.productId) : '',
+          dueDate: ticket.dueDate || '',
           selectedLabels: ticket.ticketLabels
             ? ticket.ticketLabels.map((tl) => tl.label || { id: tl.labelId, name: '' })
             : [],
@@ -299,6 +301,7 @@ export default function EditTicket() {
         firmId: form.firmId ? Number(form.firmId) : null,
         assignedUserId: form.assignedUserId ? Number(form.assignedUserId) : null,
         productId: form.productId ? Number(form.productId) : null,
+        dueDate: form.dueDate || null,
       };
       await ticketsApi.update(id, payload);
 
@@ -309,12 +312,12 @@ export default function EditTicket() {
 
       for (const labelId of selectedLabelIds) {
         if (!existingLabelIds.includes(labelId)) {
-          try { await ticketsApi.addLabel(id, labelId, 1); } catch { /* ignore */ }
+          try { await ticketsApi.addLabel(id, labelId, currentUser?.id); } catch { /* ignore */ }
         }
       }
       for (const labelId of existingLabelIds) {
         if (!selectedLabelIds.includes(labelId)) {
-          try { await ticketsApi.removeLabel(id, labelId, 1); } catch { /* ignore */ }
+          try { await ticketsApi.removeLabel(id, labelId, currentUser?.id); } catch { /* ignore */ }
         }
       }
 

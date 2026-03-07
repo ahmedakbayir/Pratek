@@ -579,6 +579,12 @@ app.post('/api/tickets/:id/status/:statusId', (req, res) => {
   }
   const ticket = db.prepare('SELECT * FROM "Ticket" WHERE "Id" = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ error: 'Ticket bulunamadı' });
+
+  // Skip if status is the same
+  if (String(ticket.StatusId) === String(req.params.statusId)) {
+    return res.json(getFullTicket(req.params.id));
+  }
+
   const oldStatus = ticket.StatusId ? db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(ticket.StatusId) : null;
   const newStatus = db.prepare('SELECT * FROM "TicketStatus" WHERE "Id" = ?').get(req.params.statusId);
   const oldName = oldStatus?.Name || '';
