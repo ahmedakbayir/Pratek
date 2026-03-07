@@ -165,7 +165,7 @@ export default function TicketDetail() {
     if (!newComment.trim()) return;
     setSendingComment(true);
     try {
-      await ticketsApi.addComment(id, { content: newComment, userId: 1 });
+      await ticketsApi.addComment(id, { content: newComment, userId: currentUser?.id });
       setNewComment('');
       loadActivity();
     } catch (err) {
@@ -177,7 +177,7 @@ export default function TicketDetail() {
 
   const handleAddLabel = async (labelId) => {
     try {
-      await ticketsApi.addLabel(id, labelId, 1);
+      await ticketsApi.addLabel(id, labelId, currentUser?.id);
       await Promise.all([loadTicket(), loadActivity()]);
       setShowLabelPicker(false);
     } catch (err) {
@@ -187,7 +187,7 @@ export default function TicketDetail() {
 
   const handleRemoveLabel = async (labelId) => {
     try {
-      await ticketsApi.removeLabel(id, labelId, 1);
+      await ticketsApi.removeLabel(id, labelId, currentUser?.id);
       await Promise.all([loadTicket(), loadActivity()]);
     } catch (err) {
       alert('Etiket kaldirilamadi:\n' + err.message);
@@ -339,6 +339,7 @@ export default function TicketDetail() {
         firmId: ticket.firmId,
         assignedUserId: ticket.assignedUserId,
         productId: ticket.productId,
+        dueDate: ticket.dueDate,
         ...patch,
       };
 
@@ -374,6 +375,7 @@ export default function TicketDetail() {
         assignedUserId: sidebarForm.assignedUserId ? Number(sidebarForm.assignedUserId) : null,
         firmId: sidebarForm.firmId ? Number(sidebarForm.firmId) : null,
         productId: sidebarForm.productId ? Number(sidebarForm.productId) : null,
+        dueDate: ticket.dueDate || null,
       };
       const updated = await ticketsApi.update(id, payload);
       setTicket(updated);

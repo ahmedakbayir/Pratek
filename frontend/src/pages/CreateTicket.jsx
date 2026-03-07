@@ -288,7 +288,7 @@ export default function CreateTicket() {
       if (form.selectedLabels.length > 0 && created?.id) {
         for (const label of form.selectedLabels) {
           try {
-            await ticketsApi.addLabel(created.id, label.id, 1);
+            await ticketsApi.addLabel(created.id, label.id, user?.id);
           } catch {
             // Ignore label add errors
           }
