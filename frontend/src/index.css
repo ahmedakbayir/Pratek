@@ -12,17 +12,17 @@
   --color-primary-800: #9a3412;
   --color-primary-900: #7c2d12;
 
-  --color-surface-0: #ffffff;
-  --color-surface-50: #f9fafb;
-  --color-surface-100: #f3f4f6;
-  --color-surface-200: #e5e7eb;
-  --color-surface-300: #d1d5db;
-  --color-surface-400: #9ca3af;
-  --color-surface-500: #6b7280;
-  --color-surface-600: #4b5563;
-  --color-surface-700: #374151;
-  --color-surface-800: #1f2937;
-  --color-surface-900: #111827;
+  --color-surface-0: #fefefe;
+  --color-surface-50: #f5f6f8;
+  --color-surface-100: #edeef2;
+  --color-surface-200: #dcdee5;
+  --color-surface-300: #c5c8d2;
+  --color-surface-400: #8e93a3;
+  --color-surface-500: #636878;
+  --color-surface-600: #474c5e;
+  --color-surface-700: #343849;
+  --color-surface-800: #222536;
+  --color-surface-900: #131625;
 
   --color-success: #16a34a;
   --color-warning: #eab308;
@@ -35,12 +35,84 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Noto Sans', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--color-surface-50);
+  background: linear-gradient(145deg, var(--color-surface-50) 0%, var(--color-surface-100) 100%);
+  background-attachment: fixed;
   color: var(--color-surface-900);
-  transition: background-color 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* LIGHT MODE DEPTH & SHADOWS                                  */
+/* ═══════════════════════════════════════════════════════════ */
+
+/* Sidebar gradient & shadow */
+:root:not(.dark) aside {
+  background: linear-gradient(180deg, #fefefe 0%, #f5f6fa 100%);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
+  border-right-color: #e0e2ea;
+}
+
+/* Header subtle gradient & bottom shadow */
+:root:not(.dark) header {
+  background: linear-gradient(180deg, #fefefe 0%, #fafafc 100%);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+  border-bottom-color: #e0e2ea;
+}
+
+/* Card-like containers: subtle shadow and border */
+:root:not(.dark) .bg-surface-0,
+:root:not(.dark) [class*="bg-surface-0"] {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03), 0 2px 12px rgba(0, 0, 0, 0.02);
+}
+
+/* Input fields: inset shadow for depth */
+:root:not(.dark) .input-field,
+:root:not(.dark) input[type="text"],
+:root:not(.dark) input[type="email"],
+:root:not(.dark) input[type="password"],
+:root:not(.dark) textarea,
+:root:not(.dark) select {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-color: #d5d8e2;
+}
+
+/* Buttons: subtle lift */
+:root:not(.dark) .btn-primary {
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.2), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+:root:not(.dark) .btn-primary:hover {
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28), 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+:root:not(.dark) .btn-secondary {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-color: #d5d8e2;
+}
+
+:root:not(.dark) .btn-secondary:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* Dropdown & popover shadows */
+:root:not(.dark) .mention-dropdown {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  border-color: #dcdee5;
+}
+
+/* Rounded card sections get a gentle gradient */
+:root:not(.dark) .rounded-lg,
+:root:not(.dark) .rounded-xl {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03), 0 2px 10px rgba(0, 0, 0, 0.02);
+}
+
+/* Table / List row hover: warm tint */
+:root:not(.dark) tr:hover td,
+:root:not(.dark) .hover\:bg-surface-50:hover {
+  background-color: #f0f1f5;
 }
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -521,7 +593,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: white;
+  background: linear-gradient(160deg, #fefefe 0%, #f5f6fa 50%, #edeef4 100%);
 }
 
 .login-form-container {
