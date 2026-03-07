@@ -19,7 +19,7 @@ export default function Header({ title, subtitle }) {
   };
 
   return (
-    <header className="h-12 bg-white border-b border-surface-200 flex items-center justify-between px-5 sticky top-0 z-20">
+    <header className="h-12 bg-surface-0 border-b border-surface-200 flex items-center justify-between px-5 sticky top-0 z-20">
       <div className="flex items-center gap-3">
         {subtitle && (
           <span className="text-xs text-surface-400">{subtitle}</span>
@@ -43,7 +43,7 @@ export default function Header({ title, subtitle }) {
         {/* New Ticket */}
         <button
           onClick={() => navigate('/tickets/new')}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-surface-0 border border-surface-200 rounded-md hover:bg-surface-50 transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           Ekle

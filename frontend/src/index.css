@@ -40,6 +40,36 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-surface-50);
   color: var(--color-surface-900);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* DARK MODE                                                   */
+/* ═══════════════════════════════════════════════════════════ */
+
+.dark {
+  --color-surface-0: #0f1117;
+  --color-surface-50: #151821;
+  --color-surface-100: #1c2030;
+  --color-surface-200: #2a2f42;
+  --color-surface-300: #3d4359;
+  --color-surface-400: #6b7280;
+  --color-surface-500: #9ca3af;
+  --color-surface-600: #c4c9d4;
+  --color-surface-700: #d1d5db;
+  --color-surface-800: #e5e7eb;
+  --color-surface-900: #f3f4f6;
+
+  --color-primary-50: rgba(249, 115, 22, 0.1);
+  --color-primary-100: rgba(249, 115, 22, 0.15);
+  --color-primary-200: rgba(249, 115, 22, 0.25);
+
+  --color-success: #22c55e;
+  --color-warning: #facc15;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+
+  color-scheme: dark;
 }
 
 .input-field {
@@ -748,4 +778,115 @@ body {
   .login-mobile-logo {
     display: flex;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* DARK MODE OVERRIDES                                         */
+/* ═══════════════════════════════════════════════════════════ */
+
+.dark .input-field {
+  background-color: var(--color-surface-100);
+  border-color: var(--color-surface-200);
+  color: var(--color-surface-900);
+}
+
+.dark .input-field:focus {
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.dark .btn-secondary {
+  background-color: var(--color-surface-100);
+  border-color: var(--color-surface-200);
+  color: var(--color-surface-700);
+}
+
+.dark .btn-secondary:hover {
+  background-color: var(--color-surface-200);
+}
+
+/* TipTap Dark */
+.dark .tiptap-editor pre {
+  background-color: var(--color-surface-100);
+  border-color: var(--color-surface-200);
+}
+
+.dark .tiptap-editor code {
+  background-color: var(--color-surface-100);
+}
+
+.dark .tiptap-editor mark {
+  background-color: rgba(254, 240, 138, 0.2);
+  color: #FEF08A;
+}
+
+/* Mention Dark */
+.dark .mention-dropdown {
+  background-color: var(--color-surface-100);
+  border-color: var(--color-surface-200);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+.dark .mention-dropdown-item:hover,
+.dark .mention-dropdown-item.is-selected {
+  background-color: var(--color-surface-200);
+}
+
+/* Hashtag Dark */
+.dark .hashtag-user {
+  background-color: rgba(254, 243, 199, 0.1);
+  color: #FDE68A;
+  border-color: rgba(253, 230, 138, 0.2);
+}
+
+.dark .hashtag-user:hover {
+  background-color: rgba(254, 243, 199, 0.15);
+  color: #FEF3C7;
+}
+
+.dark .tiptap-editor span[data-mention-type="user"] {
+  background-color: rgba(254, 243, 199, 0.1);
+  color: #FDE68A;
+  border-color: rgba(253, 230, 138, 0.2);
+}
+
+/* Login Dark */
+.dark .login-form-panel {
+  background: var(--color-surface-0);
+}
+
+.dark .login-input {
+  background: var(--color-surface-100);
+  border-color: var(--color-surface-200);
+  color: var(--color-surface-900);
+}
+
+.dark .login-input:focus {
+  background: var(--color-surface-100);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.dark .login-error {
+  background-color: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+/* Impersonation banner stays the same in dark */
+
+/* Scrollbar Dark */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--color-surface-100);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-300);
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-400);
 }

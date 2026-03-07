@@ -109,7 +109,7 @@ export default function Dashboard() {
         {/* Feature Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* Tickets Card */}
-          <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
+          <div className="bg-surface-0 rounded-lg border border-surface-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
               <h3 className="text-sm font-semibold text-surface-900">Ticket'lar</h3>
               <Link to="/tickets/new" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
@@ -126,7 +126,7 @@ export default function Dashboard() {
               </p>
               <Link
                 to="/tickets"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-surface-0 border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
               >
                 Ticket'lara Git
               </Link>
@@ -134,7 +134,7 @@ export default function Dashboard() {
           </div>
 
           {/* Users Card */}
-          <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
+          <div className="bg-surface-0 rounded-lg border border-surface-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
               <h3 className="text-sm font-semibold text-surface-900">Kullanıcılar</h3>
               <Link to="/users" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
@@ -151,7 +151,7 @@ export default function Dashboard() {
               </p>
               <Link
                 to="/users"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-surface-0 border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
               >
                 Kullanıcılara Git
               </Link>
@@ -159,7 +159,7 @@ export default function Dashboard() {
           </div>
 
           {/* Firms Card */}
-          <div className="bg-white rounded-lg border border-surface-200 overflow-hidden">
+          <div className="bg-surface-0 rounded-lg border border-surface-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
               <h3 className="text-sm font-semibold text-surface-900">Firmalar</h3>
               <Link to="/firms" className="p-1 text-surface-400 hover:text-surface-600 transition-colors">
@@ -176,7 +176,7 @@ export default function Dashboard() {
               </p>
               <Link
                 to="/firms"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-white border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-surface-700 bg-surface-0 border border-surface-200 rounded-md hover:bg-surface-50 transition-colors"
               >
                 Firmalara Git
               </Link>
@@ -187,7 +187,7 @@ export default function Dashboard() {
         {/* Recent Tickets + Next Steps */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Recent Tickets */}
-          <div className="lg:col-span-2 bg-white rounded-lg border border-surface-200">
+          <div className="lg:col-span-2 bg-surface-0 rounded-lg border border-surface-200">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
               <h2 className="text-sm font-semibold text-surface-900">Son Ticket'lar</h2>
               <Link
@@ -278,7 +278,7 @@ export default function Dashboard() {
           </div>
 
           {/* Next Steps */}
-          <div className="bg-white rounded-lg border border-surface-200">
+          <div className="bg-surface-0 rounded-lg border border-surface-200">
             <div className="px-4 py-3 border-b border-surface-200">
               <h2 className="text-sm font-semibold text-surface-900">Sonraki Adımlar</h2>
             </div>

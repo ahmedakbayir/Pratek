@@ -156,7 +156,7 @@ export default function Login() {
       {showForgot && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowForgot(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 login-modal-enter">
+          <div className="relative bg-surface-0 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 login-modal-enter">
             <button onClick={() => setShowForgot(false)} className="absolute top-4 right-4 p-1 text-surface-400 hover:text-surface-600 rounded-lg transition-colors cursor-pointer">
               <X className="w-5 h-5" />
             </button>
