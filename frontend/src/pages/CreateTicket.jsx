@@ -698,17 +698,14 @@ export default function CreateTicket() {
                     form.selectedLabels.map((label) => (
                       <span
                         key={label.id}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-surface-100 text-surface-700"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full text-white"
+                        style={{ backgroundColor: label.colorHex || '#6B7280' }}
                       >
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: label.colorHex || '#6B7280' }}
-                        />
                         {label.name}
                         <button
                           type="button"
                           onClick={() => handleRemoveLabel(label.id)}
-                          className="p-0.5 hover:text-danger transition-colors cursor-pointer"
+                          className="p-0.5 hover:text-white/70 transition-colors cursor-pointer"
                         >
                           <X className="w-3 h-3" />
                         </button>

@@ -74,6 +74,7 @@ export default function TicketDetail() {
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionCaretPos, setMentionCaretPos] = useState(null);
+  const [activityFilters, setActivityFilters] = useState({ yorum: true, etiket: true, icerik: true, diger: true });
   const labelPickerRef = useRef(null);
   const commentInputRef = useRef(null);
   const mentionPopupRef = useRef(null);
@@ -512,18 +513,53 @@ export default function TicketDetail() {
 
             <div className="bg-surface-0 rounded-xl border border-surface-200">
               <div className="px-6 py-4 border-b border-surface-200">
-                <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-surface-400" />
-                  Aktivite
-                  {activity.length > 0 && (
-                    <span className="text-xs text-surface-400 font-normal">({activity.length})</span>
-                  )}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-surface-400" />
+                    Aktivite
+                    {activity.length > 0 && (
+                      <span className="text-xs text-surface-400 font-normal">({activity.length})</span>
+                    )}
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      { key: 'yorum', label: 'Yorum' },
+                      { key: 'etiket', label: 'Etiket' },
+                      { key: 'icerik', label: 'İçerik' },
+                      { key: 'diger', label: 'Diğer' },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setActivityFilters((prev) => ({ ...prev, [f.key]: !prev[f.key] }))}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors cursor-pointer ${
+                          activityFilters[f.key]
+                            ? 'bg-primary-50 text-primary-700 border-primary-200'
+                            : 'bg-surface-50 text-surface-400 border-surface-200'
+                        }`}
+                      >
+                        <span className={`w-3 h-3 rounded-sm border flex items-center justify-center ${
+                          activityFilters[f.key] ? 'bg-primary-600 border-primary-600' : 'border-surface-300'
+                        }`}>
+                          {activityFilters[f.key] && (
+                            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                          )}
+                        </span>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {activity.length > 0 ? (
                 <div className="divide-y divide-surface-100">
-                  {activity.map((item) => (
+                  {activity.filter((item) => {
+                    if (item.type === 'comment') return activityFilters.yorum;
+                    if (item.type === 'label' || item.eventTypeId === 7 || item.eventTypeId === 8) return activityFilters.etiket;
+                    if (isContentChange(item)) return activityFilters.icerik;
+                    return activityFilters.diger;
+                  }).map((item) => (
                     <div key={`${item.type}-${item.id}`} className="px-6 py-3">
                       {item.type === 'comment' ? (
                         <div className="flex gap-2">
@@ -788,17 +824,14 @@ export default function TicketDetail() {
                   ticket.ticketLabels.map((tl) => (
                     <span
                       key={tl.labelId || tl.label?.id}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-surface-100 text-surface-700"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full text-white"
+                      style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
                     >
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: tl.label?.colorHex || '#6B7280' }}
-                      />
                       {tl.label?.name}
                       {canEditTickets && (
                         <button
                           onClick={() => handleRemoveLabel(tl.labelId || tl.label?.id)}
-                          className="p-0.5 hover:text-danger transition-colors cursor-pointer"
+                          className="p-0.5 hover:text-white/70 transition-colors cursor-pointer"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -1069,5 +1102,6 @@ function formatDateTime(dateStr) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Europe/Istanbul',
   });
 }
