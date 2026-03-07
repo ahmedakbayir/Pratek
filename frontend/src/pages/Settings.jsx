@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Save, Bell, Globe, Palette, Shield } from 'lucide-react';
 import Header from '../components/Header';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Settings() {
   const [saved, setSaved] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState({
     siteName: 'Pratek',
     language: 'tr',
     emailNotifications: true,
     ticketNotifications: true,
     assignNotifications: true,
-    theme: 'light',
   });
 
   const update = (key) => (e) => {
@@ -87,7 +88,7 @@ export default function Settings() {
               <label className="block text-sm font-medium text-surface-700 mb-1.5">
                 Tema
               </label>
-              <select value={settings.theme} onChange={update('theme')} className="input-field">
+              <select value={theme} onChange={(e) => setTheme(e.target.value)} className="input-field">
                 <option value="light">Açık</option>
                 <option value="dark">Koyu</option>
                 <option value="system">Sistem</option>

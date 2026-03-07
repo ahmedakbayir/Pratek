@@ -4,7 +4,7 @@ export default function StatsCard({ icon: Icon, label, value, change, subtitle, 
       className={`rounded-lg border p-4 transition-colors ${
         highlighted
           ? 'bg-gradient-to-br from-primary-50 to-orange-50 border-primary-200'
-          : 'bg-white border-surface-200 hover:border-surface-300'
+          : 'bg-surface-0 border-surface-200 hover:border-surface-300'
       }`}
     >
       <div className="flex items-center justify-between mb-3">
