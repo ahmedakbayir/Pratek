@@ -530,30 +530,56 @@ export default function TicketDetail() {
                           <MessageSquare className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 text-xs text-surface-500 mb-1">
+                              <span className="text-surface-400 shrink-0">{formatDateTime(item.actionDate)}</span>
                               <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
-                              <span>yorum ekledi</span>
-                              <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
+                              <span>tarafından yorum eklendi</span>
                             </div>
                             <div className="text-sm text-surface-700 bg-surface-50 rounded-lg px-3 py-2">
                               {renderWithHashtags(item.description, navigate)}
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-xs text-surface-500">
+                      ) : isContentChange(item) ? (
+                        <div>
+                          <div className="flex items-center gap-2 text-xs text-surface-500 mb-2">
+                            <span className="text-surface-400 shrink-0">{formatDateTime(item.actionDate)}</span>
+                            <ActivityIcon eventTypeId={item.eventTypeId} />
+                            <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
+                            <span>tarafından {renderWithHashtags(item.description, navigate)}</span>
+                          </div>
+                          <ContentDiff oldValue={item.oldValue} newValue={item.newValue} />
+                        </div>
+                      ) : isFieldChange(item) ? (
+                        <div className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 ${getActivityBgColor(item)}`}>
+                          <span className="text-surface-400 shrink-0">{formatDateTime(item.actionDate)}</span>
                           <ActivityIcon eventTypeId={item.eventTypeId} />
                           <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
-                          <span>{renderWithHashtags(item.description, navigate)}</span>
+                          <span className="text-surface-600">tarafından {renderWithHashtags(item.description, navigate)}</span>
                           {item.oldValue && (
                             <span className="line-through text-surface-400">{item.oldValue}</span>
                           )}
-                          {item.newValue && (
-                            <>
-                              <span className="text-surface-400">→</span>
-                              <span className="font-medium text-surface-800">{item.newValue}</span>
-                            </>
+                          {item.oldValue && item.newValue && (
+                            <span className="text-surface-400">→</span>
                           )}
-                          <span className="text-surface-400 ml-auto">{formatDateTime(item.actionDate)}</span>
+                          {item.newValue && (
+                            <span className="font-medium text-surface-800">{item.newValue}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-surface-500">
+                          <span className="text-surface-400 shrink-0">{formatDateTime(item.actionDate)}</span>
+                          <ActivityIcon eventTypeId={item.eventTypeId} />
+                          <span className="font-medium text-surface-700">{item.user?.name || 'Sistem'}</span>
+                          <span>tarafından {renderWithHashtags(item.description, navigate)}</span>
+                          {item.oldValue && (
+                            <span className="line-through text-surface-400">{item.oldValue}</span>
+                          )}
+                          {item.oldValue && item.newValue && (
+                            <span className="text-surface-400">→</span>
+                          )}
+                          {item.newValue && (
+                            <span className="font-medium text-surface-800">{item.newValue}</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -822,6 +848,80 @@ export default function TicketDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Check if this activity item is a field change that should have background color
+function isFieldChange(item) {
+  // Label add/remove, firm/product/person changes, status, priority, assignment
+  const fieldChangeTypes = [3, 5, 6, 7, 8, 11, 12];
+  if (fieldChangeTypes.includes(item.eventTypeId)) return true;
+  // TicketUpdated (2) with specific field descriptions
+  if (item.eventTypeId === 2 && item.description && item.description !== 'Ticket güncellendi') {
+    const fieldDescriptions = ['Firma değiştirildi', 'Ürün değiştirildi', 'Başlık değiştirildi', 'Bitiş tarihi değiştirildi', 'Kapsam değiştirildi'];
+    return fieldDescriptions.some(d => item.description.includes(d));
+  }
+  return false;
+}
+
+// Check if this is a content/body change that should show diff
+function isContentChange(item) {
+  return item.eventTypeId === 2 && item.description === 'İçerik güncellendi';
+}
+
+// Get background color class for field change activities
+function getActivityBgColor(item) {
+  switch (item.eventTypeId) {
+    case 7: return 'bg-violet-50'; // Label added
+    case 8: return 'bg-rose-50'; // Label removed
+    case 3: return 'bg-blue-50'; // Assigned
+    case 11: return 'bg-rose-50'; // Unassigned
+    case 5: return 'bg-amber-50'; // Status changed
+    case 6: return 'bg-orange-50'; // Priority changed
+    case 12: return 'bg-emerald-50'; // Reopened
+    case 4: return 'bg-slate-50'; // Closed
+    case 2: {
+      // Field-specific colors for TicketUpdated
+      if (item.description?.includes('Firma')) return 'bg-indigo-50';
+      if (item.description?.includes('Ürün')) return 'bg-teal-50';
+      if (item.description?.includes('Başlık')) return 'bg-sky-50';
+      if (item.description?.includes('Bitiş')) return 'bg-purple-50';
+      return 'bg-surface-50';
+    }
+    default: return 'bg-surface-50';
+  }
+}
+
+// Simple HTML to text converter for diff display
+function stripHtml(html) {
+  if (!html) return '';
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
+
+// Content diff component
+function ContentDiff({ oldValue, newValue }) {
+  const oldText = stripHtml(oldValue || '');
+  const newText = stripHtml(newValue || '');
+
+  if (!oldText && !newText) return null;
+
+  return (
+    <div className="text-xs rounded-lg border border-surface-200 overflow-hidden">
+      {oldText && (
+        <div className="bg-red-50 px-3 py-2 border-b border-surface-200">
+          <span className="text-red-600 font-medium mr-2">Eski:</span>
+          <span className="text-red-700 whitespace-pre-wrap break-words">{oldText.length > 500 ? oldText.slice(0, 500) + '...' : oldText}</span>
+        </div>
+      )}
+      {newText && (
+        <div className="bg-green-50 px-3 py-2">
+          <span className="text-green-600 font-medium mr-2">Yeni:</span>
+          <span className="text-green-700 whitespace-pre-wrap break-words">{newText.length > 500 ? newText.slice(0, 500) + '...' : newText}</span>
+        </div>
+      )}
     </div>
   );
 }

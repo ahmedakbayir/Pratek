@@ -58,6 +58,75 @@ namespace Pratek.Controllers
             });
         }
 
+        // Compute active labels for a ticket from TicketLabelHistory
+        private async Task<List<object>> GetActiveLabels(int ticketId)
+        {
+            var labelHistory = await _context.TicketLabelHistories
+                .Where(lh => lh.TicketId == ticketId)
+                .Include(lh => lh.Label)
+                .OrderBy(lh => lh.Id)
+                .ToListAsync();
+
+            // Group by LabelId, take the last action for each label
+            var activeLabels = labelHistory
+                .GroupBy(lh => lh.LabelId)
+                .Where(g => g.Last().ActionType == true)
+                .Select(g => {
+                    var last = g.Last();
+                    return new {
+                        labelId = last.LabelId,
+                        label = last.Label != null ? new {
+                            id = last.Label.Id,
+                            name = last.Label.Name,
+                            colorHex = last.Label.ColorHex,
+                            description = last.Label.Description
+                        } : null
+                    };
+                })
+                .Cast<object>()
+                .ToList();
+
+            return activeLabels;
+        }
+
+        // Return ticket with active labels
+        private async Task<object?> GetTicketWithLabels(int ticketId)
+        {
+            var ticket = await _context.Tickets
+                .Include(t => t.Firm)
+                .Include(t => t.AssignedUser)
+                .Include(t => t.CreatedUser)
+                .Include(t => t.Status)
+                .Include(t => t.Priority)
+                .Include(t => t.Product)
+                .FirstOrDefaultAsync(t => t.Id == ticketId);
+
+            if (ticket == null) return null;
+
+            var ticketLabels = await GetActiveLabels(ticketId);
+
+            return new {
+                ticket.Id,
+                ticket.Title,
+                ticket.Content,
+                ticket.DueDate,
+                ticket.AssignedUserId,
+                ticket.CreatedUserId,
+                ticket.FirmId,
+                ticket.PriorityId,
+                ticket.ProductId,
+                ticket.StatusId,
+                ticket.Scope,
+                assignedUser = ticket.AssignedUser,
+                createdUser = ticket.CreatedUser,
+                firm = ticket.Firm,
+                priority = ticket.Priority,
+                status = ticket.Status,
+                product = ticket.Product,
+                ticketLabels = ticketLabels
+            };
+        }
+
         // --------------------------------------------------
         // GET ALL
         // --------------------------------------------------
@@ -74,7 +143,34 @@ namespace Pratek.Controllers
                 .OrderByDescending(t => t.Id)
                 .ToListAsync();
 
-            return Ok(tickets);
+            // Add labels for each ticket
+            var result = new List<object>();
+            foreach (var ticket in tickets)
+            {
+                var ticketLabels = await GetActiveLabels(ticket.Id);
+                result.Add(new {
+                    ticket.Id,
+                    ticket.Title,
+                    ticket.Content,
+                    ticket.DueDate,
+                    ticket.AssignedUserId,
+                    ticket.CreatedUserId,
+                    ticket.FirmId,
+                    ticket.PriorityId,
+                    ticket.ProductId,
+                    ticket.StatusId,
+                    ticket.Scope,
+                    assignedUser = ticket.AssignedUser,
+                    createdUser = ticket.CreatedUser,
+                    firm = ticket.Firm,
+                    priority = ticket.Priority,
+                    status = ticket.Status,
+                    product = ticket.Product,
+                    ticketLabels = ticketLabels
+                });
+            }
+
+            return Ok(result);
         }
 
         // --------------------------------------------------
@@ -109,19 +205,11 @@ namespace Pratek.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
-            var ticket = await _context.Tickets
-                .Include(t => t.Firm)
-                .Include(t => t.AssignedUser)
-                .Include(t => t.CreatedUser)
-                .Include(t => t.Status)
-                .Include(t => t.Priority)
-                .Include(t => t.Product)
-                .FirstOrDefaultAsync(t => t.Id == id);
-
-            if (ticket == null)
+            var result = await GetTicketWithLabels(id);
+            if (result == null)
                 return NotFound();
 
-            return Ok(ticket);
+            return Ok(result);
         }
 
         // --------------------------------------------------
@@ -137,16 +225,8 @@ namespace Pratek.Controllers
             LogEvent(model.Id, 1, model.CreatedUserId, $"Ticket oluşturuldu: {model.Title}");
             await _context.SaveChangesAsync();
 
-            var created = await _context.Tickets
-                .Include(t => t.Firm)
-                .Include(t => t.AssignedUser)
-                .Include(t => t.CreatedUser)
-                .Include(t => t.Status)
-                .Include(t => t.Priority)
-                .Include(t => t.Product)
-                .FirstOrDefaultAsync(t => t.Id == model.Id);
-
-            return Ok(created);
+            var result = await GetTicketWithLabels(model.Id);
+            return Ok(result);
         }
 
         // --------------------------------------------------
@@ -167,7 +247,6 @@ namespace Pratek.Controllers
                 return NotFound();
 
             var userId = model.CreatedUserId ?? GetCurrentUserId();
-            var hasGeneralUpdate = false;
 
             // --- Status change ---
             if (model.StatusId != ticket.StatusId)
@@ -217,16 +296,57 @@ namespace Pratek.Controllers
                 }
             }
 
-            // --- General field changes ---
-            if (model.Title != ticket.Title) hasGeneralUpdate = true;
-            if (model.Content != ticket.Content) hasGeneralUpdate = true;
-            if (model.FirmId != ticket.FirmId) hasGeneralUpdate = true;
-            if (model.ProductId != ticket.ProductId) hasGeneralUpdate = true;
-            if (model.DueDate != ticket.DueDate) hasGeneralUpdate = true;
-            if (model.Scope != ticket.Scope) hasGeneralUpdate = true;
+            // --- Firm change (granular) ---
+            if (model.FirmId != ticket.FirmId)
+            {
+                var oldFirmName = ticket.Firm?.Name ?? ticket.FirmId?.ToString();
+                string? newFirmName = null;
+                if (model.FirmId.HasValue)
+                {
+                    var newFirm = await _context.Firms.FindAsync(model.FirmId.Value);
+                    newFirmName = newFirm?.Name ?? model.FirmId?.ToString();
+                }
+                LogEvent(ticket.Id, 2, userId, "Firma değiştirildi", oldFirmName, newFirmName);
+            }
 
-            if (hasGeneralUpdate)
-                LogEvent(ticket.Id, 2, userId, "Ticket güncellendi");
+            // --- Product change (granular) ---
+            if (model.ProductId != ticket.ProductId)
+            {
+                var oldProductName = ticket.Product?.Name ?? ticket.ProductId?.ToString();
+                string? newProductName = null;
+                if (model.ProductId.HasValue)
+                {
+                    var newProduct = await _context.Products.FindAsync(model.ProductId.Value);
+                    newProductName = newProduct?.Name ?? model.ProductId?.ToString();
+                }
+                LogEvent(ticket.Id, 2, userId, "Ürün değiştirildi", oldProductName, newProductName);
+            }
+
+            // --- Title change ---
+            if (model.Title != ticket.Title)
+            {
+                LogEvent(ticket.Id, 2, userId, "Başlık değiştirildi", ticket.Title, model.Title);
+            }
+
+            // --- Content change ---
+            if (model.Content != ticket.Content)
+            {
+                LogEvent(ticket.Id, 2, userId, "İçerik güncellendi", ticket.Content, model.Content);
+            }
+
+            // --- DueDate change ---
+            if (model.DueDate != ticket.DueDate)
+            {
+                var oldDate = ticket.DueDate?.ToString("dd.MM.yyyy");
+                var newDate = model.DueDate?.ToString("dd.MM.yyyy");
+                LogEvent(ticket.Id, 2, userId, "Bitiş tarihi değiştirildi", oldDate, newDate);
+            }
+
+            // --- Scope change ---
+            if (model.Scope != ticket.Scope)
+            {
+                LogEvent(ticket.Id, 2, userId, "Kapsam değiştirildi", ticket.Scope, model.Scope);
+            }
 
             // Apply all field updates
             ticket.Title = model.Title;
@@ -241,16 +361,8 @@ namespace Pratek.Controllers
 
             await _context.SaveChangesAsync();
 
-            var updated = await _context.Tickets
-                .Include(t => t.Firm)
-                .Include(t => t.AssignedUser)
-                .Include(t => t.CreatedUser)
-                .Include(t => t.Status)
-                .Include(t => t.Priority)
-                .Include(t => t.Product)
-                .FirstOrDefaultAsync(t => t.Id == id);
-
-            return Ok(updated);
+            var result = await GetTicketWithLabels(id);
+            return Ok(result);
         }
 
         // --------------------------------------------------
@@ -509,7 +621,7 @@ namespace Pratek.Controllers
                     ActionDate = lh.ActionDate ?? DateTime.MinValue,
                     EventType = isAdded ? "TicketLabelAdded" : "TicketLabelRemoved",
                     EventTypeId = isAdded ? 7 : 8,
-                    Description = isAdded ? $"Etiket eklendi: {lh.Label?.Name}" : $"Etiket kaldırıldı: {lh.Label?.Name}",
+                    Description = isAdded ? "Etiket eklendi" : "Etiket kaldırıldı",
                     OldValue = isAdded ? null : lh.Label?.Name,
                     NewValue = isAdded ? lh.Label?.Name : null,
                     User = lh.User != null ? new ActivityUser { Id = lh.User.Id, Name = lh.User.Name, AvatarUrl = lh.User.AvatarUrl } : null,
