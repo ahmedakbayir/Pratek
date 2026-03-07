@@ -1,80 +1,46 @@
 using Microsoft.EntityFrameworkCore;
 using Pratek.Data;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. JSON Ayarları: Tüm C# property'leri Frontend için otomatik camelCase'e dönüştürülür.
 builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
+    .AddJsonOptions(options => 
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// 2. CORS Ayarları
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
         policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
+// 3. Veritabanı Bağlantısı (SQLite)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
 var app = builder.Build();
 
-// Auto-create database on startup
+// 4. Veritabanı Otomatik Migration (Eski, ilkel SQL sorguları silindi)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-
-    string[] migrations = new[]
-    {
-        "ALTER TABLE Ticket ADD COLUMN Scope TEXT",
-        "ALTER TABLE TicketPriority ADD COLUMN ColorHex TEXT",
-        "ALTER TABLE TicketStatus ADD COLUMN ColorHex TEXT",
-        "ALTER TABLE Privilege ADD COLUMN ColorHex TEXT",
-        "ALTER TABLE Firm ADD COLUMN AvatarUrl TEXT",
-        "ALTER TABLE Product ADD COLUMN AvatarUrl TEXT",
-    };
-    foreach (var sql in migrations)
-    {
-        try { db.Database.ExecuteSqlRaw(sql); }
-        catch { /* Column already exists */ }
-    }
-
-    // Seed TicketEventTypes
-    var eventTypes = new Dictionary<int, string>
-    {
-        { 1, "TicketCreated" },
-        { 2, "TicketUpdated" },
-        { 3, "TicketAssigned" },
-        { 4, "TicketClosed" },
-        { 5, "TicketStatusChanged" },
-        { 6, "TicketPriorityChanged" },
-        { 7, "TicketLabelAdded" },
-        { 8, "TicketLabelRemoved" },
-        { 9, "TicketCommentAdded" },
-        { 10, "TicketCommentRemoved" },
-        { 11, "TicketUnassigned" },
-        { 12, "TicketReopened" },
-        { 13, "TicketDeleted" },
-    };
-    foreach (var (etId, etName) in eventTypes)
-    {
-        var exists = db.TicketEventTypes.Find(etId);
-        if (exists == null)
-        {
-            db.TicketEventTypes.Add(new Pratek.Models.TicketEventType { Id = etId, Name = etName });
-        }
-        else if (exists.Name != etName)
-        {
-            exists.Name = etName;
-        }
-    }
-    db.SaveChanges();
+    db.Database.Migrate(); // Tabloları ve Seed (tohum) verilerini oluşturur veya günceller
 }
 
+// 5. Dosya Yükleme Klasörü Kontrolü
 var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "Uploads");
 Directory.CreateDirectory(uploadsPath);
 
+// 6. Global Hata Yakalama (Middleware)
 app.Use(async (context, next) =>
 {
     try
@@ -108,6 +74,7 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.MapControllers();
 
+// 7. Dosya Yükleme API'si
 app.MapPost("/api/upload", async (HttpContext context) =>
 {
     var file = context.Request.Form.Files.FirstOrDefault();

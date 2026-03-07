@@ -212,6 +212,23 @@ namespace Pratek.Data
                 .WithMany()
                 .HasForeignKey(u => u.PrivilegeId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TicketEventType>().HasData(
+                new TicketEventType { Id = 1, Name = "TicketCreated" },
+                new TicketEventType { Id = 2, Name = "TicketUpdated" },
+                new TicketEventType { Id = 3, Name = "TicketAssigned" },
+                new TicketEventType { Id = 4, Name = "TicketClosed" },
+                new TicketEventType { Id = 5, Name = "TicketStatusChanged" },
+                new TicketEventType { Id = 6, Name = "TicketPriorityChanged" },
+                new TicketEventType { Id = 7, Name = "TicketLabelAdded" },
+                new TicketEventType { Id = 8, Name = "TicketLabelRemoved" },
+                new TicketEventType { Id = 9, Name = "TicketCommentAdded" },
+                new TicketEventType { Id = 10, Name = "TicketCommentRemoved" },
+                new TicketEventType { Id = 11, Name = "TicketUnassigned" },
+                new TicketEventType { Id = 12, Name = "TicketReopened" },
+                new TicketEventType { Id = 13, Name = "TicketDeleted" }
+            );
         }
     }
+
 }
