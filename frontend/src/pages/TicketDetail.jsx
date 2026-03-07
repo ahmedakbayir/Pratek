@@ -888,7 +888,7 @@ export default function TicketDetail() {
 // Check if this activity item is a field change that should have background color
 function isFieldChange(item) {
   // Label add/remove, firm/product/person changes, status, priority, assignment
-  const fieldChangeTypes = [3, 5, 6, 7, 8, 11, 12];
+  const fieldChangeTypes = [3, 5, 6, 11, 12];
   if (fieldChangeTypes.includes(item.eventTypeId)) return true;
   // TicketUpdated (2) with specific field descriptions
   if (item.eventTypeId === 2 && item.description && item.description !== 'Ticket güncellendi') {
@@ -1096,7 +1096,10 @@ function renderWithHashtags(text, navigate) {
 
 function formatDateTime(dateStr) {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('tr-TR', {
+  // Backend stores UTC dates - ensure parsed as UTC by appending Z if missing
+  const hasTimezone = dateStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateStr);
+  const utcStr = hasTimezone ? dateStr : dateStr + 'Z';
+  return new Date(utcStr).toLocaleDateString('tr-TR', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
